@@ -5,8 +5,8 @@ node_js:
 sudo: required
 services:
 - docker
-install: false
-script: false
+install: true
+script: true
 deploy:
 - provider: script
   script: bash .travis/docker-release.sh

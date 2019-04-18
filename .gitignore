@@ -4,3 +4,4 @@ test
 npm-debug.log
 dev
 tests
+docker-compose.yml
