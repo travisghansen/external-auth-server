@@ -54,6 +54,9 @@ redis below).
 
 ## Launch the server
 
+If running with docker (`docker pull travisghansen/oauth-external-auth-server`)
+just launch the container with the appropraite env variables.
+
 ```
 OEAS_JWT_SIGN_SECRET="foo" \
 OEAS_PROXY_ENCRYPT_SECRET="bar" \
