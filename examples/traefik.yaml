@@ -1,0 +1,34 @@
+defaultEntryPoints = ["http"]
+
+[file]
+
+[entryPoints]
+  [entryPoints.http]
+  address = ":8000"
+    [entryPoints.http.auth.forward]
+    address = "http://127.0.0.1:8080/oauth/verify?config_token=token"
+    authResponseHeaders = ["X-Userinfo", "X-Id-Token", "X-Access-Token"]
+
+  [entryPoints.api]
+  address = ":8080"
+
+
+[api]
+entryPoint = "api"
+
+[backends]
+
+  [backends.backend1]
+
+    [backends.backend1.servers]
+      [backends.backend1.servers.server0]
+        url = "https://httpbin.org"
+        weight = 1
+
+[frontends]
+
+  [frontends.frontend1]
+    entryPoints = ["http"]
+    backend = "backend1"
+    passHostHeader = true
+    priority = 42
