@@ -60,7 +60,7 @@ function generate_csrf_id() {
   return uuidv4();
 }
 
-function get_parent_request_info(req) {
+function get_parent_request_info(configToken, req) {
   const info = {};
   info.uri = get_parent_request_uri(req);
   info.parsedUri = URI.parse(info.uri);
@@ -69,7 +69,7 @@ function get_parent_request_info(req) {
   );
   // not used currently but could be used for verify process
   info.method = req.headers["x-forwarded-method"];
-  info.authorization_redirect_uri = get_authorization_redirect_uri(info.uri);
+  info.authorization_redirect_uri = get_authorization_redirect_uri(configToken, info.uri);
 
   return info;
 }
@@ -168,11 +168,15 @@ function get_client(issuer, configToken) {
  *
  * @param {*} uri
  */
-function get_authorization_redirect_uri(uri) {
+function get_authorization_redirect_uri(configToken, uri) {
   const query = {};
   query[config.HANDLER_INDICATOR_PARAM_NAME] = "authorization_callback";
 
   console.log(config.HANDLER_INDICATOR_PARAM_NAME);
+
+  if (configToken.oeas.redirect_uri) {
+    uri = configToken.oeas.redirect_uri;
+  }
 
   const parsedURI = URI.parse(uri);
   parsedURI.query = queryString.stringify(query);

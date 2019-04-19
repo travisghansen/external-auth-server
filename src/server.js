@@ -92,7 +92,7 @@ app.get("/oauth/verify", (req, res) => {
   /**
    * reconstruct original request info from headers etc
    */
-  const parentReqInfo = utils.get_parent_request_info(req);
+  const parentReqInfo = utils.get_parent_request_info(configToken, req);
   console.log("parent request info: %j", parentReqInfo);
 
   const configAudMD5 = configToken.audMD5;
@@ -222,6 +222,7 @@ app.get("/oauth/verify", (req, res) => {
             .then(client => {
               const response_type = "code";
               const compare_redirect_uri = utils.get_authorization_redirect_uri(
+                configToken,
                 decodedState.request_uri
               );
 

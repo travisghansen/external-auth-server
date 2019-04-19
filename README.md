@@ -3,8 +3,8 @@
 `oeas` (pronounced oh-eez) is primarily focused on lowering the barrier to
 using `OpenID Connect` in a kubernetes environment (but it works with any
 reverse proxy supporting external/forward auth). `oeas` can be deployed once
-and protect many services. The goal is to make enabling authentication as easy
-as
+and protect many services using disperse authentication providers. The goal is
+to make enabling authentication as easy as
 
 1. generating a new `config_token` (see below)
 1. adding an `annotation` to an `Ingress` with the `config_token`
@@ -31,9 +31,6 @@ _before_ configuring `oeas`. `oeas` currently implements the
 ## Prerequisites
 
 - `oeas` must be able to access `OIDC Provider`
-
-- `OIDC Provider` should support callbacks using wildcards (`*`) (otherwise
-  `oeas` will be of limited use)
 
 - `user-agent` must be able to access `OIDC Provider`
 - `user-agent` must be able to access `proxy`
@@ -99,8 +96,8 @@ Configure the external auth URL to point to the services `/oauth/verify`
 endpoint. The URL supports the following query params:
 
 - `config_token=the encrypted configuration token`
-- `redirect_http_code=code` (to overcome nginx external auth module limitations
-  and should be set to `401`, otherwise omitted)
+- `redirect_http_code=code` (only use with nginx to overcome external auth
+  module limitations (should be set to `401`), otherwise omitted)
 
 ## redis
 
@@ -161,7 +158,7 @@ Development goals:
 - configuration for custom assertions (lodash?)
 - allow for built-in assertions (`config_token`)
 - allow for run-time (ie: URL params) assertions
-- configuration for turning on/off redirects (probably a query param like `redirect_http_code`)
+- configuration for turning on/off redirects (probably a query param like `redirect_http_code`) (this may simply be a verify_strategy)
 - nonce?
 - config_token revocation (blacklist specific jti's)
 - support for verifying Bearer requests/tokens
@@ -170,6 +167,8 @@ Development goals:
 - implement proper logger solution
 - support self-signed certs
 - document proper annotations for common ingress controllers (traefik, nginx, ambassador, etc)
+- Authorization header with id_token for kube-dashboard
+- ~~support static redirect URI (https://gitlab.com/gitlab-org/gitlab-ce/issues/48707)~~
 
 ## 0.1.0
 
@@ -189,12 +188,12 @@ Development goals:
 - ~~proper ttl for cached sessions~~
 - ~~state csrf cookie check~~
 - ~~support redis configuration~~
-- build docker images and publish to docker hub
+- ~~build docker images and publish to docker hub~~
 
 - fixup refresh_access_token config option name
 - fixup introspect access_token config option name?
 - figure out why discovery requests are not being cached by the client
-- figure out refresh token when URL has changed
+- ~~figure out refresh token when URL has changed~~
 - implement verify_strategy (cookie_only, bearer, cookie+token(s), etc)
 
 # Links

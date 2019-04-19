@@ -50,6 +50,17 @@ let config_token = {
       //registration_access_token: "",
     },
     /**
+     * static redirect URI
+     * if your oauth provider does not support wildcards place the URL configured in the provider (that will return to this proper service) here
+     * 
+     * by default this will automatically generate a URI based on the original request
+     * 
+     * NOTE: oeas will still automatically redirect you to the original resource even if this value is statically set
+     * NOTE: it *must* match the domain name of the target service otherwise cookie cannot be set appropriately
+     */
+    //redirect_uri: "http://localhost:8000",
+
+    /**
      * openid is required
      */
     scopes: ["openid", "email", "profile"],
