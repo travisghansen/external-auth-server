@@ -108,12 +108,12 @@ set the `config_token` `redirect_uri` to the `oeas` service at the
 
 ## redis
 
-No support for sentinel currently, see `bin/generate-cache-opts.js` with further options.
+No support for sentinel currently, see `bin/generate-store-opts.js` with further options.
 
 - https://www.npmjs.com/package/redis#options-object-properties
 
 ```
-OEAS_CACHE_OPTS='{"store":"redis","host":"localhost"}'
+OEAS_STORE_OPTS='{"store":"redis","host":"localhost"}'
 ```
 
 # Design

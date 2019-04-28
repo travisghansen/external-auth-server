@@ -1,7 +1,7 @@
 var cacheManager = require("cache-manager");
 var redisStore = require("cache-manager-redis-store");
 
-let cacheOpts = process.env["OEAS_CACHE_OPTS"];
+let cacheOpts = process.env["OEAS_STORE_OPTS"];
 if (cacheOpts) {
   cacheOpts = JSON.parse(cacheOpts);
 } else {
