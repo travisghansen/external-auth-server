@@ -3,28 +3,20 @@ const bodyParser = require("body-parser");
 const config = require("./config");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
+const queryString = require("query-string");
+const requestHelpers = require("./request-helpers");
+const secrets = require("./secrets");
 const store = require("./store");
 const { TokenSet } = require("openid-client");
+const URI = require("uri-js");
 const utils = require("./utils");
 
-const jwt_sign_secret =
-  process.env.OEAS_JWT_SIGN_SECRET ||
-  utils.exit_failure("missing OEAS_JWT_SIGN_SECRET env variable");
-const proxy_encrypt_secret =
-  process.env.OEAS_PROXY_ENCRYPT_SECRET ||
-  utils.exit_failure("missing OEAS_PROXY_ENCRYPT_SECRET env variable");
-const issuer_encrypt_secret =
-  process.env.OEAS_ISSUER_ENCRYPT_SECRET ||
-  utils.exit_failure("missing OEAS_ISSUER_ENCRYPT_SECRET env variable");
-const session_encrypt_secret =
-  process.env.OEAS_SESSION_ENCRYPT_SECRET ||
-  utils.exit_failure("missing OEAS_SESSION_ENCRYPT_SECRET env variable");
-const cookie_sign_secret =
-  process.env.OEAS_COOKIE_SIGN_SECRET ||
-  utils.exit_failure("missing OEAS_COOKIE_SIGN_SECRET env variable");
-const cookie_encrypt_secret =
-  process.env.OEAS_COOKIE_ENCRYPT_SECRET ||
-  utils.exit_failure("missing OEAS_COOKIE_ENCRYPT_SECRET env variable");
+const jwt_sign_secret = secrets.jwt_sign_secret;
+const proxy_encrypt_secret = secrets.proxy_encrypt_secret;
+const issuer_encrypt_secret = secrets.issuer_encrypt_secret;
+const session_encrypt_secret = secrets.session_encrypt_secret;
+const cookie_sign_secret = secrets.cookie_sign_secret;
+const cookie_encrypt_secret = secrets.cookie_encrypt_secret;
 
 //Issuer.defaultHttpOptions = { timeout: 2500, headers: { 'X-Your-Header': '<whatever>' } };
 
@@ -71,7 +63,7 @@ app.use(cookieParser(cookie_sign_secret));
  * authentication.
  */
 app.get("/oauth/verify", (req, res) => {
-  //console.log(req);
+  console.log(req);
 
   /**
    * pull the config token
@@ -184,211 +176,13 @@ app.get("/oauth/verify", (req, res) => {
         parentReqInfo.parsedQuery.state
       );
       const decodedState = jwt.verify(state, jwt_sign_secret);
-      console.log("decoded state: %j", decodedState);
-
-      /**
-       * check for csrf cookie presense
-       */
-      if (!req.signedCookies[config.STATE_CSRF_COOKIE_NAME]) {
-        res.statusCode = 503;
-        res.end();
-        return;
-      }
-
-      /**
-       * validate csrf token
-       */
-      if (
-        decodedState.csrf !=
-        utils.decrypt(
-          cookie_encrypt_secret,
-          req.signedCookies[config.STATE_CSRF_COOKIE_NAME]
-        )
-      ) {
-        res.statusCode = 503;
-        res.end();
-        return;
-      }
-
-      console.log("begin token fetch with authorization code");
-
-      utils
-        .get_issuer(configToken)
-        .then(issuer => {
-          //console.log("Discovered issuer %s %O", issuer.issuer, issuer.metadata);
-
-          utils
-            .get_client(issuer, configToken)
-            .then(client => {
-              const response_type = "code";
-              const compare_redirect_uri = utils.get_authorization_redirect_uri(
-                configToken,
-                decodedState.request_uri
-              );
-
-              console.log("compare_redirect_uri: %s", compare_redirect_uri);
-              client
-                .authorizationCallback(
-                  compare_redirect_uri,
-                  parentReqInfo.parsedQuery,
-                  {
-                    state: parentReqInfo.parsedQuery.state,
-                    response_type
-                  }
-                )
-                .then(tokenSet => {
-                  const session_id = utils.generate_session_id();
-                  console.log("creating new session: %s", session_id);
-                  console.log("received and validated tokens %j", tokenSet);
-                  console.log("validated id_token claims %j", tokenSet.claims);
-
-                  /**
-                   * only id_token is guaranteed to be a jwt
-                   */
-                  let idToken;
-                  if (tokenSet.refresh_token) {
-                    console.log("refresh_token %j", tokenSet.refresh_token);
-                  }
-
-                  if (tokenSet.access_token) {
-                    console.log("access_token %j", tokenSet.access_token);
-                  }
-
-                  if (tokenSet.id_token) {
-                    idToken = jwt.decode(tokenSet.id_token);
-                    console.log("id_token %j", idToken);
-                  }
-
-                  let tokenExpiresAt, cookieExpiresAt;
-                  if (tokenSet.expires_at) {
-                    tokenExpiresAt = tokenSet.expires_at * 1000;
-                  } else if (idToken) {
-                    if (idToken.exp) {
-                      tokenExpiresAt = idToken.exp * 1000;
-                    }
-                  }
-
-                  let promise;
-                  let sessionPayload = {
-                    tokenSet,
-                    aud: configAudMD5
-                  };
-
-                  const promises = [];
-
-                  if (configToken.oeas.features.fetch_userinfo) {
-                    promise = client
-                      .userinfo(tokenSet)
-                      .then(userInfo => {
-                        console.log("userinfo %j", userInfo);
-                        sessionPayload.userInfo = userInfo;
-                      })
-                      .catch(e => {
-                        console.log(e);
-                        res.statusCode = 503;
-                        res.end();
-                      });
-
-                    promises.push(promise);
-                  }
-
-                  Promise.all(promises)
-                    .then(() => {
-                      /**
-                       * seconds to keep backend cache
-                       */
-                      const ttl = (tokenExpiresAt - Date.now()) / 1000;
-                      return store.set(
-                        config.SESSION_CACHE_PREFIX + session_id,
-                        utils.encrypt(
-                          session_encrypt_secret,
-                          JSON.stringify(sessionPayload)
-                        ),
-                        ttl
-                      );
-                    })
-                    .then(() => {
-                      /**
-                       * set expiry if enabled
-                       */
-                      if (configToken.oeas.features.set_cookie_expiry) {
-                        cookieExpiresAt = tokenExpiresAt;
-                      } else {
-                        cookieExpiresAt = null;
-                      }
-
-                      res.cookie(configCookieName, session_id, {
-                        domain: configToken.oeas.cookie.domain,
-                        path: configToken.oeas.cookie.path,
-                        /**
-                         * if omitted will be a 'session' cookie
-                         */
-                        expires: cookieExpiresAt
-                          ? new Date(cookieExpiresAt)
-                          : null,
-                        httpOnly: true, //kills js access
-                        signed: true
-                      });
-
-                      /**
-                       * remove the csrf cookie
-                       */
-                      res.clearCookie(config.STATE_CSRF_COOKIE_NAME);
-
-                      console.log(
-                        "redirecting to original resource: %s",
-                        decodedState.request_uri
-                      );
-
-                      res.statusCode = redirectHttpCode;
-                      res.setHeader("Location", decodedState.request_uri);
-                      res.end();
-                    })
-                    .catch(e => {
-                      console.log(e);
-                      res.statusCode = 503;
-                      res.end();
-                    });
-                })
-                .catch(e => {
-                  console.log(e);
-                  console.log(e.name);
-                  if (e.name) {
-                    switch (e.name) {
-                      case "OpenIdConnectError":
-                        console.log(`${e.error} (${e.error_description})`);
-                        switch (e.error) {
-                          case "invalid_grant":
-                            res.statusCode = redirectHttpCode;
-                            res.setHeader("Location", decodedState.request_uri);
-                            res.end();
-                            return;
-                            break;
-                        }
-                        break;
-                    }
-
-                    res.statusCode = 503;
-                    res.statusMessage = e.error_description;
-                    res.end();
-                    return;
-                  }
-
-                  res.statusCode = 503;
-                  res.end();
-                });
-            })
-            .catch(e => {
-              console.log(e);
-              res.statusCode = 503;
-              res.end();
-            });
-        })
-        .catch(e => {
-          console.log(e);
-          res.statusCode = 503;
-          res.end();
-        });
+      return requestHelpers.handle_auth_callback_request(
+        configToken,
+        req,
+        res,
+        decodedState,
+        parentReqInfo
+      );
       break;
 
     case "verify":
@@ -575,10 +369,10 @@ app.get("/oauth/verify", (req, res) => {
                         .then(tokenSet => {
                           sessionPayload.tokenSet = tokenSet;
                           if (configToken.oeas.features.fetch_userinfo) {
-                            client.userinfo(tokenSet).then(userInfo => {
-                              console.log("userinfo %j", userInfo);
+                            client.userinfo(tokenSet).then(userinfo => {
+                              console.log("userinfo %j", userinfo);
 
-                              sessionPayload.userInfo = userInfo;
+                              sessionPayload.userinfo = userinfo;
 
                               resolve();
                             });
@@ -620,7 +414,7 @@ app.get("/oauth/verify", (req, res) => {
 
             Promise.all(promises)
               .then(() => {
-                utils.prepare_token_headers(res, sessionPayload);
+                utils.prepare_token_headers(res, sessionPayload, configToken);
                 res.statusCode = 200;
                 res.end();
               })
@@ -643,6 +437,38 @@ app.get("/oauth/verify", (req, res) => {
         return;
       }
       break;
+  }
+});
+
+app.get("/oauth/callback", (req, res) => {
+  console.log(req);
+
+  try {
+    let state = utils.decrypt(issuer_encrypt_secret, req.query.state);
+    state = jwt.verify(state, jwt_sign_secret);
+    const state_redirect_uri = state.request_uri;
+    
+    const parsedStateRedirectURI = URI.parse(state_redirect_uri);
+    console.log("parsed state redirect uri: %j", parsedStateRedirectURI);
+
+    const parsedRequestURI = URI.parse(req.url);
+    console.log("parsed request uri: %j", parsedRequestURI);
+
+    const parsedRedirectURI = Object.assign({}, parsedStateRedirectURI);
+    parsedRedirectURI.query = parsedRequestURI.query;
+    console.log("parsed redirect uri: %j", parsedRedirectURI);
+
+    const redirect_uri = URI.serialize(parsedRedirectURI);
+    console.log("redirecting browser to: %j", redirect_uri);
+
+    res.statusCode = 302;
+    res.setHeader("Location", redirect_uri);
+    res.end();
+    return;
+  } catch (e) {
+    console.log("oauth/callback error: ", e);
+    res.statusCode = 503;
+    res.end();
   }
 });
 

@@ -84,7 +84,15 @@ let config_token = {
       /**
        * check token validity with provider during assertion process
        */
-      introspect_access_token: false
+      introspect_access_token: false,
+
+      /**
+       * which token (if any) to send back to the proxy as the Authorization Bearer value
+       * not the proxy must allow the token to be passed to the backend if desired
+       * 
+       * possible values are id_token, access_token, or refresh_token
+       */
+      //authorization_token: "access_token"
     },
     assertions: {
       /**

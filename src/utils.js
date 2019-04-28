@@ -40,7 +40,6 @@ function encrypt(salt, text) {
 
 function decrypt(salt, text) {
   try {
-    console.log(text);
     var decipher = crypto.createDecipher(algorithm, salt);
     var decrypted = Buffer.concat([
       decipher.update(Buffer.from(text, "base64")),
@@ -69,7 +68,10 @@ function get_parent_request_info(configToken, req) {
   );
   // not used currently but could be used for verify process
   info.method = req.headers["x-forwarded-method"];
-  info.authorization_redirect_uri = get_authorization_redirect_uri(configToken, info.uri);
+  info.authorization_redirect_uri = get_authorization_redirect_uri(
+    configToken,
+    info.uri
+  );
 
   return info;
 }
@@ -248,17 +250,31 @@ function setConfigTokenDefaults(configToken) {
 
 function validateConfigToken(configToken) {}
 
-function prepare_token_headers(res, sessionData) {
+function prepare_token_headers(res, sessionData, configToken) {
   if (sessionData.tokenSet.id_token) {
     res.header("X-Id-Token", sessionData.tokenSet.id_token);
   }
 
-  if (sessionData.userInfo) {
-    res.header("X-Userinfo", JSON.stringify(sessionData.userInfo));
+  if (sessionData.userinfo) {
+    res.header("X-Userinfo", JSON.stringify(sessionData.userinfo));
   }
 
   if (sessionData.tokenSet.access_token) {
     res.header("X-Access-Token", sessionData.tokenSet.access_token);
+  }
+
+  if (
+    configToken.oeas.features.authorization_token &&
+    ["id_token", "access_token", "refresh_token"].includes(
+      configToken.oeas.features.authorization_token
+    ) &&
+    sessionData.tokenSet[configToken.oeas.features.authorization_token]
+  ) {
+    res.header(
+      "Authorization",
+      "Bearer " +
+        sessionData.tokenSet[configToken.oeas.features.authorization_token]
+    );
   }
 }
 

@@ -90,7 +90,7 @@ address = http://<oeas server ip>:8080/oauth/verify?config_token=<token output f
 proxy_pass "http://<oeas server ip>:8080/oauth/verify?redirect_http_code=401&config_token=<token output from above>";
 ```
 
-## Endpoint
+## Endpoints
 
 Configure the external auth URL to point to the services `/oauth/verify`
 endpoint. The URL supports the following query params:
@@ -98,6 +98,10 @@ endpoint. The URL supports the following query params:
 - `config_token=the encrypted configuration token`
 - `redirect_http_code=code` (only use with nginx to overcome external auth
   module limitations (should be set to `401`), otherwise omitted)
+
+If your provider does not support wildcards you may expose `oeas` directly and
+set the `config_token` `redirect_uri` to the `oeas` service at the
+`/oauth/callback` path.
 
 ## redis
 
@@ -139,6 +143,7 @@ Development goals:
 - does not allow for deeper validation on iss/groups/other attrs/etc
 - `redirect_uri` when set on multiple hosts/routes becomes difficult
   (https://github.com/nokia/kong-oidc/issues/118)
+- not generic to work with all proxies
 
 ## oauth2_proxy
 
@@ -167,8 +172,14 @@ Development goals:
 - implement proper logger solution
 - support self-signed certs
 - document proper annotations for common ingress controllers (traefik, nginx, ambassador, etc)
-- Authorization header with id_token for kube-dashboard
+- ~~Authorization header with id_token for kube-dashboard~~
 - ~~support static redirect URI (https://gitlab.com/gitlab-org/gitlab-ce/issues/48707)~~
+- support for encyprted cookie
+- cookie as struct {id: foo, storage_type: cookie|backend}?
+- update to latest `openid-client`
+- replace `jsonwebtoken` with `@panva/jose`
+- implement verify_strategy (cookie_only, bearer, cookie+token(s), etc)
+- ensure empty body in responses
 
 ## 0.1.0
 
@@ -189,12 +200,18 @@ Development goals:
 - ~~state csrf cookie check~~
 - ~~support redis configuration~~
 - ~~build docker images and publish to docker hub~~
-
-- fixup refresh_access_token config option name
-- fixup introspect access_token config option name?
+- ~~support static `redirect_uri` for providers that do not support wildcards~~
+- ~~support `/oauth/callback` handler for the static `redirect_uri`~~
+- ~~fixup refresh_access_token config option name~~
+- ~~fixup introspect access_token config option name?~~
 - figure out why discovery requests are not being cached by the client
 - ~~figure out refresh token when URL has changed~~
-- implement verify_strategy (cookie_only, bearer, cookie+token(s), etc)
+
+
+## Ideas
+
+- allow per-path and/or per-method checks
+  (https://www.keycloak.org/docs/latest/securing_apps/index.html#_keycloak_generic_adapter)
 
 # Links
 
@@ -204,6 +221,7 @@ Development goals:
 - https://github.com/ajmyyra/ambassador-auth-oidc/blob/master/README.md
 - https://docs.microsoft.com/en-us/azure/active-directory/develop/v1-protocols-openid-connect-code
 - https://bl.duesterhus.eu/20180119/
+- https://itnext.io/protect-kubernetes-dashboard-with-openid-connect-104b9e75e39c
 
 - https://github.com/oktadeveloper/okta-kong-origin-example
 - https://connect2id.com/learn/openid-connect
@@ -231,6 +249,8 @@ Development goals:
 - https://tools.ietf.org/html/rfc6265#section-4.1.1
 - Servers SHOULD NOT include more than one Set-Cookie header field in the same response with the same cookie-name.
 - ^ why we do not allow setting the cookie on multiple domains
+
+- https://devforum.okta.com/t/oauth-2-0-authentication-and-redirect-uri-wildcards/1015/2
 
 - https://github.com/keycloak/keycloak-gatekeeper
 - https://github.com/pusher/oauth2_proxy
