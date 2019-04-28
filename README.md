@@ -116,6 +116,37 @@ No support for sentinel currently, see `bin/generate-store-opts.js` with further
 OEAS_STORE_OPTS='{"store":"redis","host":"localhost"}'
 ```
 
+## Kubernetes
+
+A `helm` chart is supplied in the repo directly.
+
+```
+helm upgrade \
+--install \
+--namespace=kube-system \
+--set jwtSignSecret=<random> \
+--set proxyEncryptSecret=<random> \
+--set issuerEncryptSecret=<random> \
+--set sessionEncryptSecret=<random> \
+--set cookieSignSecret=<random> \
+--set cookieEncryptSecret=<random> \
+--set storeOpts.store="redis" \
+--set storeOpts.host="redis.lan" \
+--set storeOpts.prefix="oeas:" \
+--set ingress.enabled=true \
+--set ingress.hosts[0]=oeas.example.com \
+--set ingress.paths[0]=/ \
+oeas ./chart/
+```
+
+Annotate a `traefik` ingress
+
+```
+ingress.kubernetes.io/auth-type: forward
+ingress.kubernetes.io/auth-url: "https://oeas.example.com/oauth/verify?config_token=CONFIG_TOKEN_HERE"
+ingress.kubernetes.io/auth-response-headers: X-Userinfo, X-Id-Token, X-Access-Token, Authorization
+```
+
 # Design
 
 Really tring to alleviate the following primary challenges:
@@ -179,10 +210,12 @@ Development goals:
 - ~~support static redirect URI (https://gitlab.com/gitlab-org/gitlab-ce/issues/48707)~~
 - support for encyprted cookie
 - cookie as struct {id: foo, storage_type: cookie|backend}?
-- update to latest `openid-client`
+- update to 3.x `openid-client`
 - replace `jsonwebtoken` with `@panva/jose`
 - implement verify_strategy (cookie_only, bearer, cookie+token(s), etc)
 - ensure empty body in responses
+- server-side `config_token`(s) to overcome URL length limits and centrally manage (provide a `config_token_id` instead)
+- redis integration into helm chart
 
 ## 0.1.0
 

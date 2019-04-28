@@ -83,6 +83,7 @@ function get_parent_request_uri(req) {
     req.headers["x-forwarded-host"] +
     req.headers["x-forwarded-uri"];
 
+    //x-forwarded-port
   /**
    * X-Forwarded-For: client, proxy1, proxy2
    * left-most being the original clien

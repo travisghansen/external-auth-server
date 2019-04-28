@@ -14,7 +14,7 @@ if (cacheOpts) {
 
 // force 0 ttl
 cacheOpts.ttl = 0;
-console.log("cache options: %j", cacheOpts);
+console.log("store options: %j", cacheOpts);
 
 switch (cacheOpts.store) {
   case "redis":
