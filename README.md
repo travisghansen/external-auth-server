@@ -34,6 +34,8 @@ _before_ configuring `oeas`. `oeas` currently implements the
 
 - `user-agent` must be able to access `OIDC Provider`
 - `user-agent` must be able to access `proxy`
+- `user-agent` must be able to access `oeas` (if `redirect_uri` is directly
+  pointing to `oeas` service `/oauth/callback` endpoint)
 
 - `proxy` must be able to access `oeas`
 - `proxy` must send `X-Forwarded-Host` (localhost:8000) to `oeas` in sub-request
@@ -42,9 +44,10 @@ _before_ configuring `oeas`. `oeas` currently implements the
 - `proxy` must send `X-Forwarded-Proto` (http) to `oeas` in sub-request
 - `proxy` should send `X-Forwarded-Method` (GET) to `oeas` in sub-request
 - `proxy` must return non `2XX` responses from `oeas` to browser
-- `proxy` should forward `2XX` auth header `X-Id-Token` to backing service
-- `proxy` should forward `2XX` auth header `X-Userinfo` to backing service
-- `proxy` should forward `2XX` auth header `X-Access-Token` to backing service
+- `proxy` may forward `2XX` auth header `X-Id-Token` to backing service
+- `proxy` may forward `2XX` auth header `X-Userinfo` to backing service
+- `proxy` may forward `2XX` auth header `X-Access-Token` to backing service
+- `proxy` may forward `2XX` auth header `Authorization` to backing service
 
 If running multiple instances (HA) you will need a shared cache/store (see
 redis below).
@@ -206,7 +209,6 @@ Development goals:
 - ~~fixup introspect access_token config option name?~~
 - figure out why discovery requests are not being cached by the client
 - ~~figure out refresh token when URL has changed~~
-
 
 ## Ideas
 

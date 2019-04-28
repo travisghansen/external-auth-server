@@ -29,6 +29,11 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser(cookie_sign_secret));
 
+app.get("/ping", (req, res) => {
+  res.statusCode = 200;
+  res.end("pong");
+});
+
 /**
  * authenticates the proxy
  * authenticates the request (should check access_token, should validated thing token/aud against config aud)
@@ -447,7 +452,7 @@ app.get("/oauth/callback", (req, res) => {
     let state = utils.decrypt(issuer_encrypt_secret, req.query.state);
     state = jwt.verify(state, jwt_sign_secret);
     const state_redirect_uri = state.request_uri;
-    
+
     const parsedStateRedirectURI = URI.parse(state_redirect_uri);
     console.log("parsed state redirect uri: %j", parsedStateRedirectURI);
 
