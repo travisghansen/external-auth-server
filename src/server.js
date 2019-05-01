@@ -3,7 +3,6 @@ const bodyParser = require("body-parser");
 const config = require("./config");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
-const queryString = require("query-string");
 const requestHelpers = require("./request-helpers");
 const secrets = require("./secrets");
 const store = require("./store");
@@ -68,7 +67,7 @@ app.get("/ping", (req, res) => {
  * authentication.
  */
 app.get("/oauth/verify", (req, res) => {
-  console.log(req);
+  //console.log(req);
 
   /**
    * pull the config token
@@ -446,7 +445,7 @@ app.get("/oauth/verify", (req, res) => {
 });
 
 app.get("/oauth/callback", (req, res) => {
-  console.log(req);
+  //console.log(req);
 
   try {
     let state = utils.decrypt(issuer_encrypt_secret, req.query.state);

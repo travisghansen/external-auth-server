@@ -240,7 +240,8 @@ Development goals:
 - ~~support `/oauth/callback` handler for the static `redirect_uri`~~
 - ~~fixup refresh_access_token config option name~~
 - ~~fixup introspect access_token config option name?~~
-- figure out why discovery requests are not being cached by the client
+- ~~figure out why discovery requests are not being cached by the client~~
+- ~~cache issuer and client objects~~
 - ~~figure out refresh token when URL has changed~~
 
 ## Ideas
@@ -257,6 +258,9 @@ Development goals:
 - https://docs.microsoft.com/en-us/azure/active-directory/develop/v1-protocols-openid-connect-code
 - https://bl.duesterhus.eu/20180119/
 - https://itnext.io/protect-kubernetes-dashboard-with-openid-connect-104b9e75e39c
+
+- https://developer.okta.com/authentication-guide/auth-overview/#authentication-api-vs-oauth-2-0-vs-openid-connect
+- https://developer.okta.com/authentication-guide/implementing-authentication/auth-code/
 
 - https://github.com/oktadeveloper/okta-kong-origin-example
 - https://connect2id.com/learn/openid-connect

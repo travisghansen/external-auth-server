@@ -1,3 +1,4 @@
+const { cache } = require("./cache");
 const config = require("./config");
 const crypto = require("crypto");
 const { Issuer } = require("openid-client");
@@ -83,7 +84,7 @@ function get_parent_request_uri(req) {
     req.headers["x-forwarded-host"] +
     req.headers["x-forwarded-uri"];
 
-    //x-forwarded-port
+  //x-forwarded-port
   /**
    * X-Forwarded-For: client, proxy1, proxy2
    * left-most being the original clien
@@ -102,6 +103,13 @@ function get_parent_request_uri(req) {
 
 function get_issuer(configToken) {
   const discover_url = configToken.oeas.issuer.discover_url;
+  const cache_key = "issuer:" + md5(discover_url);
+  const issuer = cache.get(cache_key);
+  if (issuer !== undefined) {
+    return new Promise(resolve => {
+      resolve(issuer);
+    });
+  }
   return new Promise((resolve, reject) => {
     if (discover_url) {
       Issuer.discover(discover_url)
@@ -113,6 +121,7 @@ function get_issuer(configToken) {
             //issuer.metadata
             ();
           //console.log(issuer);
+          cache.set(cache_key, issuer, config.ISSUER_CACHE_DURATION);
           resolve(issuer);
         })
         .catch(e => {
@@ -122,6 +131,7 @@ function get_issuer(configToken) {
     } else {
       const issuer = new Issuer(configToken.oeas.issuer);
       console.log("manual issuer %s %O", issuer.issuer, issuer.metadata);
+      cache.set(cache_key, issuer, config.ISSUER_CACHE_DURATION);
       resolve(issuer);
     }
   });
@@ -129,7 +139,15 @@ function get_issuer(configToken) {
 
 function get_client(issuer, configToken) {
   console.log("client config %j", configToken);
+  const cache_key = "client:" + md5(JSON.stringify(configToken));
   let client;
+
+  client = cache.get(cache_key);
+  if (client !== undefined) {
+    return new Promise(resolve => {
+      resolve(client);
+    });
+  }
   return new Promise((resolve, reject) => {
     if (
       configToken.oeas.client.client_id &&
@@ -141,6 +159,7 @@ function get_client(issuer, configToken) {
       });
       client.CLOCK_TOLERANCE = config.DEFAULT_CLIENT_CLOCK_TOLERANCE;
 
+      cache.set(cache_key, client, config.CLIENT_CACHE_DURATION);
       resolve(client);
     } else if (
       configToken.oeas.client.registration_client_uri &&
@@ -152,6 +171,8 @@ function get_client(issuer, configToken) {
       )
         .then(function(client) {
           client.CLOCK_TOLERANCE = config.DEFAULT_CLIENT_CLOCK_TOLERANCE;
+
+          cache.set(cache_key, client, config.CLIENT_CACHE_DURATION);
           resolve(client);
         })
         .catch(e => {
