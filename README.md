@@ -134,14 +134,15 @@ helm upgrade \
 --set configTokenSignSecret=<random> \
 --set proxyEncryptSecret=<random> \
 --set issuerEncryptSecret=<random> \
+--set issuerSignSecret=<random> \
 --set sessionEncryptSecret=<random> \
 --set cookieSignSecret=<random> \
 --set cookieEncryptSecret=<random> \
 --set storeOpts.store="redis" \
 --set storeOpts.host="redis.lan" \
---set storeOpts.prefix="oeas:" \
+--set storeOpts.prefix="eas:" \
 --set ingress.enabled=true \
---set ingress.hosts[0]=oeas.example.com \
+--set ingress.hosts[0]=eas.example.com \
 --set ingress.paths[0]=/ \
 eas ./chart/
 ```
