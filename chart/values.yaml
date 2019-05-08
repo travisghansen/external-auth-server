@@ -1,10 +1,11 @@
-# Default values for oeas.
+# Default values for external-auth-server.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-jwtSignSecret:
+configTokenSignSecret:
 proxyEncryptSecret:
 issuerEncryptSecret:
+issuerSignSecret:
 sessionEncryptSecret:
 cookieSignSecret:
 cookieEncryptSecret:
@@ -13,7 +14,7 @@ storeOpts:
 replicaCount: 1
 
 image:
-  repository: travisghansen/oauth-external-auth-server
+  repository: travisghansen/external-auth-server
   tag: latest
   #pullPolicy: IfNotPresent
 

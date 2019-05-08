@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "oeas.fullname" . }}
+  name: {{ include "external-auth-server.fullname" . }}
   labels:
-    app.kubernetes.io/name: {{ include "oeas.name" . }}
-    helm.sh/chart: {{ include "oeas.chart" . }}
+    app.kubernetes.io/name: {{ include "external-auth-server.name" . }}
+    helm.sh/chart: {{ include "external-auth-server.chart" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "oeas.name" . }}
+      app.kubernetes.io/name: {{ include "external-auth-server.name" . }}
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: {{ include "oeas.name" . }}
+        app.kubernetes.io/name: {{ include "external-auth-server.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
       annotations:
         checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
@@ -26,44 +26,49 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
-            - name: OEAS_PORT
+            - name: EAS_PORT
               value: "8080"
             {{- if .Values.storeOpts }}
-            - name: OEAS_STORE_OPTS
+            - name: EAS_STORE_OPTS
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "oeas.fullname" . }}
+                  name: {{ include "external-auth-server.fullname" . }}
                   key: store-opts
             {{- end }}
-            - name: OEAS_JWT_SIGN_SECRET
+            - name: EAS_CONFIG_TOKEN_SIGN_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "oeas.fullname" . }}
-                  key: jwt-sign-secret
-            - name: OEAS_PROXY_ENCRYPT_SECRET
+                  name: {{ include "external-auth-server.fullname" . }}
+                  key: config-token-sign-secret
+            - name: EAS_PROXY_ENCRYPT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "oeas.fullname" . }}
+                  name: {{ include "external-auth-server.fullname" . }}
                   key: proxy-encrypt-secret
-            - name: OEAS_ISSUER_ENCRYPT_SECRET
+            - name: EAS_ISSUER_ENCRYPT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "oeas.fullname" . }}
+                  name: {{ include "external-auth-server.fullname" . }}
                   key: issuer-encrypt-secret
-            - name: OEAS_SESSION_ENCRYPT_SECRET
+            - name: EAS_ISSUER_SIGN_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "oeas.fullname" . }}
+                  name: {{ include "external-auth-server.fullname" . }}
+                  key: issuer-sign-secret
+            - name: EAS_SESSION_ENCRYPT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "external-auth-server.fullname" . }}
                   key: session-encrypt-secret
-            - name: OEAS_COOKIE_SIGN_SECRET
+            - name: EAS_COOKIE_SIGN_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "oeas.fullname" . }}
+                  name: {{ include "external-auth-server.fullname" . }}
                   key: cookie-sign-secret
-            - name: OEAS_COOKIE_ENCRYPT_SECRET
+            - name: EAS_COOKIE_ENCRYPT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "oeas.fullname" . }}
+                  name: {{ include "external-auth-server.fullname" . }}
                   key: cookie-encrypt-secret
           ports:
             - name: http

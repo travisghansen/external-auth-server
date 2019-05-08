@@ -1,13 +1,13 @@
 {{- if .Values.ingress.enabled -}}
-{{- $fullName := include "oeas.fullname" . -}}
+{{- $fullName := include "external-auth-server.fullname" . -}}
 {{- $ingressPaths := .Values.ingress.paths -}}
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   name: {{ $fullName }}
   labels:
-    app.kubernetes.io/name: {{ include "oeas.name" . }}
-    helm.sh/chart: {{ include "oeas.chart" . }}
+    app.kubernetes.io/name: {{ include "external-auth-server.name" . }}
+    helm.sh/chart: {{ include "external-auth-server.chart" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
   {{- with .Values.ingress.annotations }}

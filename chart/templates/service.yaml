@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "oeas.fullname" . }}
+  name: {{ include "external-auth-server.fullname" . }}
   labels:
-    app.kubernetes.io/name: {{ include "oeas.name" . }}
-    helm.sh/chart: {{ include "oeas.chart" . }}
+    app.kubernetes.io/name: {{ include "external-auth-server.name" . }}
+    helm.sh/chart: {{ include "external-auth-server.chart" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
@@ -15,5 +15,5 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app.kubernetes.io/name: {{ include "oeas.name" . }}
+    app.kubernetes.io/name: {{ include "external-auth-server.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
