@@ -1,14 +1,23 @@
-# `oauth-external-auth-server`
+# `external-auth-server`
 
-`oeas` (pronounced oh-eez) is primarily focused on lowering the barrier to
-using `OpenID Connect` in a kubernetes environment (but it works with any
-reverse proxy supporting external/forward auth). `oeas` can be deployed once
-and protect many services using disperse authentication providers. The goal is
-to make enabling authentication as easy as
+`eas` (pronounced `eez`) is primarily focused on lowering the barrier to
+using various authentication schemes in a kubernetes environment (but it works
+with any reverse proxy supporting external/forward auth). `eas` can be
+deployed once and protect many services using disperse authentication methods
+and providers. The goal is to make enabling authentication as easy as:
 
 1. generating a new `config_token` (see below)
 1. adding an `annotation` to an `Ingress` with the `config_token`
 1. benefit
+
+# Authentication Plugins
+
+- htpasswd
+- LDAP
+- OpenID Connect
+- oauth2
+- request param
+- request header
 
 # Features
 
@@ -23,27 +32,22 @@ to make enabling authentication as easy as
 
 # Usage
 
-Configuring your `OIDC Provider` is presumed to be understood and accomplished
-_before_ configuring `oeas`. `oeas` currently implements the
-`Authorization Code Flow`, as such you will need a `client_id` and
-`client_secret` from your `OIDC Provider`.
-
 ## Prerequisites
 
-- `oeas` must be able to access `OIDC Provider`
+- `eas` must be able to access `OIDC Provider`
 
 - `user-agent` must be able to access `OIDC Provider`
 - `user-agent` must be able to access `proxy`
-- `user-agent` must be able to access `oeas` (if `redirect_uri` is directly
-  pointing to `oeas` service `/oauth/callback` endpoint)
+- `user-agent` must be able to access `eas` (if `redirect_uri` is directly
+  pointing to `eas` service `/oauth/callback` endpoint)
 
-- `proxy` must be able to access `oeas`
-- `proxy` must send `X-Forwarded-Host` (localhost:8000) to `oeas` in sub-request
-- `proxy` must send `X-Forwarded-Uri` (/anything/foo/bar?test=foo) to `oeas` in
+- `proxy` must be able to access `eas`
+- `proxy` must send `X-Forwarded-Host` (localhost:8000) to `eas` in sub-request
+- `proxy` must send `X-Forwarded-Uri` (/anything/foo/bar?test=foo) to `eas` in
   sub-request
-- `proxy` must send `X-Forwarded-Proto` (http) to `oeas` in sub-request
-- `proxy` should send `X-Forwarded-Method` (GET) to `oeas` in sub-request
-- `proxy` must return non `2XX` responses from `oeas` to browser
+- `proxy` must send `X-Forwarded-Proto` (http) to `eas` in sub-request
+- `proxy` should send `X-Forwarded-Method` (GET) to `eas` in sub-request
+- `proxy` must return non `2XX` responses from `eas` to browser
 - `proxy` may forward `2XX` auth header `X-Id-Token` to backing service
 - `proxy` may forward `2XX` auth header `X-Userinfo` to backing service
 - `proxy` may forward `2XX` auth header `X-Access-Token` to backing service
@@ -58,13 +62,14 @@ If running with docker (`docker pull travisghansen/oauth-external-auth-server`)
 just launch the container with the appropraite env variables.
 
 ```
-OEAS_JWT_SIGN_SECRET="foo" \
-OEAS_PROXY_ENCRYPT_SECRET="bar" \
-OEAS_ISSUER_ENCRYPT_SECRET="blah" \
-OEAS_SESSION_ENCRYPT_SECRET="baz" \
-OEAS_COOKIE_SIGN_SECRET="hello world" \
-OEAS_COOKIE_ENCRYPT_SECRET="something" \
-OEAS_PORT=8080 \
+EAS_CONFIG_TOKEN_SIGN_SECRET="foo" \
+EAS_PROXY_ENCRYPT_SECRET="bar" \
+EAS_ISSUER_ENCRYPT_SECRET="blah" \
+EAS_ISSUER_SIGN_SECRET="super secret" \
+EAS_SESSION_ENCRYPT_SECRET="baz" \
+EAS_COOKIE_SIGN_SECRET="hello world" \
+EAS_COOKIE_ENCRYPT_SECRET="something" \
+EAS_PORT=8080 \
 node src/server.js
 ```
 
@@ -74,8 +79,8 @@ node src/server.js
 # please edit the values in bin/generate-config-token.js to your situation
 # ie: issuer disovery URL, client_id, client_secret, etc
 # also make sure to use the same secrets used when launching the server
-OEAS_JWT_SIGN_SECRET="foo" \
-OEAS_PROXY_ENCRYPT_SECRET="bar" \
+EAS_CONFIG_TOKEN_SIGN_SECRET="foo" \
+EAS_PROXY_ENCRYPT_SECRET="bar" \
 node bin/generate-config-token.js
 ```
 
@@ -87,23 +92,25 @@ node bin/generate-config-token.js
 # NOTE: run over https in production
 
 # traefik
-address = http://<oeas server ip>:8080/oauth/verify?config_token=<token output from above>
+address = http://<oeas server ip>:8080/verify?config_token=<token output from above>
 
 # nginx
-proxy_pass "http://<oeas server ip>:8080/oauth/verify?redirect_http_code=401&config_token=<token output from above>";
+proxy_pass "http://<oeas server ip>:8080/verify?redirect_http_code=401&config_token=<token output from above>";
 ```
 
 ## Endpoints
 
-Configure the external auth URL to point to the services `/oauth/verify`
+Configure the external auth URL to point to the services `/verify`
 endpoint. The URL supports the following query params:
 
 - `config_token=the encrypted configuration token`
 - `redirect_http_code=code` (only use with nginx to overcome external auth
   module limitations (should be set to `401`), otherwise omitted)
+- `fallback_plugin=plugin index` if all plugins fail authentication which
+  plugin response should be returned to the client
 
-If your provider does not support wildcards you may expose `oeas` directly and
-set the `config_token` `redirect_uri` to the `oeas` service at the
+If your provider does not support wildcards you may expose `eas` directly and
+set the `config_token` `redirect_uri` to the `eas` service at the
 `/oauth/callback` path.
 
 ## redis
@@ -113,7 +120,7 @@ No support for sentinel currently, see `bin/generate-store-opts.js` with further
 - https://www.npmjs.com/package/redis#options-object-properties
 
 ```
-OEAS_STORE_OPTS='{"store":"redis","host":"localhost"}'
+EAS_STORE_OPTS='{"store":"redis","host":"localhost"}'
 ```
 
 ## Kubernetes
@@ -124,7 +131,7 @@ A `helm` chart is supplied in the repo directly.
 helm upgrade \
 --install \
 --namespace=kube-system \
---set jwtSignSecret=<random> \
+--set configTokenSignSecret=<random> \
 --set proxyEncryptSecret=<random> \
 --set issuerEncryptSecret=<random> \
 --set sessionEncryptSecret=<random> \
@@ -136,14 +143,14 @@ helm upgrade \
 --set ingress.enabled=true \
 --set ingress.hosts[0]=oeas.example.com \
 --set ingress.paths[0]=/ \
-oeas ./chart/
+eas ./chart/
 ```
 
 Annotate a `traefik` ingress
 
 ```
 ingress.kubernetes.io/auth-type: forward
-ingress.kubernetes.io/auth-url: "https://oeas.example.com/oauth/verify?config_token=CONFIG_TOKEN_HERE"
+ingress.kubernetes.io/auth-url: "https://eas.example.com/verify?config_token=CONFIG_TOKEN_HERE"
 ingress.kubernetes.io/auth-response-headers: X-Userinfo, X-Id-Token, X-Access-Token, Authorization
 ```
 

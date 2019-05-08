@@ -6,7 +6,7 @@ defaultEntryPoints = ["http"]
   [entryPoints.http]
   address = ":8000"
     [entryPoints.http.auth.forward]
-    address = "http://127.0.0.1:8080/oauth/verify?config_token=token"
+    address = "http://127.0.0.1:8080/verify?config_token=token"
     authResponseHeaders = ["X-Userinfo", "X-Id-Token", "X-Access-Token"]
 
   [entryPoints.api]

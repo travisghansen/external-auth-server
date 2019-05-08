@@ -1,7 +1,7 @@
 {
-  "name": "oauth-external-auth-server",
+  "name": "external-auth-server",
   "version": "0.1.0",
-  "description": "easy oauth for reverse proxies",
+  "description": "easy auth for reverse proxies",
   "main": "src/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -9,9 +9,9 @@
   },
   "author": "Travis Glenn Hansen <travisghansen@yahoo.com>",
   "bugs": {
-    "url": "https://github.com/travisghansen/oauth-external-auth-server/issues"
+    "url": "https://github.com/travisghansen/external-auth-server/issues"
   },
-  "homepage": "https://github.com/travisghansen/oauth-external-auth-server#readme",
+  "homepage": "https://github.com/travisghansen/external-auth-server#readme",
   "license": "MIT",
   "dependencies": {
     "body-parser": "^1.18.3",
@@ -23,11 +23,14 @@
     "cache-manager-redis-store": "^1.5.0",
     "cookie-parser": "^1.4.4",
     "express": "^4.16.4",
+    "htpasswd-js": "^1.0.2",
     "jsonwebtoken": "^8.5.1",
+    "ldapauth-fork": "^4.2.0",
     "lru-cache": "^5.1.1",
     "openid-client": "^2.5.0",
     "query-string": "^6.4.2",
     "request": "^2.88.0",
+    "simple-oauth2": "^2.2.1",
     "uri-js": "^4.2.2",
     "uuid": "^3.3.2"
   }
