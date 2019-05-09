@@ -2,6 +2,7 @@ const LdapAuth = require("ldapauth-fork");
 const { BasePlugin } = require("..");
 
 const CLIENT_CACHE_DURATION = 43200 * 1000;
+const SESSION_CACHE_PREFIX = "session:ldap:";
 
 /**
  * https://github.com/vesse/node-ldapauth-fork
@@ -17,8 +18,21 @@ class LdapPlugin extends BasePlugin {
    * @param {*} config
    */
   constructor(server, config) {
-    config.connection.cache = true;
+    config.connection.cache = config.connection.hasOwnProperty("cache")
+      ? config.connection.cache
+      : true;
     config.connection.reconnect = true;
+    config.connection.timeout = config.connection.hasOwnProperty("timeout")
+      ? config.connection.timeout
+      : 3000;
+    config.connection.connectTimeout = config.connection.hasOwnProperty(
+      "connectTimeout"
+    )
+      ? config.connection.connectTimeout
+      : 10000;
+    config.session_cache_ttl = config.hasOwnProperty("session_cache_ttl")
+      ? config.session_cache_ttl
+      : 900;
     super(...arguments);
   }
 
@@ -30,9 +44,10 @@ class LdapPlugin extends BasePlugin {
    * @param {*} req
    * @param {*} res
    */
-  verify(configToken, req, res) {
+  async verify(configToken, req, res) {
     const plugin = this;
     const cache = plugin.server.cache;
+    const store = plugin.server.store;
     const clientOptionHash = plugin.server.utils.md5(
       JSON.stringify(plugin.config.connection)
     );
@@ -45,58 +60,98 @@ class LdapPlugin extends BasePlugin {
     realm = realm.replace("\\", "");
     realm = realm.replace('"', "");
 
-    return new Promise(resolve => {
-      const failure_response = function() {
-        res.statusCode = 401;
-        res.setHeader("WWW-Authenticate", 'Basic realm="' + realm + '"');
-        resolve(res);
-      };
+    const failure_response = function() {
+      res.statusCode = 401;
+      res.setHeader("WWW-Authenticate", 'Basic realm="' + realm + '"');
+    };
 
-      if (!req.headers.authorization) {
-        failure_response();
-        return;
+    if (!req.headers.authorization) {
+      failure_response();
+      return res;
+    }
+
+    if (
+      !plugin.server.utils.authorization_scheme_is(
+        req.headers.authorization,
+        "basic"
+      )
+    ) {
+      failure_response();
+      return res;
+    }
+
+    const creds = plugin.server.utils.parse_basic_authorization_header(
+      req.headers.authorization
+    );
+
+    const cache_key = "ldap:connections:" + clientOptionHash;
+    let ldap = cache.get(cache_key);
+    if (ldap === undefined) {
+      ldap = new LdapAuth(plugin.config.connection);
+
+      ldap.close(function(err) {});
+
+      ldap.on("error", function(err) {
+        console.error("LdapAuth: ", err);
+      });
+
+      cache.set(cache_key, ldap, CLIENT_CACHE_DURATION);
+    }
+
+    let store_key;
+    if (plugin.config.session_cache_ttl > 0) {
+      store_key =
+        SESSION_CACHE_PREFIX +
+        clientOptionHash +
+        ":" +
+        plugin.server.utils.md5(req.headers.authorization);
+
+      const userdata = await store.get(store_key);
+
+      if (userdata !== null) {
+        res.statusCode = 200;
+        return res;
       }
+    }
 
-      if (
-        !plugin.server.utils.authorization_scheme_is(
-          req.headers.authorization,
-          "basic"
-        )
-      ) {
-        failure_response();
-        return;
-      }
-
-      const creds = plugin.server.utils.parse_basic_authorization_header(
-        req.headers.authorization
-      );
-
-      const cache_key = "ldap:connections:" + clientOptionHash;
-      let ldap = cache.get(cache_key);
-      if (ldap === undefined) {
-        ldap = new LdapAuth(plugin.config.connection);
-
-        ldap.close(function(err) {});
-
-        ldap.on("error", function(err) {
-          console.error("LdapAuth: ", err);
-        });
-
-        cache.set(cache_key, ldap, CLIENT_CACHE_DURATION);
-      }
-
+    await new Promise(resolve => {
       ldap.authenticate(creds.username, creds.password, function(err, user) {
         if (err) {
-          console.log(err);
+          console.log("LdapPlugin authenticate error: ", err);
+          console.log(err.name);
+          if (err.name) {
+            switch (err.name) {
+              case "TimeoutError":
+              case "ConnectionError":
+                cache.del(cache_key);
+                break;
+            }
+          }
           failure_response();
-          return;
+          resolve();
         } else {
-          console.log(user);
-          res.statusCode = 200;
-          resolve(res);
+          if (plugin.config.session_cache_ttl > 0) {
+            store
+              .set(
+                store_key,
+                plugin.server.utils.encrypt(
+                  plugin.server.secrets.session_encrypt_secret,
+                  JSON.stringify(user)
+                ),
+                plugin.config.session_cache_ttl
+              )
+              .then(() => {
+                res.statusCode = 200;
+                resolve();
+              });
+          } else {
+            resolve();
+          }
         }
       });
     });
+
+    return res;
   }
 }
 

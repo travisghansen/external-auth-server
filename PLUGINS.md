@@ -20,6 +20,7 @@ Performs `Basic` authentication using `ldap` lookups.
 {
     type: "ldap",
     realm: "my realm", // optional
+    session_cache_ttl: 900, // seconds to cache successful logins
     connection: {
         url: "...",
         ...

@@ -63,8 +63,6 @@ app.get("/verify", (req, res) => {
     configToken = externalAuthServer.setConfigTokenDefaults(configToken);
     configToken = new ConfigToken(configToken);
 
-    console.log("config token: %j", configToken);
-
     const fallbackPlugin = req.query.fallback_plugin
       ? req.query.fallback_plugin
       : null;

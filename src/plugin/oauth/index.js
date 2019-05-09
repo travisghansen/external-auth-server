@@ -793,7 +793,6 @@ class OauthPlugin extends BaseOauthPlugin {
 
   async get_client() {
     const plugin = this;
-    console.log("client config %j", plugin.config);
 
     const credentials = {
       client: {
@@ -993,7 +992,6 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
   async get_client() {
     const plugin = this;
     const cache = plugin.server.cache;
-    console.log("client config %j", plugin.config);
     const cache_key =
       "client:" + plugin.server.utils.md5(JSON.stringify(plugin.config));
     let client;
