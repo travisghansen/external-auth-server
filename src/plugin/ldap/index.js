@@ -33,6 +33,12 @@ class LdapPlugin extends BasePlugin {
     config.session_cache_ttl = config.hasOwnProperty("session_cache_ttl")
       ? config.session_cache_ttl
       : 900;
+
+    config.connection.idleTimeout = config.connection.hasOwnProperty(
+      "idleTimeout"
+    )
+      ? config.connection.idleTimeout
+      : 10000;
     super(...arguments);
   }
 
