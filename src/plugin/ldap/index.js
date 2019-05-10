@@ -90,20 +90,6 @@ class LdapPlugin extends BasePlugin {
       req.headers.authorization
     );
 
-    const cache_key = "ldap:connections:" + clientOptionHash;
-    let ldap = cache.get(cache_key);
-    if (ldap === undefined) {
-      ldap = new LdapAuth(plugin.config.connection);
-
-      ldap.close(function(err) {});
-
-      ldap.on("error", function(err) {
-        console.error("LdapAuth: ", err);
-      });
-
-      cache.set(cache_key, ldap, CLIENT_CACHE_DURATION);
-    }
-
     let store_key;
     if (plugin.config.session_cache_ttl > 0) {
       store_key =
@@ -118,6 +104,20 @@ class LdapPlugin extends BasePlugin {
         res.statusCode = 200;
         return res;
       }
+    }
+
+    const cache_key = "ldap:connections:" + clientOptionHash;
+    let ldap = cache.get(cache_key);
+    if (ldap === undefined) {
+      ldap = new LdapAuth(plugin.config.connection);
+
+      ldap.close(function(err) {});
+
+      ldap.on("error", function(err) {
+        console.error("LdapAuth: ", err);
+      });
+
+      //cache.set(cache_key, ldap, CLIENT_CACHE_DURATION);
     }
 
     await new Promise(resolve => {
