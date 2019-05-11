@@ -7,7 +7,7 @@ deployed once and protect many services using disperse authentication methods
 and providers. The goal is to make enabling authentication as easy as:
 
 1. generating a new `config_token` (see below)
-1. adding an `annotation` to an `Ingress` with the `config_token`
+1. configuring the reverse proxy to use the service for external authentication
 1. benefit
 
 # Authentication Plugins
