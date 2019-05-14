@@ -73,12 +73,13 @@ redis below).
 
 ```
 EAS_CONFIG_TOKEN_SIGN_SECRET="foo" \
-EAS_PROXY_ENCRYPT_SECRET="bar" \
-EAS_ISSUER_ENCRYPT_SECRET="blah" \
+EAS_CONFIG_TOKEN_ENCRYPT_SECRET="bar" \
 EAS_ISSUER_SIGN_SECRET="super secret" \
-EAS_SESSION_ENCRYPT_SECRET="baz" \
+EAS_ISSUER_ENCRYPT_SECRET="blah" \
 EAS_COOKIE_SIGN_SECRET="hello world" \
 EAS_COOKIE_ENCRYPT_SECRET="something" \
+EAS_SESSION_ENCRYPT_SECRET="baz" \
+EAS_LOG_LEVEL="info" \
 EAS_PORT=8080 \
 node src/server.js
 ```
@@ -88,12 +89,13 @@ node src/server.js
 ```
 docker run -d --name eas -p 8080:8080 \
 -e EAS_CONFIG_TOKEN_SIGN_SECRET="foo" \
--e EAS_PROXY_ENCRYPT_SECRET="bar" \
--e EAS_ISSUER_ENCRYPT_SECRET="blah" \
+-e EAS_CONFIG_TOKEN_ENCRYPT_SECRET="bar" \
 -e EAS_ISSUER_SIGN_SECRET="super secret" \
--e EAS_SESSION_ENCRYPT_SECRET="baz" \
+-e EAS_ISSUER_ENCRYPT_SECRET="blah" \
 -e EAS_COOKIE_SIGN_SECRET="hello world" \
 -e EAS_COOKIE_ENCRYPT_SECRET="something" \
+-e EAS_SESSION_ENCRYPT_SECRET="baz" \
+-e EAS_LOG_LEVEL="info" \
 -e EAS_PORT=8080 \
 travisghansen/external-auth-server
 ```
@@ -107,12 +109,13 @@ helm upgrade \
 --install \
 --namespace=kube-system \
 --set configTokenSignSecret=<random> \
---set proxyEncryptSecret=<random> \
---set issuerEncryptSecret=<random> \
+--set configTokenEncryptSecret=<random> \
 --set issuerSignSecret=<random> \
---set sessionEncryptSecret=<random> \
+--set issuerEncryptSecret=<random> \
 --set cookieSignSecret=<random> \
 --set cookieEncryptSecret=<random> \
+--set sessionEncryptSecret=<random> \
+--set logLevel="info" \
 --set storeOpts.store="redis" \
 --set storeOpts.host="redis.lan" \
 --set storeOpts.prefix="eas:" \
@@ -129,7 +132,7 @@ eas ./chart/
 # ie: issuer disovery URL, client_id, client_secret, etc
 # also make sure to use the same secrets used when launching the server
 EAS_CONFIG_TOKEN_SIGN_SECRET="foo" \
-EAS_PROXY_ENCRYPT_SECRET="bar" \
+EAS_CONFIG_TOKEN_ENCRYPT_SECRET="bar" \
 node bin/generate-config-token.js
 ```
 

@@ -98,9 +98,9 @@ class LdapPlugin extends BasePlugin {
         ":" +
         plugin.server.utils.md5(req.headers.authorization);
 
-      const userdata = await store.get(store_key);
+      const userinfo = await store.get(store_key);
 
-      if (userdata !== null) {
+      if (userinfo !== null) {
         res.statusCode = 200;
         return res;
       }
@@ -114,7 +114,7 @@ class LdapPlugin extends BasePlugin {
       ldap.close(function(err) {});
 
       ldap.on("error", function(err) {
-        console.error("LdapAuth: ", err);
+        plugin.server.logger.error("LdapAuth: ", err);
       });
 
       //cache.set(cache_key, ldap, CLIENT_CACHE_DURATION);
@@ -123,8 +123,7 @@ class LdapPlugin extends BasePlugin {
     await new Promise(resolve => {
       ldap.authenticate(creds.username, creds.password, function(err, user) {
         if (err) {
-          console.log("LdapPlugin authenticate error: ", err);
-          console.log(err.name);
+          plugin.server.logger.error("LdapPlugin authenticate error: ", err);
           if (err.name) {
             switch (err.name) {
               case "TimeoutError":

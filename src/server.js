@@ -45,7 +45,12 @@ app.get("/ping", (req, res) => {
  *
  */
 app.get("/verify", (req, res) => {
-  //console.log(req);
+  externalAuthServer.logger.silly("%j", {
+    headers: req.headers,
+    body: req.body
+  });
+
+  externalAuthServer.logger.info("starting verify pipeline");
 
   /**
    * pull the config token
@@ -53,15 +58,18 @@ app.get("/verify", (req, res) => {
   let configToken;
   try {
     configToken = externalAuthServer.utils.decrypt(
-      externalAuthServer.secrets.proxy_encrypt_secret,
+      externalAuthServer.secrets.config_token_encrypt_secret,
       req.query.config_token
     );
     configToken = jwt.verify(
       configToken,
       externalAuthServer.secrets.config_token_sign_secret
     );
+
     configToken = externalAuthServer.setConfigTokenDefaults(configToken);
     configToken = new ConfigToken(configToken);
+
+    externalAuthServer.logger.debug("config token: %j", configToken);
 
     const fallbackPlugin = req.query.fallback_plugin
       ? req.query.fallback_plugin
@@ -107,12 +115,15 @@ app.get("/verify", (req, res) => {
 
           //plugin = new LdapPlugin(externalAuthServer, pluginConfig);
 
-          //console.log(plugin);
-          // wait for the promise to resolve before advancing the for loop
+          externalAuthServer.logger.info(
+            "starting verify for plugin: %s",
+            pluginConfig.type
+          );
+
           try {
             await plugin.verify(configToken, req, pluginResponse);
           } catch (e) {
-            console.log(e);
+            externalAuthServer.logger.error(e);
             if (configToken.eas.plugins.length == i + 1) {
               if (fallbackPluginResponse) {
                 resolve(fallbackPluginResponse);
@@ -124,8 +135,10 @@ app.get("/verify", (req, res) => {
           }
 
           lastPluginResponse = pluginResponse;
-
-          console.log("plugin response after %j", pluginResponse);
+          externalAuthServer.logger.debug(
+            "plugin response %j",
+            pluginResponse
+          );
 
           if (fallbackPlugin !== null) {
             if (i == fallbackPlugin) {
@@ -159,10 +172,14 @@ app.get("/verify", (req, res) => {
         pluginResponse = new PluginVerifyResponse();
         pluginResponse.statusCode = 503;
       }
+      externalAuthServer.logger.info(
+        "end verify pipeline with status: %d",
+        pluginResponse.statusCode
+      );
       ExternalAuthServer.setResponse(res, pluginResponse);
     });
   } catch (e) {
-    console.log(e);
+    externalAuthServer.logger.error(e);
     res.statusCode = 503;
     res.end();
     return;
@@ -170,5 +187,5 @@ app.get("/verify", (req, res) => {
 });
 
 const port = process.env.EAS_PORT || 8080;
-console.log("starting server on port %s", port);
+externalAuthServer.logger.info("starting server on port %s", port);
 app.listen(port);

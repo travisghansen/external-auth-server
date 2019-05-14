@@ -26,8 +26,14 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
+            - name: NODE_ENV
+              value: "production"
             - name: EAS_PORT
               value: "8080"
+            {{- if .Values.logLevel }}
+            - name: EAS_LOG_LEVEL
+              value: "{{ .Values.logLevel }}"
+            {{- end }}
             {{- if .Values.storeOpts }}
             - name: EAS_STORE_OPTS
               valueFrom:
@@ -40,26 +46,21 @@ spec:
                 secretKeyRef:
                   name: {{ include "external-auth-server.fullname" . }}
                   key: config-token-sign-secret
-            - name: EAS_PROXY_ENCRYPT_SECRET
+            - name: EAS_CONFIG_TOKEN_ENCRYPT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "external-auth-server.fullname" . }}
-                  key: proxy-encrypt-secret
-            - name: EAS_ISSUER_ENCRYPT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "external-auth-server.fullname" . }}
-                  key: issuer-encrypt-secret
+                  key: config-token-encrypt-secret
             - name: EAS_ISSUER_SIGN_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "external-auth-server.fullname" . }}
                   key: issuer-sign-secret
-            - name: EAS_SESSION_ENCRYPT_SECRET
+            - name: EAS_ISSUER_ENCRYPT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "external-auth-server.fullname" . }}
-                  key: session-encrypt-secret
+                  key: issuer-encrypt-secret
             - name: EAS_COOKIE_SIGN_SECRET
               valueFrom:
                 secretKeyRef:
@@ -70,6 +71,11 @@ spec:
                 secretKeyRef:
                   name: {{ include "external-auth-server.fullname" . }}
                   key: cookie-encrypt-secret
+            - name: EAS_SESSION_ENCRYPT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "external-auth-server.fullname" . }}
+                  key: session-encrypt-secret
           ports:
             - name: http
               containerPort: 8080

@@ -3,6 +3,7 @@ const { Issuer } = require("openid-client");
 const jwt = require("jsonwebtoken");
 const oauth2 = require("simple-oauth2");
 const queryString = require("query-string");
+const request = require("request");
 const URI = require("uri-js");
 
 Issuer.useRequest();
@@ -31,6 +32,7 @@ const STATE_CSRF_COOKIE_EXPIRY = "43200"; //12 hours
 const DEFAULT_CLIENT_CLOCK_TOLERANCE = 5;
 const ISSUER_CACHE_DURATION = 43200 * 1000;
 const CLIENT_CACHE_DURATION = 43200 * 1000;
+let PLUGIN_VERIFIES = 0;
 
 let initialized = false;
 
@@ -92,7 +94,10 @@ class BaseOauthPlugin extends BasePlugin {
   static initialize(server) {
     if (!initialized) {
       server.WebServer.get("/oauth/callback", (req, res) => {
-        //console.log(req);
+        server.logger.silly("%j", {
+          headers: req.headers,
+          body: req.body
+        });
 
         try {
           let state = server.utils.decrypt(
@@ -104,24 +109,27 @@ class BaseOauthPlugin extends BasePlugin {
           const state_redirect_uri = state.request_uri;
 
           const parsedStateRedirectURI = URI.parse(state_redirect_uri);
-          console.log("parsed state redirect uri: %j", parsedStateRedirectURI);
+          server.logger.verbose(
+            "parsed state redirect uri: %j",
+            parsedStateRedirectURI
+          );
 
           const parsedRequestURI = URI.parse(req.url);
-          console.log("parsed request uri: %j", parsedRequestURI);
+          server.logger.verbose("parsed request uri: %j", parsedRequestURI);
 
           const parsedRedirectURI = Object.assign({}, parsedStateRedirectURI);
           parsedRedirectURI.query = parsedRequestURI.query;
-          console.log("parsed redirect uri: %j", parsedRedirectURI);
+          server.logger.verbose("parsed redirect uri: %j", parsedRedirectURI);
 
           const redirect_uri = URI.serialize(parsedRedirectURI);
-          console.log("redirecting browser to: %j", redirect_uri);
+          server.logger.info("redirecting browser to: %j", redirect_uri);
 
           res.statusCode = 302;
           res.setHeader("Location", redirect_uri);
           res.end();
           return;
         } catch (e) {
-          console.log("/oauth/callback error: ", e);
+          server.logger.error(e);
           res.statusCode = 503;
           res.end();
         }
@@ -143,7 +151,7 @@ class BaseOauthPlugin extends BasePlugin {
     const store = plugin.server.store;
     const client = await plugin.get_client();
     const pluginStrategy =
-      plugin.constructor.name == "OpenIdPlugin" ? "oidc" : "oauth2";
+      plugin.constructor.name == "OpenIdConnectPlugin" ? "oidc" : "oauth2";
     const PLUGIN_STRATEGY_OAUTH = "oauth";
     const PLUGIN_STRATEGY_OIDC = "oidc";
 
@@ -151,13 +159,13 @@ class BaseOauthPlugin extends BasePlugin {
      * reconstruct original request info from headers etc
      */
     const parentReqInfo = plugin.server.utils.get_parent_request_info(req);
-    console.log("parent request info: %j", parentReqInfo);
+    plugin.server.logger.verbose("parent request info: %j", parentReqInfo);
 
     const configAudMD5 = configToken.audMD5;
-    console.log("audMD5: %s", configAudMD5);
+    plugin.server.logger.verbose("audMD5: %s", configAudMD5);
 
     const configCookieName = this.config.cookie.name;
-    console.log("cooking name: %s", configCookieName);
+    plugin.server.logger.verbose("cooking name: %s", configCookieName);
 
     const redirectHttpCode = req.query.redirect_http_code
       ? req.query.redirect_http_code
@@ -168,7 +176,10 @@ class BaseOauthPlugin extends BasePlugin {
     );
 
     const respond_to_failed_authorization = async function() {
-      console.log("redirect_uri: %s", authorization_redirect_uri);
+      plugin.server.logger.verbose(
+        "redirect_uri: %s",
+        authorization_redirect_uri
+      );
       const payload = {
         request_uri: parentReqInfo.uri,
         aud: configAudMD5,
@@ -186,7 +197,7 @@ class BaseOauthPlugin extends BasePlugin {
         state
       );
 
-      console.log("callback redirect_uri: %s", url);
+      plugin.server.logger.verbose("callback redirect_uri: %s", url);
 
       switch (redirectHttpCode) {
         case 401:
@@ -235,13 +246,13 @@ class BaseOauthPlugin extends BasePlugin {
       const redirectHttpCode = req.query.redirect_http_code
         ? req.query.redirect_http_code
         : 302;
-      console.log("decoded state: %j", state);
+      plugin.server.logger.verbose("decoded state: %j", state);
 
       const configAudMD5 = configToken.audMD5;
-      console.log("audMD5: %s", configAudMD5);
+      plugin.server.logger.verbose("audMD5: %s", configAudMD5);
 
       const configCookieName = plugin.config.cookie.name;
-      console.log("cooking name: %s", configCookieName);
+      plugin.server.logger.verbose("cooking name: %s", configCookieName);
 
       /**
        * check for csrf cookie presense
@@ -265,12 +276,15 @@ class BaseOauthPlugin extends BasePlugin {
         return res;
       }
 
-      console.log("begin token fetch with authorization code");
+      plugin.server.logger.verbose("begin token fetch with authorization code");
 
       const compare_redirect_uri = plugin.get_authorization_redirect_uri(
         state.request_uri
       );
-      console.log("compare_redirect_uri: %s", compare_redirect_uri);
+      plugin.server.logger.verbose(
+        "compare_redirect_uri: %s",
+        compare_redirect_uri
+      );
       let tokenSet;
       try {
         tokenSet = await plugin.authorization_code_callback(
@@ -278,7 +292,7 @@ class BaseOauthPlugin extends BasePlugin {
           compare_redirect_uri
         );
       } catch (e) {
-        console.log(e);
+        plugin.server.logger.error(e);
         if (e.data.isResponseError) {
           e = e.data.payload;
           switch (e.error) {
@@ -316,26 +330,22 @@ class BaseOauthPlugin extends BasePlugin {
         return res;
       }
 
-      const session_id = plugin.server.utils.generate_session_id();
-      console.log("creating new session: %s", session_id);
-      console.log("received and validated tokens %j", tokenSet);
-      console.log("validated id_token claims %j", tokenSet.claims);
+      plugin.server.logger.verbose("received and validated tokens");
+      plugin.log_token_set(tokenSet);
+
+      const tokenSetValid = await plugin.token_set_asertions(tokenSet);
+      if (!tokenSetValid) {
+        res.statusCode = 403;
+        return res;
+      }
 
       /**
        * only id_token is guaranteed to be a jwt
        */
       let idToken;
-      if (tokenSet.refresh_token) {
-        console.log("refresh_token %j", tokenSet.refresh_token);
-      }
-
-      if (tokenSet.access_token) {
-        console.log("access_token %j", tokenSet.access_token);
-      }
 
       if (tokenSet.id_token) {
         idToken = jwt.decode(tokenSet.id_token);
-        console.log("id_token %j", idToken);
       }
 
       let tokenExpiresAt, cookieExpiresAt;
@@ -347,33 +357,34 @@ class BaseOauthPlugin extends BasePlugin {
         }
       }
 
-      let promise;
       let sessionPayload = {
         tokenSet,
         aud: configAudMD5
       };
 
-      const promises = [];
-
-      if (
-        pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-        plugin.config.features.fetch_userinfo
-      ) {
-        promise = client
-          .userinfo(tokenSet)
-          .then(userinfo => {
-            console.log("userinfo %j", userinfo);
-            sessionPayload.userinfo = userinfo;
-          })
-          .catch(e => {
-            console.log(e);
-            res.statusCode = 503;
-          });
-
-        promises.push(promise);
+      let userinfo;
+      if (plugin.config.features.fetch_userinfo) {
+        userinfo = await plugin.get_userinfo(tokenSet);
+        plugin.server.logger.verbose("userinfo %j", userinfo);
+        if (userinfo) {
+          sessionPayload.userinfo = userinfo;
+        }
       }
 
-      return Promise.all(promises)
+      if (plugin.config.assertions.userinfo) {
+        const userinfoValid = await plugin.userinfo_assertions(
+          sessionPayload.userinfo
+        );
+        if (!userinfoValid) {
+          res.statusCode = 403;
+          return res;
+        }
+      }
+
+      const session_id = plugin.server.utils.generate_session_id();
+      plugin.server.logger.verbose("creating new session: %s", session_id);
+
+      return Promise.all([])
         .then(() => {
           /**
            * seconds to keep backend cache
@@ -414,7 +425,7 @@ class BaseOauthPlugin extends BasePlugin {
            */
           res.clearCookie(STATE_CSRF_COOKIE_NAME);
 
-          console.log(
+          plugin.server.logger.info(
             "redirecting to original resource: %s",
             state.request_uri
           );
@@ -424,7 +435,7 @@ class BaseOauthPlugin extends BasePlugin {
           return res;
         })
         .catch(e => {
-          console.log(e);
+          plugin.server.logger.error(e);
           res.statusCode = 503;
           return res;
         });
@@ -463,13 +474,13 @@ class BaseOauthPlugin extends BasePlugin {
          */
         const session_id = req.signedCookies[configCookieName];
         if (session_id) {
-          console.log("retrieving session: %s", session_id);
+          plugin.server.logger.verbose("retrieving session: %s", session_id);
 
           const encryptedSession = await store.get(
             SESSION_CACHE_PREFIX + session_id
           );
 
-          console.log(
+          plugin.server.logger.verbose(
             "retrieved encrypted session content: %s",
             encryptedSession
           );
@@ -482,35 +493,43 @@ class BaseOauthPlugin extends BasePlugin {
             plugin.server.secrets.session_encrypt_secret,
             encryptedSession
           );
-          console.log("session data: %s", sessionPayload);
+          plugin.server.logger.debug("session data: %s", sessionPayload);
           sessionPayload = JSON.parse(sessionPayload);
-          const tokenSet = sessionPayload.tokenSet;
+          let tokenSet = sessionPayload.tokenSet;
+
+          //let foo = await plugin.get_userinfo(tokenSet);
+          //plugin.server.logger.verbose("########## userinfo:", foo);
+
+          plugin.log_token_set(tokenSet);
 
           /**
            * only id_token is guaranteed to be a jwt
            */
           let idToken;
-          if (tokenSet.refresh_token) {
-            console.log("refresh_token %j", tokenSet.refresh_token);
-          }
-
-          if (tokenSet.access_token) {
-            console.log("access_token %j", tokenSet.access_token);
-          }
-
           if (tokenSet.id_token) {
             idToken = jwt.decode(tokenSet.id_token);
-            console.log("id_token %j", idToken);
           }
 
-          console.log(
+          plugin.server.logger.verbose(
             "comparing audience values: session=%s config=%s",
             sessionPayload.aud,
             configAudMD5
           );
 
-          //console.log('tokenSet#expired()', tokenSet.expired());
-          //console.log('tokenSet#claims', tokenSet.claims);
+          let tokenSetValid;
+          tokenSetValid = await plugin.token_set_asertions(tokenSet);
+          if (!tokenSetValid) {
+            return respond_to_failed_authorization();
+          }
+
+          if (plugin.config.assertions.userinfo) {
+            const userinfoValid = await plugin.userinfo_assertions(
+              sessionPayload.userinfo
+            );
+            if (!userinfoValid) {
+              return respond_to_failed_authorization();
+            }
+          }
 
           /**
            * assures the session was created by the appropriate configToken
@@ -522,170 +541,49 @@ class BaseOauthPlugin extends BasePlugin {
             return respond_to_failed_authorization();
           }
 
-          /**
-           * token aud is the client_id
-           */
-          if (
-            pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-            plugin.config.assertions.aud &&
-            idToken.aud != plugin.config.client.client_id
-          ) {
-            return respond_to_failed_authorization();
-          }
-
-          /**
-           * access token is expired and refresh tokens are disabled
-           */
-          if (
-            plugin.config.assertions.exp &&
-            tokenset_is_expired(tokenSet) &&
-            !(
-              plugin.config.features.refresh_access_token &&
-              tokenset_can_refresh(tokenSet)
-            )
-          ) {
-            console.log("tokenSet is expired and refresh tokens disabled");
-            return respond_to_failed_authorization();
-          }
-
-          /**
-           * both access and refresh tokens are expired and refresh is enabled
-           */
-          if (
-            plugin.config.assertions.exp &&
-            tokenset_is_expired(tokenSet) &&
-            plugin.config.features.refresh_access_token &&
-            !tokenset_can_refresh(tokenSet)
-          ) {
-            console.log("tokenSet expired and refresh no longer available");
-            return respond_to_failed_authorization();
-          }
-
-          if (
-            pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-            plugin.config.assertions.nbf &&
-            tokenset_is_premature(tokenSet)
-          ) {
-            console.log("tokenSet is premature");
-            return respond_to_failed_authorization();
-          }
-
-          const promises = [];
-          let promise;
-
-          if (
-            pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-            plugin.config.assertions.iss
-          ) {
-            promise = new Promise((resolve, reject) => {
-              plugin
-                .get_issuer()
-                .then(issuer => {
-                  if (tokenset_issuer_match(tokenSet, issuer.issuer)) {
-                    resolve();
-                  } else {
-                    console.log("tokenSet issuer mismatch");
-                    reject("issuer mismatch");
-                  }
-                })
-                .catch(e => {
-                  reject(e);
-                });
-            });
-            promises.push(promise);
-          }
-
-          if (
-            pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-            plugin.config.features.introspect_access_token &&
-            tokenSet.access_token
-          ) {
-            promise = new Promise((resolve, reject) => {
-              plugin
-                .get_issuer()
-                .then(issuer => {
-                  if (!issuer.metadata.token_introspection_endpoint) {
-                    reject("issuer does not support introspection");
-                  }
-
-                  return client.introspect(
-                    sessionPayload.tokenSet.access_token
-                  );
-                })
-                .then(response => {
-                  console.log("token introspect details %j", response);
-                  if (response.active === false) {
-                    console.log("token no longer active!!!");
-                    reject();
-                  }
-                  resolve();
-                })
-                .catch(e => {
-                  reject(e);
-                });
-            });
-            promises.push(promise);
-          }
-
           if (
             tokenset_is_expired(tokenSet) &&
             plugin.config.features.refresh_access_token &&
             tokenset_can_refresh(tokenSet)
           ) {
-            promise = new Promise((resolve, reject) => {
-              plugin
-                .refresh_token(tokenSet)
-                .then(tokenSet => {
-                  sessionPayload.tokenSet = tokenSet;
-                  if (
-                    pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-                    plugin.config.features.fetch_userinfo
-                  ) {
-                    client.userinfo(tokenSet).then(userinfo => {
-                      console.log("userinfo %j", userinfo);
-                      sessionPayload.userinfo = userinfo;
-                      resolve();
-                    });
-                  } else {
-                    resolve();
-                  }
-                })
-                .catch(e => {
-                  reject(e);
-                });
-            })
-              .then(() => {
-                return new Promise(resolve => {
-                  store
-                    .set(
-                      SESSION_CACHE_PREFIX + session_id,
-                      plugin.server.utils.encrypt(
-                        plugin.server.secrets.session_encrypt_secret,
-                        JSON.stringify(sessionPayload)
-                      )
-                    )
-                    .then(() => {
-                      resolve();
-                    })
-                    .catch(e => {
-                      console.log(e);
-                      res.statusCode = 503;
-                    });
-                });
-              })
-              .catch(e => {
-                console.log(e);
-                res.statusCode = 503;
-              });
+            tokenSet = await plugin.refresh_token(tokenSet);
+            sessionPayload.tokenSet = tokenSet;
 
-            promises.push(promise);
+            tokenSetValid = await plugin.token_set_asertions(tokenSet);
+            if (!tokenSetValid) {
+              return respond_to_failed_authorization();
+            }
+
+            let userinfo;
+            if (plugin.config.features.fetch_userinfo) {
+              userinfo = await plugin.get_userinfo(tokenSet);
+              plugin.server.logger.verbose("userinfo %j", userinfo);
+              if (userinfo) {
+                sessionPayload.userinfo = userinfo;
+              }
+            }
+
+            if (plugin.config.assertions.userinfo) {
+              const userinfoValid = await plugin.userinfo_assertions(
+                sessionPayload.userinfo
+              );
+              if (!userinfoValid) {
+                return respond_to_failed_authorization();
+              }
+            }
+
+            await store.set(
+              SESSION_CACHE_PREFIX + session_id,
+              plugin.server.utils.encrypt(
+                plugin.server.secrets.session_encrypt_secret,
+                JSON.stringify(sessionPayload)
+              )
+            );
           }
 
-          return Promise.all(promises).then(() => {
-            plugin.prepare_token_headers(res, sessionPayload);
-            res.statusCode = 200;
-            return res;
-          });
+          plugin.prepare_token_headers(res, sessionPayload);
+          res.statusCode = 200;
+          return res;
         } else {
           /**
            * cookie not present, redirect to oidc provider
@@ -709,8 +607,6 @@ class BaseOauthPlugin extends BasePlugin {
     const query = {};
     query[HANDLER_INDICATOR_PARAM_NAME] = "authorization_callback";
 
-    console.log(HANDLER_INDICATOR_PARAM_NAME);
-
     if (plugin.config.redirect_uri) {
       uri = plugin.config.redirect_uri;
     }
@@ -719,6 +615,234 @@ class BaseOauthPlugin extends BasePlugin {
     parsedURI.query = queryString.stringify(query);
 
     return URI.serialize(parsedURI);
+  }
+
+  prepare_token_headers(res, sessionData) {
+    const plugin = this;
+    if (sessionData.tokenSet.id_token) {
+      res.setHeader("X-Id-Token", sessionData.tokenSet.id_token);
+    }
+
+    if (sessionData.userinfo) {
+      res.setHeader("X-Userinfo", JSON.stringify(sessionData.userinfo));
+    }
+
+    if (sessionData.tokenSet.access_token) {
+      res.setHeader("X-Access-Token", sessionData.tokenSet.access_token);
+    }
+
+    if (
+      plugin.config.features.authorization_token &&
+      ["id_token", "access_token", "refresh_token"].includes(
+        plugin.config.features.authorization_token
+      ) &&
+      sessionData.tokenSet[plugin.config.features.authorization_token]
+    ) {
+      res.setHeader(
+        "Authorization",
+        "Bearer " +
+          sessionData.tokenSet[plugin.config.features.authorization_token]
+      );
+    }
+  }
+
+  async id_token_assertions(id_token) {
+    const plugin = this;
+    let test = true;
+    plugin.config.assertions.id_token.forEach(assertion => {
+      /**
+       * poor man's break
+       */
+      if (test == false) {
+        return;
+      }
+
+      let value;
+      switch (assertion.rule.method) {
+        case "contains":
+          value = plugin.server.utils.jsonpath_query(
+            id_token,
+            assertion.path,
+            false
+          );
+          break;
+        default:
+          value = plugin.server.utils.jsonpath_query(
+            id_token,
+            assertion.path,
+            true
+          );
+          break;
+      }
+
+      test = plugin.server.utils.assert(assertion.rule, value);
+    });
+
+    return test;
+  }
+
+  async userinfo_assertions(userinfo) {
+    const plugin = this;
+    let test = true;
+    plugin.config.assertions.userinfo.forEach(assertion => {
+      /**
+       * poor man's break
+       */
+      if (test == false) {
+        return;
+      }
+
+      let value;
+      switch (assertion.rule.method) {
+        case "contains":
+          value = plugin.server.utils.jsonpath_query(
+            userinfo,
+            assertion.path,
+            false
+          );
+          break;
+        default:
+          value = plugin.server.utils.jsonpath_query(
+            userinfo,
+            assertion.path,
+            true
+          );
+          break;
+      }
+
+      test = plugin.server.utils.assert(assertion.rule, value);
+    });
+
+    return test;
+  }
+
+  async token_set_asertions(tokenSet) {
+    const plugin = this;
+    const client = await plugin.get_client();
+
+    const pluginStrategy =
+      plugin.constructor.name == "OpenIdConnectPlugin" ? "oidc" : "oauth2";
+    const PLUGIN_STRATEGY_OAUTH = "oauth";
+    const PLUGIN_STRATEGY_OIDC = "oidc";
+
+    /**
+     * token aud is the client_id
+     */
+    if (
+      pluginStrategy == PLUGIN_STRATEGY_OIDC &&
+      plugin.config.assertions.aud &&
+      idToken.aud != plugin.config.client.client_id
+    ) {
+      return false;
+    }
+
+    /**
+     * access token is expired and refresh tokens are disabled
+     */
+    if (
+      plugin.config.assertions.exp &&
+      tokenset_is_expired(tokenSet) &&
+      !(
+        plugin.config.features.refresh_access_token &&
+        tokenset_can_refresh(tokenSet)
+      )
+    ) {
+      plugin.server.logger.verbose(
+        "tokenSet is expired and refresh tokens disabled"
+      );
+      return false;
+    }
+
+    /**
+     * both access and refresh tokens are expired and refresh is enabled
+     */
+    if (
+      plugin.config.assertions.exp &&
+      tokenset_is_expired(tokenSet) &&
+      plugin.config.features.refresh_access_token &&
+      !tokenset_can_refresh(tokenSet)
+    ) {
+      plugin.server.logger.verbose(
+        "tokenSet expired and refresh no longer available"
+      );
+      return false;
+    }
+
+    if (
+      pluginStrategy == PLUGIN_STRATEGY_OIDC &&
+      plugin.config.assertions.nbf &&
+      tokenset_is_premature(tokenSet)
+    ) {
+      plugin.server.logger.verbose("tokenSet is premature");
+      return false;
+    }
+
+    if (
+      pluginStrategy == PLUGIN_STRATEGY_OIDC &&
+      plugin.config.assertions.iss
+    ) {
+      const issuer = await plugin.get_issuer();
+      if (!tokenset_issuer_match(tokenSet, issuer.issuer)) {
+        plugin.server.logger.verbose("tokenSet has a mismatch issuer");
+        return false;
+      }
+    }
+
+    if (
+      pluginStrategy == PLUGIN_STRATEGY_OIDC &&
+      plugin.config.features.introspect_access_token &&
+      tokenSet.access_token
+    ) {
+      const issuer = await plugin.get_issuer();
+
+      if (!issuer.metadata.token_introspection_endpoint) {
+        plugin.server.logger.error("issuer does not support introspection");
+        throw new Error("issuer does not support introspection");
+      }
+
+      const response = await client.introspect(tokenSet.access_token);
+
+      plugin.server.logger.verbose("token introspect details %j", response);
+      if (response.active === false) {
+        plugin.server.logger.verbose("token no longer active!!!");
+        return false;
+      }
+    }
+
+    if (
+      pluginStrategy == PLUGIN_STRATEGY_OIDC &&
+      plugin.config.assertions.id_token
+    ) {
+      let idToken;
+      idToken = jwt.decode(tokenSet.id_token);
+      let idTokenValid = await plugin.id_token_assertions(idToken);
+      if (!idTokenValid) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  log_userinfo(userinfo) {
+    const plugin = this;
+    plugin.server.logger.verbose("userinfo %j", userinfo);
+  }
+
+  log_token_set(tokenSet) {
+    const plugin = this;
+    if (tokenSet.refresh_token) {
+      plugin.server.logger.debug("refresh_token %j", tokenSet.refresh_token);
+    }
+
+    if (tokenSet.access_token) {
+      plugin.server.logger.debug("access_token %j", tokenSet.access_token);
+    }
+
+    if (tokenSet.id_token) {
+      const idToken = jwt.decode(tokenSet.id_token);
+      plugin.server.logger.debug("id_token %j", idToken);
+    }
   }
 }
 
@@ -730,6 +854,7 @@ class OauthPlugin extends BaseOauthPlugin {
    * Create new instance
    *
    * @name constructor
+   * @param {*} server
    * @param {*} config
    */
   constructor(server, config) {
@@ -768,27 +893,6 @@ class OauthPlugin extends BaseOauthPlugin {
     //config.scopes = [];
 
     super(...arguments);
-  }
-
-  prepare_token_headers(res, sessionData) {
-    const plugin = this;
-    if (sessionData.tokenSet.access_token) {
-      res.setHeader("X-Access-Token", sessionData.tokenSet.access_token);
-    }
-
-    if (
-      plugin.config.features.authorization_token &&
-      ["access_token", "refresh_token"].includes(
-        plugin.config.features.authorization_token
-      ) &&
-      sessionData.tokenSet[plugin.config.features.authorization_token]
-    ) {
-      res.setHeader(
-        "Authorization",
-        "Bearer " +
-          sessionData.tokenSet[plugin.config.features.authorization_token]
-      );
-    }
   }
 
   async get_client() {
@@ -853,6 +957,163 @@ class OauthPlugin extends BaseOauthPlugin {
     return accessToken.refresh();
   }
 
+  async get_userinfo(tokenSet) {
+    const plugin = this;
+    const userinfoConfig = plugin.config.features.userinfo;
+    userinfoConfig.config = userinfoConfig.config || {};
+    plugin.server.logger.debug("get userinfo with tokenSet: %j", tokenSet);
+    let userinfo;
+
+    switch (userinfoConfig.provider) {
+      /**
+       * `user` scope adds more info
+       * `user:email` allows to hit the `GET /user/emails` endpoint and `GET /user/public_emails` endpoint
+       *
+       * List all of the teams across all of the organizations to which the authenticated user belongs. This method requires user, repo, or read:org scope when authenticating via OAuth.
+       * GET /user/teams
+       */
+      case "github":
+        const GITHUB_API_URI = "https://api.github.com";
+        const promises = [];
+        const results = {};
+        let promise;
+
+        const log_repsonse = function(error, response, body) {
+          plugin.server.logger.debug("GITHUB ERROR: " + error);
+          plugin.server.logger.debug("GITHUB STATUS: " + response.statusCode);
+          plugin.server.logger.debug(
+            "GITHUB HEADERS: " + JSON.stringify(response.headers)
+          );
+          plugin.server.logger.debug("GITHUB BODY: " + JSON.stringify(body));
+        };
+
+        promise = new Promise(async resolve => {
+          await new Promise((resolve, reject) => {
+            const options = {
+              method: "GET",
+              url: GITHUB_API_URI + "/user",
+              headers: {
+                Authorization: "token " + tokenSet.access_token,
+                Accept: "application/vnd.github.v3+json",
+                "User-Agent": "external-auth-server"
+              }
+            };
+            request(options, function(error, response, body) {
+              log_repsonse(...arguments);
+              if (response.statusCode == 200) {
+                results.userinfo = JSON.parse(body);
+                resolve();
+              } else {
+                reject(body);
+              }
+            });
+          });
+
+          if (userinfoConfig.config.fetch_organizations) {
+            await new Promise((resolve, reject) => {
+              const options = {
+                method: "GET",
+                url: results.userinfo.organizations_url,
+                headers: {
+                  Authorization: "token " + tokenSet.access_token,
+                  Accept: "application/vnd.github.v3+json",
+                  "User-Agent": "external-auth-server"
+                }
+              };
+              request(options, function(error, response, body) {
+                log_repsonse(...arguments);
+                if (response.statusCode == 200) {
+                  results.organizations = JSON.parse(body);
+                  resolve();
+                } else {
+                  reject(body);
+                }
+              });
+            });
+          }
+
+          resolve();
+        });
+        promises.push(promise);
+
+        if (userinfoConfig.config.fetch_teams) {
+          promise = new Promise((resolve, reject) => {
+            /**
+             * https://developer.github.com/v3/teams/#list-user-teams
+             */
+            const options = {
+              method: "GET",
+              url: "https://api.github.com/user/teams",
+              headers: {
+                Authorization: "token " + tokenSet.access_token,
+                Accept: "application/vnd.github.v3+json",
+                "User-Agent": "external-auth-server"
+              }
+            };
+            request(options, function(error, response, body) {
+              log_repsonse(...arguments);
+              if (response.statusCode == 200) {
+                results.teams = JSON.parse(body);
+                resolve();
+              } else {
+                reject(body);
+              }
+            });
+          });
+          promises.push(promise);
+        }
+
+        if (userinfoConfig.config.fetch_emails) {
+          promise = new Promise((resolve, reject) => {
+            /**
+             * https://developer.github.com/v3/users/emails/
+             */
+            const options = {
+              method: "GET",
+              url: "https://api.github.com/user/emails",
+              headers: {
+                Authorization: "token " + tokenSet.access_token,
+                Accept: "application/vnd.github.v3+json",
+                "User-Agent": "external-auth-server"
+              }
+            };
+            request(options, function(error, response, body) {
+              log_repsonse(...arguments);
+              if (response.statusCode == 200) {
+                results.emails = JSON.parse(body);
+                resolve();
+              } else {
+                reject(body);
+              }
+            });
+          });
+          promises.push(promise);
+        }
+
+        await Promise.all(promises);
+
+        userinfo = results.userinfo;
+
+        if (results.organizations) {
+          userinfo.organizations = results.organizations;
+        }
+
+        if (results.teams) {
+          userinfo.teams = results.teams;
+        }
+
+        if (results.emails) {
+          userinfo.emails = results.emails;
+        }
+
+        break;
+      default:
+        return;
+    }
+
+    return userinfo;
+  }
+
   async authorization_code_callback(parentReqInfo, authorization_redirect_uri) {
     const plugin = this;
     const client = await plugin.get_client();
@@ -862,10 +1123,10 @@ class OauthPlugin extends BaseOauthPlugin {
       scope: plugin.config.scopes.join(" ")
     };
 
-    console.log("tokenConfig: %j", tokenConfig);
+    plugin.server.logger.verbose("tokenConfig: %j", tokenConfig);
 
     const result = await client.authorizationCode.getToken(tokenConfig);
-    console.log("oauth code result: %j", result);
+    plugin.server.logger.debug("oauth code result: %j", result);
     if (result.error) {
       throw result;
     }
@@ -937,35 +1198,6 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
     super(...arguments);
   }
 
-  prepare_token_headers(res, sessionData) {
-    const plugin = this;
-    if (sessionData.tokenSet.id_token) {
-      res.setHeader("X-Id-Token", sessionData.tokenSet.id_token);
-    }
-
-    if (sessionData.userinfo) {
-      res.setHeader("X-Userinfo", JSON.stringify(sessionData.userinfo));
-    }
-
-    if (sessionData.tokenSet.access_token) {
-      res.setHeader("X-Access-Token", sessionData.tokenSet.access_token);
-    }
-
-    if (
-      plugin.config.features.authorization_token &&
-      ["id_token", "access_token", "refresh_token"].includes(
-        plugin.config.features.authorization_token
-      ) &&
-      sessionData.tokenSet[plugin.config.features.authorization_token]
-    ) {
-      res.setHeader(
-        "Authorization",
-        "Bearer " +
-          sessionData.tokenSet[plugin.config.features.authorization_token]
-      );
-    }
-  }
-
   async get_issuer() {
     const plugin = this;
     const cache = plugin.server.cache;
@@ -983,7 +1215,11 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
       return issuer;
     } else {
       issuer = new Issuer(plugin.config.issuer);
-      console.log("manual issuer %s %O", issuer.issuer, issuer.metadata);
+      plugin.server.logger.verbose(
+        "manual issuer %s %O",
+        issuer.issuer,
+        issuer.metadata
+      );
       cache.set(cache_key, issuer, ISSUER_CACHE_DURATION);
       return issuer;
     }
@@ -1061,6 +1297,12 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
         response_type
       }
     );
+  }
+
+  async get_userinfo(tokenSet) {
+    const plugin = this;
+    const client = await plugin.get_client();
+    return client.userinfo(tokenSet);
   }
 }
 

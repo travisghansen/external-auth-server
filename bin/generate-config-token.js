@@ -4,9 +4,9 @@ const utils = require("../src/utils");
 const config_token_sign_secret =
   process.env.EAS_CONFIG_TOKEN_SIGN_SECRET ||
   utils.exit_failure("missing EAS_CONFIG_TOKEN_SIGN_SECRET env variable");
-const proxy_encrypt_secret =
-  process.env.EAS_PROXY_ENCRYPT_SECRET ||
-  utils.exit_failure("missing EAS_PROXY_ENCRYPT_SECRET env variable");
+const config_token_encrypt_secret =
+  process.env.EAS_CONFIG_TOKEN_ENCRYPT_SECRET ||
+  utils.exit_failure("missing EAS_CONFIG_TOKEN_ENCRYPT_SECRET env variable");
 
 let config_token = {
   /**
@@ -25,7 +25,7 @@ let config_token = {
 
 config_token = jwt.sign(config_token, config_token_sign_secret);
 const conifg_token_encrypted = utils.encrypt(
-  proxy_encrypt_secret,
+  config_token_encrypt_secret,
   config_token
 );
 

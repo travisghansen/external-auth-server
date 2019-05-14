@@ -1,4 +1,5 @@
 const { cache } = require("./cache");
+const { logger } = require("./logger");
 const secrets = require("./secrets");
 const store = require("./store");
 const utils = require("./utils");
@@ -44,6 +45,10 @@ class ExternalAuthServer {
 
   get store() {
     return store;
+  }
+
+  get logger() {
+    return logger;
   }
 }
 

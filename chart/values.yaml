@@ -3,13 +3,19 @@
 # Declare variables to be passed into your templates.
 
 configTokenSignSecret:
-proxyEncryptSecret:
-issuerEncryptSecret:
+configTokenEncryptSecret:
 issuerSignSecret:
-sessionEncryptSecret:
+issuerEncryptSecret:
 cookieSignSecret:
 cookieEncryptSecret:
+sessionEncryptSecret:
 storeOpts:
+
+# set the logging level
+# WARN: debug or above will log secrets
+#
+# error, warn, info, verbose, debug, silly
+logLevel: "info"
 
 replicaCount: 1
 

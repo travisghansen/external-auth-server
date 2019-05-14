@@ -24,7 +24,7 @@ class RequestParamPlugin extends BasePlugin {
   verify(configToken, req, res) {
     const plugin = this;
     const parentReqInfo = plugin.server.utils.get_parent_request_info(req);
-    console.log("parent request info: %j", parentReqInfo);
+    plugin.server.logger.verbose("parent request info: %j", parentReqInfo);
 
     const redirectHttpCode = req.query.redirect_http_code
       ? req.query.redirect_http_code

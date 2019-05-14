@@ -24,6 +24,7 @@
     "cookie-parser": "^1.4.4",
     "express": "^4.16.4",
     "htpasswd-js": "^1.0.2",
+    "jsonpath": "^1.0.1",
     "jsonwebtoken": "^8.5.1",
     "ldapauth-fork": "^4.2.0",
     "lru-cache": "^5.1.1",
@@ -32,6 +33,7 @@
     "request": "^2.88.0",
     "simple-oauth2": "^2.2.1",
     "uri-js": "^4.2.2",
-    "uuid": "^3.3.2"
+    "uuid": "^3.3.2",
+    "winston": "^3.2.1"
   }
 }

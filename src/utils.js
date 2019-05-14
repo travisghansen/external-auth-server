@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const queryString = require("query-string");
 const URI = require("uri-js");
 const uuidv4 = require("uuid/v4");
+const jp = require("jsonpath");
 
 const algorithm = "aes-256-cbc";
 
@@ -128,6 +129,80 @@ function redirect_http_code(req) {
   return req.query.redirect_http_code ? req.query.redirect_http_code : 302;
 }
 
+function jsonpath_query(obj, path, singleValue = false) {
+  const values = jp.query(obj, path);
+  if (singleValue) {
+    if (values.length > 1) {
+      throw new Error("more than 1 value in jsonpath query result");
+    }
+
+    return values[0];
+  }
+  return values;
+}
+
+function assert(rule, value) {
+  let test;
+
+  //console.log("########## asserting the following rule: %j", rule);
+  //console.log("########## asserting the following value: ", value);
+
+  if (rule.case_insensitive) {
+    if (Array.isArray(value)) {
+      for (let i = 0; i < value.length; i++) {
+        value[i] = value[i].toString().toLowerCase();
+      }
+    } else {
+      value = value.toString().toLowerCase();
+    }
+
+    if (Array.isArray(rule.value)) {
+      for (let i = 0; i < rule.value.length; i++) {
+        rule.value[i] = rule.value[i].toString().toLowerCase();
+      }
+    } else {
+      rule.value = rule.value.toString().toLowerCase();
+    }
+  }
+
+  switch (rule.method) {
+    case "contains":
+    if (!Array.isArray(value)) {
+      throw new Error("value must be an array for 'contains' method");
+    }
+
+    test = value.includes(rule.value);
+    break;
+    case "eq":
+      test = rule.value == value;
+      break;
+    case "in":
+      if (!Array.isArray(rule.value)) {
+        throw new Error("rule.value must be an array for 'in' method");
+      }
+
+      test = rule.value.includes(value);
+      break;
+      case "regex":
+      /**
+       * this splits the simple "/pattern/[flags]" syntaxt into something the
+       * regex constructor understands
+       */
+      const parts = /\/(.*)\/(.*)/.exec(rule.value);
+      const regex = new RegExp(parts[1], parts[2]);
+      test = regex.test(value);
+      break;
+    default:
+      throw new Error("unknown assert method: " + rule.method);
+  }
+
+  if (rule.negate) {
+    return !!!test;
+  }
+
+  return test;
+}
+
 function validateConfigToken(configToken) {}
 
 module.exports = {
@@ -144,5 +219,7 @@ module.exports = {
   validateConfigToken,
   parse_basic_authorization_header,
   authorization_scheme_is,
-  redirect_http_code
+  redirect_http_code,
+  jsonpath_query,
+  assert
 };
