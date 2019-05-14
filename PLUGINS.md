@@ -52,10 +52,28 @@ Initiates oauth `Authorization Code Flow` for authentication with any provider.
     redirect_uri: "https://eas.example.com/oauth/callback",
     features: {
         /**
-        * if false cookies will be 'session' cookies
-        * if true and cookies expire will expire with tokens
+        * how to expire the cookie
+        * true = cookies expire will expire with tokens
+        * false = cookies will be 'session' cookies
+        * num seconds = expire after given number of seconds
         */
-        set_cookie_expiry: false,
+        cookie_expiry: false,
+
+        /**
+        * how frequently to refresh userinfo data
+        * true = refresh with tokens (assuming they expire)
+        * false = never refresh
+        * num seconds = expire after given number of seconds
+        */
+        userinfo_expiry: true,
+
+        /**
+        * how long to keep a session (server side) around
+        * true = expire with tokenSet (if applicable)
+        * false = never expire
+        * num seconds = expire after given number of seconds
+        */
+        session_expiry: true,
 
         /**
         * if the access token is expired and a refresh token is available, refresh
@@ -68,7 +86,22 @@ Initiates oauth `Authorization Code Flow` for authentication with any provider.
         *
         * possible values are access_token, or refresh_token
         */
-        authorization_token: "access_token"
+        authorization_token: "access_token",
+
+        /**
+        * fetch userinfo and include as X-Userinfo header to backing service
+        * only helpful if your specific provider has been implemented
+        */
+        fetch_userinfo: true,
+
+        userinfo: {
+            provider: "github",
+            config: {
+                fetch_teams: true,
+                fetch_organizations: true,
+                fetch_emails: true
+            }
+        }
     },
     assertions: {
         /**
@@ -128,10 +161,28 @@ Initiates OpenID Connect `Authorization Code Flow` for authentication with any p
     redirect_uri: "https://eas.example.com/oauth/callback",
     features: {
         /**
-        * if false cookies will be 'session' cookies
-        * if true and cookies expire will expire with tokens
+        * how to expire the cookie
+        * true = cookies expire will expire with tokens
+        * false = cookies will be 'session' cookies
+        * num seconds = expire after given number of seconds
         */
-        set_cookie_expiry: false,
+        cookie_expiry: false,
+
+        /**
+        * how frequently to refresh userinfo data
+        * true = refresh with tokens (assuming they expire)
+        * false = never refresh
+        * num seconds = expire after given number of seconds
+        */
+        userinfo_expiry: true,
+
+        /**
+        * how long to keep a session (server side) around
+        * true = expire with tokenSet (if applicable)
+        * false = never expire
+        * num seconds = expire after given number of seconds
+        */
+        session_expiry: true,
 
         /**
         * if the access token is expired and a refresh token is available, refresh

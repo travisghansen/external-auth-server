@@ -47,7 +47,7 @@
 - ~~refresh access token~~
 - ~~checks to see if refresh token is present or not~~
 - ~~configuration to enable refreshing access token~~
-- ~~configuration to enable userInfo~~
+- ~~configuration to enable userinfo~~
 - ~~configuration to enable refreshing userInfo~~
 - ~~configuration for cookie domain~~
 - ~~configuration for cookie path~~
@@ -64,10 +64,13 @@
 - ~~cache issuer and client objects~~
 - ~~figure out refresh token when URL has changed~~
 - ~~support `userinfo` for various `oauth2` providers using some kind of plugin system~~
-- ~~allow for built-in assertions (`config_token`)~~
+- ~~allow for built-in assertions (`config_token`, `userinfo`)~~
 - ~~configuration for custom assertions~~
 - ~~implement proper logger solution~~
 - ~~Authorization header with id_token for kube-dashboard~~
 - ~~support static redirect URI (https://gitlab.com/gitlab-org/gitlab-ce/issues/48707)~~
 - ~~support RSA signing in addition to signing key~~
 - ~~appropriately handle invalid/changed secrets for signing/encryption~~
+- ~~session expiry (true/false/seconds)~~
+- ~~userinfo expiry (true/false/seconds)~~
+- ~~cookie expiry (true/false/seconds)~~

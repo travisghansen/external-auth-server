@@ -348,7 +348,7 @@ class BaseOauthPlugin extends BasePlugin {
         idToken = jwt.decode(tokenSet.id_token);
       }
 
-      let tokenExpiresAt, cookieExpiresAt;
+      let cookieExpiresAt, sessionExpiresAt, tokenExpiresAt;
       if (tokenSet.expires_at) {
         tokenExpiresAt = tokenSet.expires_at * 1000;
       } else if (idToken) {
@@ -357,7 +357,34 @@ class BaseOauthPlugin extends BasePlugin {
         }
       }
 
+      if (plugin.config.features.cookie_expiry === false) {
+        cookieExpiresAt = null;
+      } else if (
+        plugin.config.features.cookie_expiry !== true &&
+        plugin.config.features.cookie_expiry > 0
+      ) {
+        cookieExpiresAt =
+          Date.now() / 1000 + plugin.config.features.session_expiry;
+        cookieExpiresAt = cookieExpiresAt * 1000;
+      } else {
+        cookieExpiresAt = tokenExpiresAt;
+      }
+
+      if (plugin.config.features.session_expiry === false) {
+        sessionExpiresAt = null;
+      } else if (
+        plugin.config.features.session_expiry !== true &&
+        plugin.config.features.session_expiry > 0
+      ) {
+        sessionExpiresAt =
+          Date.now() / 1000 + plugin.config.features.session_expiry;
+        sessionExpiresAt = sessionExpiresAt * 1000;
+      } else {
+        sessionExpiresAt = tokenExpiresAt;
+      }
+
       let sessionPayload = {
+        iat: Math.floor(Date.now() / 1000),
         tokenSet,
         aud: configAudMD5
       };
@@ -366,14 +393,14 @@ class BaseOauthPlugin extends BasePlugin {
       if (plugin.config.features.fetch_userinfo) {
         userinfo = await plugin.get_userinfo(tokenSet);
         plugin.server.logger.verbose("userinfo %j", userinfo);
-        if (userinfo) {
+        if (userinfo && userinfo.data) {
           sessionPayload.userinfo = userinfo;
         }
       }
 
       if (plugin.config.assertions.userinfo) {
         const userinfoValid = await plugin.userinfo_assertions(
-          sessionPayload.userinfo
+          sessionPayload.userinfo.data
         );
         if (!userinfoValid) {
           res.statusCode = 403;
@@ -384,61 +411,45 @@ class BaseOauthPlugin extends BasePlugin {
       const session_id = plugin.server.utils.generate_session_id();
       plugin.server.logger.verbose("creating new session: %s", session_id);
 
-      return Promise.all([])
-        .then(() => {
-          /**
-           * seconds to keep backend cache
-           */
-          const ttl = (tokenExpiresAt - Date.now()) / 1000;
-          return store.set(
-            SESSION_CACHE_PREFIX + session_id,
-            plugin.server.utils.encrypt(
-              plugin.server.secrets.session_encrypt_secret,
-              JSON.stringify(sessionPayload)
-            ),
-            ttl
-          );
-        })
-        .then(() => {
-          /**
-           * set expiry if enabled
-           */
-          if (plugin.config.features.set_cookie_expiry) {
-            cookieExpiresAt = tokenExpiresAt;
-          } else {
-            cookieExpiresAt = null;
-          }
+      let ttl = null;
+      if (sessionExpiresAt) {
+        sessionPayload.exp = Math.floor(sessionExpiresAt / 1000);
+        ttl = (sessionExpiresAt - Date.now()) / 1000;
+      }
+      plugin.server.logger.verbose("session TTL: %s", ttl);
+      await store.set(
+        SESSION_CACHE_PREFIX + session_id,
+        plugin.server.utils.encrypt(
+          plugin.server.secrets.session_encrypt_secret,
+          JSON.stringify(sessionPayload)
+        ),
+        ttl
+      );
 
-          res.cookie(configCookieName, session_id, {
-            domain: plugin.config.cookie.domain,
-            path: plugin.config.cookie.path,
-            /**
-             * if omitted will be a 'session' cookie
-             */
-            expires: cookieExpiresAt ? new Date(cookieExpiresAt) : null,
-            httpOnly: true, //kills js access
-            signed: true
-          });
+      res.cookie(configCookieName, session_id, {
+        domain: plugin.config.cookie.domain,
+        path: plugin.config.cookie.path,
+        /**
+         * if omitted will be a 'session' cookie
+         */
+        expires: cookieExpiresAt ? new Date(cookieExpiresAt) : null,
+        httpOnly: true, //kills js access
+        signed: true
+      });
 
-          /**
-           * remove the csrf cookie
-           */
-          res.clearCookie(STATE_CSRF_COOKIE_NAME);
+      /**
+       * remove the csrf cookie
+       */
+      res.clearCookie(STATE_CSRF_COOKIE_NAME);
 
-          plugin.server.logger.info(
-            "redirecting to original resource: %s",
-            state.request_uri
-          );
+      plugin.server.logger.info(
+        "redirecting to original resource: %s",
+        state.request_uri
+      );
 
-          res.statusCode = redirectHttpCode;
-          res.setHeader("Location", state.request_uri);
-          return res;
-        })
-        .catch(e => {
-          plugin.server.logger.error(e);
-          res.statusCode = 503;
-          return res;
-        });
+      res.statusCode = redirectHttpCode;
+      res.setHeader("Location", state.request_uri);
+      return res;
     };
 
     /**
@@ -486,6 +497,7 @@ class BaseOauthPlugin extends BasePlugin {
           );
 
           if (!encryptedSession) {
+            plugin.server.logger.verbose("failed to decrypt session");
             return respond_to_failed_authorization();
           }
 
@@ -497,10 +509,33 @@ class BaseOauthPlugin extends BasePlugin {
           sessionPayload = JSON.parse(sessionPayload);
           let tokenSet = sessionPayload.tokenSet;
 
-          //let foo = await plugin.get_userinfo(tokenSet);
-          //plugin.server.logger.verbose("########## userinfo:", foo);
-
           plugin.log_token_set(tokenSet);
+
+          plugin.server.logger.verbose(
+            "comparing audience values: session=%s config=%s",
+            sessionPayload.aud,
+            configAudMD5
+          );
+
+          /**
+           * assures the session was created by the appropriate configToken
+           *
+           * TODO: should this be 503 or 401?
+           * TODO: clear the cookie?
+           */
+          if (sessionPayload.aud != configAudMD5) {
+            plugin.server.logger.verbose("non-matching audience");
+            return respond_to_failed_authorization();
+          }
+
+          if (
+            sessionPayload.exp > 0 &&
+            Date.now() / 1000 > sessionPayload.exp
+          ) {
+            plugin.server.logger.verbose("session has expired");
+            store.del(SESSION_CACHE_PREFIX + session_id);
+            return respond_to_failed_authorization();
+          }
 
           /**
            * only id_token is guaranteed to be a jwt
@@ -510,35 +545,45 @@ class BaseOauthPlugin extends BasePlugin {
             idToken = jwt.decode(tokenSet.id_token);
           }
 
-          plugin.server.logger.verbose(
-            "comparing audience values: session=%s config=%s",
-            sessionPayload.aud,
-            configAudMD5
-          );
-
           let tokenSetValid;
           tokenSetValid = await plugin.token_set_asertions(tokenSet);
           if (!tokenSetValid) {
+            plugin.server.logger.verbose("tokenSet failed assertions");
             return respond_to_failed_authorization();
+          }
+
+          //refresh userinfo if neceesary
+          if (
+            plugin.config.features.fetch_userinfo &&
+            plugin.config.features.userinfo_expiry !== true &&
+            plugin.config.features.userinfo_expiry > 0 &&
+            Date.now() / 1000 >
+              sessionPayload.userinfo.iat +
+                plugin.config.features.userinfo_expiry
+          ) {
+            plugin.server.logger.verbose("refrshing expired userinfo");
+            let userinfo;
+            userinfo = await plugin.get_userinfo(tokenSet);
+            plugin.server.logger.verbose("userinfo %j", userinfo);
+            sessionPayload.userinfo = userinfo;
+
+            await store.set(
+              SESSION_CACHE_PREFIX + session_id,
+              plugin.server.utils.encrypt(
+                plugin.server.secrets.session_encrypt_secret,
+                JSON.stringify(sessionPayload)
+              )
+            );
           }
 
           if (plugin.config.assertions.userinfo) {
             const userinfoValid = await plugin.userinfo_assertions(
-              sessionPayload.userinfo
+              sessionPayload.userinfo.data
             );
             if (!userinfoValid) {
+              plugin.server.logger.verbose("userinfo failed assertions");
               return respond_to_failed_authorization();
             }
-          }
-
-          /**
-           * assures the session was created by the appropriate configToken
-           *
-           * TODO: should this be 503 or 401?
-           * TODO: clear the cookie?
-           */
-          if (sessionPayload.aud != configAudMD5) {
-            return respond_to_failed_authorization();
           }
 
           if (
@@ -555,17 +600,18 @@ class BaseOauthPlugin extends BasePlugin {
             }
 
             let userinfo;
-            if (plugin.config.features.fetch_userinfo) {
+            if (
+              plugin.config.features.fetch_userinfo &&
+              plugin.config.features.userinfo_expiry === true
+            ) {
               userinfo = await plugin.get_userinfo(tokenSet);
               plugin.server.logger.verbose("userinfo %j", userinfo);
-              if (userinfo) {
-                sessionPayload.userinfo = userinfo;
-              }
+              sessionPayload.userinfo = userinfo;
             }
 
             if (plugin.config.assertions.userinfo) {
               const userinfoValid = await plugin.userinfo_assertions(
-                sessionPayload.userinfo
+                sessionPayload.userinfo.data
               );
               if (!userinfoValid) {
                 return respond_to_failed_authorization();
@@ -623,8 +669,8 @@ class BaseOauthPlugin extends BasePlugin {
       res.setHeader("X-Id-Token", sessionData.tokenSet.id_token);
     }
 
-    if (sessionData.userinfo) {
-      res.setHeader("X-Userinfo", JSON.stringify(sessionData.userinfo));
+    if (sessionData.userinfo.data) {
+      res.setHeader("X-Userinfo", JSON.stringify(sessionData.userinfo.data));
     }
 
     if (sessionData.tokenSet.access_token) {
@@ -882,8 +928,16 @@ class OauthPlugin extends BaseOauthPlugin {
       config.assertions = {};
     }
 
-    if (!config.features.hasOwnProperty("set_cookie_expiry")) {
-      config.features.set_cookie_expiry = false;
+    if (!config.features.hasOwnProperty("cookie_expiry")) {
+      config.features.cookie_expiry = false;
+    }
+
+    if (!config.features.hasOwnProperty("userinfo_expiry")) {
+      config.features.userinfo_expiry = true;
+    }
+
+    if (!config.features.hasOwnProperty("session_expiry")) {
+      config.features.session_expiry = true;
     }
 
     if (!config.features.hasOwnProperty("refresh_access_token")) {
@@ -1111,7 +1165,7 @@ class OauthPlugin extends BaseOauthPlugin {
         return;
     }
 
-    return userinfo;
+    return { iat: Math.floor(Date.now() / 1000), data: userinfo };
   }
 
   async authorization_code_callback(parentReqInfo, authorization_redirect_uri) {
@@ -1167,8 +1221,16 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
       config.assertions = {};
     }
 
-    if (!config.features.hasOwnProperty("set_cookie_expiry")) {
-      config.features.set_cookie_expiry = false;
+    if (!config.features.hasOwnProperty("cookie_expiry")) {
+      config.features.cookie_expiry = false;
+    }
+
+    if (!config.features.hasOwnProperty("userinfo_expiry")) {
+      config.features.userinfo_expiry = true;
+    }
+
+    if (!config.features.hasOwnProperty("session_expiry")) {
+      config.features.session_expiry = true;
     }
 
     if (!config.features.hasOwnProperty("refresh_access_token")) {
@@ -1302,7 +1364,8 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
   async get_userinfo(tokenSet) {
     const plugin = this;
     const client = await plugin.get_client();
-    return client.userinfo(tokenSet);
+    const userinfo = await client.userinfo(tokenSet);
+    return { iat: Math.floor(Date.now() / 1000), data: userinfo };
   }
 }
 
