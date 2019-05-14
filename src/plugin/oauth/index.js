@@ -487,26 +487,11 @@ class BaseOauthPlugin extends BasePlugin {
         if (session_id) {
           plugin.server.logger.verbose("retrieving session: %s", session_id);
 
-          const encryptedSession = await store.get(
-            SESSION_CACHE_PREFIX + session_id
-          );
-
-          plugin.server.logger.verbose(
-            "retrieved encrypted session content: %s",
-            encryptedSession
-          );
-
-          if (!encryptedSession) {
-            plugin.server.logger.verbose("failed to decrypt session");
+          let sessionPayload = await plugin.get_session_data(session_id);
+          if (!sessionPayload) {
+            plugin.server.logger.verbose("failed to retrieve session");
             return respond_to_failed_authorization();
           }
-
-          let sessionPayload = plugin.server.utils.decrypt(
-            plugin.server.secrets.session_encrypt_secret,
-            encryptedSession
-          );
-          plugin.server.logger.debug("session data: %s", sessionPayload);
-          sessionPayload = JSON.parse(sessionPayload);
           let tokenSet = sessionPayload.tokenSet;
 
           plugin.log_token_set(tokenSet);
@@ -538,13 +523,82 @@ class BaseOauthPlugin extends BasePlugin {
           }
 
           /**
-           * only id_token is guaranteed to be a jwt
+           * refresh tokenSet
+           * NOTE: this process could be getting invoked by several requests resulting
+           * in concurrency issues where the refresh_token is no longer valid after the
+           * tokenSet has been refreshed by the first one through.  This is alleviated
+           * by doing generating an md5 of the session payload before attempting to refresh.
+           * If the process fails fresh session data is reloaded and compared against the
+           * original md5.  If the values have changed it's assumed another request attempted
+           * a refresh and succeeded.
            */
-          let idToken;
-          if (tokenSet.id_token) {
-            idToken = jwt.decode(tokenSet.id_token);
+          if (
+            tokenset_is_expired(tokenSet) &&
+            plugin.config.features.refresh_access_token &&
+            tokenset_can_refresh(tokenSet)
+          ) {
+            /**
+             * store md5 *before* attempting refresh to test if failure due to concurrency
+             */
+            const preSaveSessionMD5 = plugin.server.utils.md5(
+              JSON.stringify(sessionPayload)
+            );
+            try {
+              plugin.server.logger.verbose("refreshing tokenSet");
+              tokenSet = await plugin.refresh_token(tokenSet);
+              sessionPayload.tokenSet = tokenSet;
+
+              let userinfo;
+              if (
+                plugin.config.features.fetch_userinfo &&
+                plugin.config.features.userinfo_expiry === true
+              ) {
+                plugin.server.logger.verbose("refreshing userinfo");
+                userinfo = await plugin.get_userinfo(tokenSet);
+                plugin.server.logger.verbose("userinfo %j", userinfo);
+                sessionPayload.userinfo = userinfo;
+              }
+
+              if (plugin.config.assertions.userinfo) {
+                const userinfoValid = await plugin.userinfo_assertions(
+                  sessionPayload.userinfo.data
+                );
+                if (!userinfoValid) {
+                  return respond_to_failed_authorization();
+                }
+              }
+
+              await store.set(
+                SESSION_CACHE_PREFIX + session_id,
+                plugin.server.utils.encrypt(
+                  plugin.server.secrets.session_encrypt_secret,
+                  JSON.stringify(sessionPayload)
+                )
+              );
+            } catch (e) {
+              //TODO: better logic here to detect invalid_grant, etc
+              const snooze = ms =>
+                new Promise(resolve => setTimeout(resolve, ms));
+              await snooze(500);
+              sessionPayload = await plugin.get_session_data(session_id);
+              tokenSet = sessionPayload.tokenSet;
+              const postSaveSessionMD5 = plugin.server.utils.md5(
+                JSON.stringify(sessionPayload)
+              );
+              /**
+               * if data is same before *and* after
+               */
+              if (preSaveSessionMD5 == postSaveSessionMD5) {
+                plugin.server.logger.warn("tokenSet not refreshed externally");
+                plugin.server.logger.error(e);
+                throw e;
+              } else {
+                plugin.server.logger.verbose("tokenSet refreshed externally");
+              }
+            }
           }
 
+          // run tokenSet assertions (including id_token assertions)
           let tokenSetValid;
           tokenSetValid = await plugin.token_set_asertions(tokenSet);
           if (!tokenSetValid) {
@@ -552,7 +606,7 @@ class BaseOauthPlugin extends BasePlugin {
             return respond_to_failed_authorization();
           }
 
-          //refresh userinfo if neceesary
+          // refresh userinfo if necessary
           if (
             plugin.config.features.fetch_userinfo &&
             plugin.config.features.userinfo_expiry !== true &&
@@ -576,6 +630,7 @@ class BaseOauthPlugin extends BasePlugin {
             );
           }
 
+          // run assertions on userinfo
           if (plugin.config.assertions.userinfo) {
             const userinfoValid = await plugin.userinfo_assertions(
               sessionPayload.userinfo.data
@@ -584,47 +639,6 @@ class BaseOauthPlugin extends BasePlugin {
               plugin.server.logger.verbose("userinfo failed assertions");
               return respond_to_failed_authorization();
             }
-          }
-
-          if (
-            tokenset_is_expired(tokenSet) &&
-            plugin.config.features.refresh_access_token &&
-            tokenset_can_refresh(tokenSet)
-          ) {
-            tokenSet = await plugin.refresh_token(tokenSet);
-            sessionPayload.tokenSet = tokenSet;
-
-            tokenSetValid = await plugin.token_set_asertions(tokenSet);
-            if (!tokenSetValid) {
-              return respond_to_failed_authorization();
-            }
-
-            let userinfo;
-            if (
-              plugin.config.features.fetch_userinfo &&
-              plugin.config.features.userinfo_expiry === true
-            ) {
-              userinfo = await plugin.get_userinfo(tokenSet);
-              plugin.server.logger.verbose("userinfo %j", userinfo);
-              sessionPayload.userinfo = userinfo;
-            }
-
-            if (plugin.config.assertions.userinfo) {
-              const userinfoValid = await plugin.userinfo_assertions(
-                sessionPayload.userinfo.data
-              );
-              if (!userinfoValid) {
-                return respond_to_failed_authorization();
-              }
-            }
-
-            await store.set(
-              SESSION_CACHE_PREFIX + session_id,
-              plugin.server.utils.encrypt(
-                plugin.server.secrets.session_encrypt_secret,
-                JSON.stringify(sessionPayload)
-              )
-            );
           }
 
           plugin.prepare_token_headers(res, sessionPayload);
@@ -638,6 +652,33 @@ class BaseOauthPlugin extends BasePlugin {
         }
         break;
     }
+  }
+
+  async get_session_data(session_id) {
+    const plugin = this;
+    const store = plugin.server.store;
+    plugin.server.logger.verbose("retrieving session: %s", session_id);
+
+    const encryptedSession = await store.get(SESSION_CACHE_PREFIX + session_id);
+
+    plugin.server.logger.verbose(
+      "retrieved encrypted session content: %s",
+      encryptedSession
+    );
+
+    if (!encryptedSession) {
+      plugin.server.logger.verbose("failed to decrypt session");
+      return false;
+    }
+
+    let sessionPayload = plugin.server.utils.decrypt(
+      plugin.server.secrets.session_encrypt_secret,
+      encryptedSession
+    );
+    plugin.server.logger.debug("session data: %s", sessionPayload);
+    sessionPayload = JSON.parse(sessionPayload);
+
+    return sessionPayload;
   }
 
   /**
