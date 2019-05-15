@@ -293,37 +293,9 @@ class BaseOauthPlugin extends BasePlugin {
         );
       } catch (e) {
         plugin.server.logger.error(e);
-        if (e.data.isResponseError) {
-          e = e.data.payload;
-          switch (e.error) {
-            case "invalid_grant":
-            case "bad_verification_code":
-              res.statusCode = redirectHttpCode;
-              res.setHeader("Location", state.request_uri);
-              return res;
-            case "incorrect_client_credentials":
-            case "redirect_uri_mismatch":
-            default:
-              res.statusCode = 503;
-              return res;
-          }
-        }
-
-        if (e.name) {
-          switch (e.name) {
-            case "OpenIdConnectError":
-              switch (e.error) {
-                case "invalid_grant":
-                  res.statusCode = redirectHttpCode;
-                  res.setHeader("Location", state.request_uri);
-                  return res;
-              }
-              break;
-          }
-
-          res.statusCode = 503;
-          res.statusMessage = e.error_description;
-          return res;
+        if (plugin.is_redirectable_error(e)) {
+          res.statusCode = redirectHttpCode;
+          res.setHeader("Location", state.request_uri);
         }
 
         res.statusCode = 503;
@@ -591,7 +563,11 @@ class BaseOauthPlugin extends BasePlugin {
               if (preSaveSessionMD5 == postSaveSessionMD5) {
                 plugin.server.logger.warn("tokenSet not refreshed externally");
                 plugin.server.logger.error(e);
-                throw e;
+                if (plugin.is_redirectable_error(e)) {
+                  return respond_to_failed_authorization();
+                } else {
+                  throw e;
+                }
               } else {
                 plugin.server.logger.verbose("tokenSet refreshed externally");
               }
@@ -731,6 +707,28 @@ class BaseOauthPlugin extends BasePlugin {
           sessionData.tokenSet[plugin.config.features.authorization_token]
       );
     }
+  }
+
+  is_redirectable_error(e) {
+    if (
+      (e.data && e.data.isResponseError) ||
+      (e.name && e.name == "OpenIdConnectError")
+    ) {
+      if (e.data && e.data.isResponseError) {
+        e = e.data.payload;
+      }
+      switch (e.error) {
+        case "invalid_grant":
+        case "bad_verification_code":
+          return true;
+        case "incorrect_client_credentials":
+        case "redirect_uri_mismatch":
+        default:
+          return false;
+      }
+    }
+
+    return false;
   }
 
   async id_token_assertions(id_token) {

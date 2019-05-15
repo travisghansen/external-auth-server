@@ -141,7 +141,10 @@ class LdapPlugin extends BasePlugin {
                 store_key,
                 plugin.server.utils.encrypt(
                   plugin.server.secrets.session_encrypt_secret,
-                  JSON.stringify(user)
+                  JSON.stringify({
+                    iat: Math.floor(Date.now() / 1000),
+                    data: user
+                  })
                 ),
                 plugin.config.session_cache_ttl
               )
