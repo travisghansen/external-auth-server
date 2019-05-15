@@ -125,6 +125,20 @@ function authorization_scheme_is(value, scheme) {
   return false;
 }
 
+function array_unique(a) {
+  return a.filter(function(e, i, c) {
+    return c.indexOf(e) === i;
+  });
+}
+
+function array_intersect(a, b) {
+  let t;
+  if (b.length > a.length) (t = b), (b = a), (a = t); // indexOf to loop over shorter
+  return a.filter(function(e) {
+    return b.indexOf(e) > -1;
+  });
+}
+
 function redirect_http_code(req) {
   return req.query.redirect_http_code ? req.query.redirect_http_code : 302;
 }
@@ -165,14 +179,47 @@ function assert(rule, value) {
     }
   }
 
+  let a, b, c;
   switch (rule.method) {
     case "contains":
-    if (!Array.isArray(value)) {
-      throw new Error("value must be an array for 'contains' method");
-    }
+      if (!Array.isArray(value)) {
+        throw new Error("value must be an array for 'contains' method");
+      }
 
-    test = value.includes(rule.value);
-    break;
+      test = value.includes(rule.value);
+      break;
+    case "contains-any":
+      if (!Array.isArray(value)) {
+        throw new Error("value must be an array for 'contains-any' method");
+      }
+
+      if (!Array.isArray(rule.value)) {
+        throw new Error(
+          "rule.value must be an array for 'contains-any' method"
+        );
+      }
+
+      a = array_unique(value);
+      b = array_unique(rule.value);
+      c = array_intersect(a, b);
+      test = c.length > 0;
+      break;
+    case "contains-all":
+      if (!Array.isArray(value)) {
+        throw new Error("value must be an array for 'contains-all' method");
+      }
+
+      if (!Array.isArray(rule.value)) {
+        throw new Error(
+          "rule.value must be an array for 'contains-all' method"
+        );
+      }
+
+      a = array_unique(value);
+      b = array_unique(rule.value);
+      c = array_intersect(a, b);
+      test = b.length == c.length;
+      break;
     case "eq":
       test = rule.value == value;
       break;
@@ -183,7 +230,7 @@ function assert(rule, value) {
 
       test = rule.value.includes(value);
       break;
-      case "regex":
+    case "regex":
       /**
        * this splits the simple "/pattern/[flags]" syntaxt into something the
        * regex constructor understands
@@ -221,5 +268,7 @@ module.exports = {
   authorization_scheme_is,
   redirect_http_code,
   jsonpath_query,
-  assert
+  assert,
+  array_unique,
+  array_intersect
 };

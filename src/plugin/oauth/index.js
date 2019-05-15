@@ -782,6 +782,8 @@ class BaseOauthPlugin extends BasePlugin {
       let value;
       switch (assertion.rule.method) {
         case "contains":
+        case "contains-any":
+        case "contains-all":
           value = plugin.server.utils.jsonpath_query(
             userinfo,
             assertion.path,
