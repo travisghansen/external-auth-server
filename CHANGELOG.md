@@ -24,7 +24,6 @@
 
 - email link plugin
 - email code plugin
-- jwt plugin
 
 * support for POST callback providers (can accept post requests on the `/oauth/callback` route and translate to `GET` params)
 * oauth2 providers
@@ -74,3 +73,10 @@
 - ~~session expiry (true/false/seconds)~~
 - ~~userinfo expiry (true/false/seconds)~~
 - ~~cookie expiry (true/false/seconds)~~
+- ~~ldap plugin~~
+- ~~htpasswd plugin~~
+- ~~request param/header plugins~~
+- jwt plugin
+- ensure all features are documented
+- document limitations when service provier only allows 1 active token per client_id
+- ~~activity based session expiry (floating window sessions)~~

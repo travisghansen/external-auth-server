@@ -71,9 +71,33 @@ Initiates oauth `Authorization Code Flow` for authentication with any provider.
         * how long to keep a session (server side) around
         * true = expire with tokenSet (if applicable)
         * false = never expire
-        * num seconds = expire after given number of seconds
+        * num seconds = expire after given number of seconds (enables sliding window)
+        *
+        * sessions become a floating window *if*
+        * - tokens are being refreshed
+        * or
+        * - userinfo being refreshed
+        * or
+        * - session_expiry_refresh_window is a positive number
         */
         session_expiry: true,
+        
+        /**
+        * window to update the session window based on activity if
+        * nothing else has updated it (ie: refreshing tokens or userinfo)
+        *
+        * should be a positive number less than session_expiry
+        *
+        * For example, if session_expiry is set to 60 seconds and session_expiry_refresh_window value is set to 20
+        * then activity in the last 20 seconds (40-60) of the window will 'slide' the window
+        * out session_expiry time from whenever the activity occurred
+        */
+        session_expiry_refresh_window: 86400,
+
+        /**
+        * will re-use the same id (ie: same cookie) for a particular client if a session has expired
+        */
+        session_retain_id: true,
 
         /**
         * if the access token is expired and a refresh token is available, refresh
@@ -180,9 +204,33 @@ Initiates OpenID Connect `Authorization Code Flow` for authentication with any p
         * how long to keep a session (server side) around
         * true = expire with tokenSet (if applicable)
         * false = never expire
-        * num seconds = expire after given number of seconds
+        * num seconds = expire after given number of seconds (enables sliding window)
+        *
+        * sessions become a floating window *if*
+        * - tokens are being refreshed
+        * or
+        * - userinfo being refreshed
+        * or
+        * - session_expiry_refresh_window is a positive number
         */
         session_expiry: true,
+        
+        /**
+        * window to update the session window based on activity if
+        * nothing else has updated it (ie: refreshing tokens or userinfo)
+        *
+        * should be a positive number less than session_expiry
+        *
+        * For example, if session_expiry is set to 60 seconds and session_expiry_refresh_window value is set to 20
+        * then activity in the last 20 seconds (40-60) of the window will 'slide' the window
+        * out session_expiry time from whenever the activity occurred
+        */
+        session_expiry_refresh_window: 86400,
+
+        /**
+        * will re-use the same id (ie: same cookie) for a particular client if a session has expired
+        */
+        session_retain_id: true,
 
         /**
         * if the access token is expired and a refresh token is available, refresh

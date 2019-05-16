@@ -32,7 +32,6 @@ const STATE_CSRF_COOKIE_EXPIRY = "43200"; //12 hours
 const DEFAULT_CLIENT_CLOCK_TOLERANCE = 5;
 const ISSUER_CACHE_DURATION = 43200 * 1000;
 const CLIENT_CACHE_DURATION = 43200 * 1000;
-let PLUGIN_VERIFIES = 0;
 
 let initialized = false;
 
@@ -84,10 +83,37 @@ function tokenset_can_refresh(tokenSet) {
   let refreshToken;
   try {
     refreshToken = jwt.decode(tokenSet.refresh_token);
-    return token_is_expired(refreshToken);
+    return !!!token_is_expired(refreshToken);
   } catch (e) {
     return true;
   }
+}
+
+function tokenset_refresh_can_expire(tokenSet) {
+  if (!tokenSet.refresh_token) {
+    return false;
+  }
+
+  if (tokenSet.refresh_expires_in) {
+    return true;
+  }
+
+  try {
+    refreshToken = jwt.decode(tokenSet.refresh_token);
+    if (refreshToken.exp) {
+      return true;
+    }
+  } catch (e) {}
+
+  return false;
+}
+
+function tokenset_refresh_expire_at(tokenSet) {
+  if (tokenset_refresh_can_expire(tokenSet)) {
+    //TODO: implement this somehow
+  }
+
+  return null;
 }
 
 class BaseOauthPlugin extends BasePlugin {
@@ -320,6 +346,7 @@ class BaseOauthPlugin extends BasePlugin {
         idToken = jwt.decode(tokenSet.id_token);
       }
 
+      //TODO: see if expires_at is access_token or refresh_token, adjust logic accordingly
       let cookieExpiresAt, sessionExpiresAt, tokenExpiresAt;
       if (tokenSet.expires_at) {
         tokenExpiresAt = tokenSet.expires_at * 1000;
@@ -380,23 +407,24 @@ class BaseOauthPlugin extends BasePlugin {
         }
       }
 
-      const session_id = plugin.server.utils.generate_session_id();
-      plugin.server.logger.verbose("creating new session: %s", session_id);
+      let session_id;
+      if (
+        plugin.config.features.session_retain_id === true &&
+        req.signedCookies[configCookieName]
+      ) {
+        session_id = req.signedCookies[configCookieName];
+        plugin.server.logger.verbose("re-creating session: %s", session_id);
+      } else {
+        session_id = plugin.server.utils.generate_session_id();
+        plugin.server.logger.verbose("creating new session: %s", session_id);
+      }
 
       let ttl = null;
       if (sessionExpiresAt) {
         sessionPayload.exp = Math.floor(sessionExpiresAt / 1000);
         ttl = (sessionExpiresAt - Date.now()) / 1000;
       }
-      plugin.server.logger.verbose("session TTL: %s", ttl);
-      await store.set(
-        SESSION_CACHE_PREFIX + session_id,
-        plugin.server.utils.encrypt(
-          plugin.server.secrets.session_encrypt_secret,
-          JSON.stringify(sessionPayload)
-        ),
-        ttl
-      );
+      await plugin.save_session(session_id, sessionPayload, ttl);
 
       res.cookie(configCookieName, session_id, {
         domain: plugin.config.cookie.domain,
@@ -539,14 +567,7 @@ class BaseOauthPlugin extends BasePlugin {
                   return respond_to_failed_authorization();
                 }
               }
-
-              await store.set(
-                SESSION_CACHE_PREFIX + session_id,
-                plugin.server.utils.encrypt(
-                  plugin.server.secrets.session_encrypt_secret,
-                  JSON.stringify(sessionPayload)
-                )
-              );
+              await plugin.update_session(session_id, sessionPayload);
             } catch (e) {
               //TODO: better logic here to detect invalid_grant, etc
               const snooze = ms =>
@@ -591,19 +612,23 @@ class BaseOauthPlugin extends BasePlugin {
               sessionPayload.userinfo.iat +
                 plugin.config.features.userinfo_expiry
           ) {
-            plugin.server.logger.verbose("refrshing expired userinfo");
+            plugin.server.logger.verbose("refreshing expired userinfo");
             let userinfo;
-            userinfo = await plugin.get_userinfo(tokenSet);
-            plugin.server.logger.verbose("userinfo %j", userinfo);
-            sessionPayload.userinfo = userinfo;
+            try {
+              userinfo = await plugin.get_userinfo(tokenSet);
+              plugin.server.logger.verbose("userinfo %j", userinfo);
+              sessionPayload.userinfo = userinfo;
 
-            await store.set(
-              SESSION_CACHE_PREFIX + session_id,
-              plugin.server.utils.encrypt(
-                plugin.server.secrets.session_encrypt_secret,
-                JSON.stringify(sessionPayload)
-              )
-            );
+              await plugin.update_session(session_id, sessionPayload);
+            } catch (e) {
+              plugin.server.logger.warn("failed to retrieve userinfo");
+              plugin.server.logger.error(e);
+              if (plugin.is_redirectable_error(e)) {
+                return respond_to_failed_authorization();
+              } else {
+                throw e;
+              }
+            }
           }
 
           // run assertions on userinfo
@@ -615,6 +640,19 @@ class BaseOauthPlugin extends BasePlugin {
               plugin.server.logger.verbose("userinfo failed assertions");
               return respond_to_failed_authorization();
             }
+          }
+
+          let now = Date.now() / 1000;
+          if (
+            plugin.config.features.session_expiry !== true &&
+            plugin.config.features.session_expiry > 0 &&
+            sessionPayload.exp &&
+            plugin.config.features.session_expiry_refresh_window &&
+            now >=
+              plugin.config.features.session_expiry_refresh_window +
+                sessionPayload.exp
+          ) {
+            await plugin.update_session(session_id, sessionPayload);
           }
 
           plugin.prepare_token_headers(res, sessionPayload);
@@ -655,6 +693,50 @@ class BaseOauthPlugin extends BasePlugin {
     sessionPayload = JSON.parse(sessionPayload);
 
     return sessionPayload;
+  }
+
+  async save_session(session_id, sessionPayload, ttl = null) {
+    const plugin = this;
+    const store = plugin.server.store;
+
+    await store.set(
+      SESSION_CACHE_PREFIX + session_id,
+      plugin.server.utils.encrypt(
+        plugin.server.secrets.session_encrypt_secret,
+        JSON.stringify(sessionPayload)
+      ),
+      ttl
+    );
+  }
+
+  async update_session(session_id, sessionPayload) {
+    const plugin = this;
+    const store = plugin.server.store;
+
+    let ttl;
+    if (
+      plugin.config.features.session_expiry !== true &&
+      plugin.config.features.session_expiry > 0
+    ) {
+      let sessionExpiresAt =
+        Date.now() / 1000 + plugin.config.features.session_expiry;
+      sessionExpiresAt = sessionExpiresAt * 1000;
+
+      if (sessionExpiresAt) {
+        sessionPayload.exp = Math.floor(sessionExpiresAt / 1000);
+        ttl = (sessionExpiresAt - Date.now()) / 1000;
+      }
+      plugin.server.logger.verbose("session TTL: %s", ttl);
+    }
+
+    await store.set(
+      SESSION_CACHE_PREFIX + session_id,
+      plugin.server.utils.encrypt(
+        plugin.server.secrets.session_encrypt_secret,
+        JSON.stringify(sessionPayload)
+      ),
+      ttl
+    );
   }
 
   /**
@@ -920,10 +1002,22 @@ class BaseOauthPlugin extends BasePlugin {
     const plugin = this;
     if (tokenSet.refresh_token) {
       plugin.server.logger.debug("refresh_token %j", tokenSet.refresh_token);
+      try {
+        plugin.server.logger.debug(
+          "refresh_token decoded %j",
+          jwt.decode(tokenSet.refresh_token)
+        );
+      } catch (e) {}
     }
 
     if (tokenSet.access_token) {
       plugin.server.logger.debug("access_token %j", tokenSet.access_token);
+      try {
+        plugin.server.logger.debug(
+          "access_token decoded %j",
+          jwt.decode(tokenSet.access_token)
+        );
+      } catch (e) {}
     }
 
     if (tokenSet.id_token) {
@@ -975,6 +1069,10 @@ class OauthPlugin extends BaseOauthPlugin {
 
     if (!config.features.hasOwnProperty("userinfo_expiry")) {
       config.features.userinfo_expiry = true;
+    }
+
+    if (!config.features.hasOwnProperty("session_retain_id")) {
+      config.features.session_retain_id = true;
     }
 
     if (!config.features.hasOwnProperty("session_expiry")) {
@@ -1274,6 +1372,10 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
       config.features.session_expiry = true;
     }
 
+    if (!config.features.hasOwnProperty("session_retain_id")) {
+      config.features.session_retain_id = true;
+    }
+
     if (!config.features.hasOwnProperty("refresh_access_token")) {
       config.features.refresh_access_token = true;
     }
@@ -1404,8 +1506,10 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
 
   async get_userinfo(tokenSet) {
     const plugin = this;
+    plugin.server.logger.debug("get userinfo with tokenSet: %j", tokenSet);
+
     const client = await plugin.get_client();
-    const userinfo = await client.userinfo(tokenSet);
+    const userinfo = await client.userinfo(tokenSet.access_token);
     return { iat: Math.floor(Date.now() / 1000), data: userinfo };
   }
 }
