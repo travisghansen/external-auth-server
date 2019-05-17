@@ -11,6 +11,7 @@ const { RequestParamPlugin } = require("./plugin/request_param");
 const { RequestHeaderPlugin } = require("./plugin/request_header");
 const { HtPasswdPlugin } = require("./plugin/htpasswd");
 const { LdapPlugin } = require("./plugin/ldap");
+const { JwtPlugin } = require("./plugin/jwt");
 
 //Issuer.defaultHttpOptions = { timeout: 2500, headers: { 'X-Your-Header': '<whatever>' } };
 const externalAuthServer = new ExternalAuthServer();
@@ -34,6 +35,7 @@ RequestParamPlugin.initialize(externalAuthServer);
 RequestHeaderPlugin.initialize(externalAuthServer);
 HtPasswdPlugin.initialize(externalAuthServer);
 LdapPlugin.initialize(externalAuthServer);
+JwtPlugin.initialize(externalAuthServer);
 
 app.get("/ping", (req, res) => {
   res.statusCode = 200;
@@ -109,6 +111,9 @@ app.get("/verify", (req, res) => {
             case "ldap":
               plugin = new LdapPlugin(externalAuthServer, pluginConfig);
               break;
+            case "jwt":
+              plugin = new JwtPlugin(externalAuthServer, pluginConfig);
+              break;
             default:
               continue;
           }
@@ -135,10 +140,7 @@ app.get("/verify", (req, res) => {
           }
 
           lastPluginResponse = pluginResponse;
-          externalAuthServer.logger.debug(
-            "plugin response %j",
-            pluginResponse
-          );
+          externalAuthServer.logger.debug("plugin response %j", pluginResponse);
 
           if (fallbackPlugin !== null) {
             if (i == fallbackPlugin) {

@@ -24,8 +24,29 @@ Performs `Basic` authentication using `ldap` lookups.
     connection: {
         url: "...",
         ...
-        see for details https://github.com/vesse/node-ldapauth-fork#ldapauth-config-options
+        see details here: https://github.com/vesse/node-ldapauth-fork#ldapauth-config-options
     }
+}
+```
+
+## `jwt`
+
+Verifies a `jwt` token sent as a `Bearer` token in the `Authorization` header.
+
+```
+{
+    type: "jwt",
+    configs: [
+        {
+            secret: "", // either the secret or full public key PEM data
+            options: {
+                ...
+                see details here: https://www.npmjs.com/package/jsonwebtoken#jwtverifytoken-secretorpublickey-options-callback
+            }
+        }
+        ...
+    ]
+    
 }
 ```
 

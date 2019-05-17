@@ -116,6 +116,19 @@ function parse_basic_authorization_header(value) {
   return creds;
 }
 
+function parse_bearer_authorization_header(value) {
+  let parts;
+  const creds = {};
+  parts = value.split(" ");
+
+  creds.strategy = parts[0];
+  creds.token = parts
+    .slice(1)
+    .join(" ");
+
+  return creds;
+}
+
 function authorization_scheme_is(value, scheme) {
   const value_strategy = value.split(" ")[0];
   if (value_strategy.toLowerCase() == scheme.toLowerCase()) {
@@ -265,6 +278,7 @@ module.exports = {
   get_parent_request_info,
   validateConfigToken,
   parse_basic_authorization_header,
+  parse_bearer_authorization_header,
   authorization_scheme_is,
   redirect_http_code,
   jsonpath_query,

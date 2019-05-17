@@ -76,7 +76,7 @@
 - ~~ldap plugin~~
 - ~~htpasswd plugin~~
 - ~~request param/header plugins~~
-- jwt plugin
+- ~~jwt plugin~~
 - ensure all features are documented
 - document limitations when service provier only allows 1 active token per client_id
 - ~~activity based session expiry (floating window sessions)~~
