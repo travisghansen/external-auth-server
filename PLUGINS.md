@@ -46,13 +46,16 @@ Verifies a `jwt` token sent as a `Bearer` token in the `Authorization` header.
         }
         ...
     ]
-    
+
 }
 ```
 
 ## `oauth2`
 
 Initiates oauth `Authorization Code Flow` for authentication with any provider.
+
+Some providers only allow a single active token per-user per-client_id. This
+can be a limitation if the same user is using multiple browsers/sessions.
 
 ```
 {
@@ -102,7 +105,7 @@ Initiates oauth `Authorization Code Flow` for authentication with any provider.
         * - session_expiry_refresh_window is a positive number
         */
         session_expiry: true,
-        
+
         /**
         * window to update the session window based on activity if
         * nothing else has updated it (ie: refreshing tokens or userinfo)
@@ -139,6 +142,10 @@ Initiates oauth `Authorization Code Flow` for authentication with any provider.
         */
         fetch_userinfo: true,
 
+        /**
+        * if you have a supported provider and want to assert or send userinfo via header
+        * select the correct provider here
+        */
         userinfo: {
             provider: "github",
             config: {
@@ -153,6 +160,19 @@ Initiates oauth `Authorization Code Flow` for authentication with any provider.
         * assert the token(s) has not expired
         */
         exp: true,
+
+        /**
+        * custom userinfo assertions
+        */
+        userinfo: [
+            {
+                ...
+                see ASSERTIONS.md for details
+            },
+            {
+                ...
+            }
+        ]
     },
     cookie: {
         //name: "_my_company_session",//default is _oeas_oauth_session
@@ -166,6 +186,9 @@ Initiates oauth `Authorization Code Flow` for authentication with any provider.
 ## `oidc`
 
 Initiates OpenID Connect `Authorization Code Flow` for authentication with any provider.
+
+Some providers only allow a single active token per-user per-client_id. This
+can be a limitation if the same user is using multiple browsers/sessions.
 
 ```
 {
@@ -235,7 +258,7 @@ Initiates OpenID Connect `Authorization Code Flow` for authentication with any p
         * - session_expiry_refresh_window is a positive number
         */
         session_expiry: true,
-        
+
         /**
         * window to update the session window based on activity if
         * nothing else has updated it (ie: refreshing tokens or userinfo)
@@ -291,6 +314,32 @@ Initiates OpenID Connect `Authorization Code Flow` for authentication with any p
         * assert the correct issuer of the token(s)
         */
         iss: true,
+
+        /**
+        * custom userinfo assertions
+        */
+        userinfo: [
+            {
+                ...
+                see ASSERTIONS.md for details
+            },
+            {
+                ...
+            }
+        ],
+
+        /**
+        * custom id_token assertions
+        */
+        id_token: [
+            {
+                ...
+                see ASSERTIONS.md for details
+            },
+            {
+                ...
+            }
+        ]
     },
     cookie: {
         //name: "_my_company_session",//default is _oeas_oauth_session
