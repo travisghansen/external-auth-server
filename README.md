@@ -27,6 +27,7 @@ indexed) parameter on the authentication URL.
 - oauth2
 - request param
 - request header
+- jwt
 
 # Features
 
@@ -43,6 +44,8 @@ indexed) parameter on the authentication URL.
 
 If running multiple instances (HA) you will need a shared cache/store (see
 redis below).
+
+Refer to the [HOWTO](HOWTO.md) for a more detailed overview.
 
 ## Prerequisites
 
