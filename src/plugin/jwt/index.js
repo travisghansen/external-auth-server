@@ -30,10 +30,11 @@ class JwtPlugin extends BasePlugin {
     const parentReqInfo = plugin.server.utils.get_parent_request_info(req);
     plugin.server.logger.verbose("parent request info: %j", parentReqInfo);
 
-    let realm, error, error_description;
+    let realm = plugin.config.realm ? plugin.config.realm : parentReqInfo.uri;
+
+    let error, error_description;
     const failure_response = function() {
       res.statusCode = 401;
-      realm = parentReqInfo.uri;
       //Bearer realm="example", error="invalid_token", error_description="The access token expired"
       let value = 'Bearer realm="' + realm + '"';
       if (error) {

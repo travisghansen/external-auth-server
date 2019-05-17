@@ -36,6 +36,7 @@ Verifies a `jwt` token sent as a `Bearer` token in the `Authorization` header.
 ```
 {
     type: "jwt",
+    realm: "my realm", // optional
     configs: [
         {
             secret: "", // either the secret or full public key PEM data
