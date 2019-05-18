@@ -37,17 +37,13 @@ Verifies a `jwt` token sent as a `Bearer` token in the `Authorization` header.
 {
     type: "jwt",
     realm: "my realm", // optional
-    configs: [
-        {
-            secret: "", // either the secret or full public key PEM data
-            options: {
-                ...
-                see details here: https://www.npmjs.com/package/jsonwebtoken#jwtverifytoken-secretorpublickey-options-callback
-            }
+    config: {
+        secret: "", // either the secret or full public key PEM data
+        options: {
+            ...
+            see details here: https://www.npmjs.com/package/jsonwebtoken#jwtverifytoken-secretorpublickey-options-callback
         }
-        ...
-    ]
-
+    }
 }
 ```
 
@@ -347,6 +343,18 @@ can be a limitation if the same user is using multiple browsers/sessions.
         //domain: "example.com", //defaults to request domain, could do sso with more generic domain
         //path: "/",
     }
+}
+```
+
+## `forward`
+
+Proxy the response from another external/forward authentication service.
+
+```
+{
+    type: "forward",
+    url: "https://my.other.forward.auth.service.com"
+    allow_insecure: false
 }
 ```
 

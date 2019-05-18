@@ -12,6 +12,7 @@ const { RequestHeaderPlugin } = require("./plugin/request_header");
 const { HtPasswdPlugin } = require("./plugin/htpasswd");
 const { LdapPlugin } = require("./plugin/ldap");
 const { JwtPlugin } = require("./plugin/jwt");
+const { ForwardPlugin } = require("./plugin/forward");
 
 //Issuer.defaultHttpOptions = { timeout: 2500, headers: { 'X-Your-Header': '<whatever>' } };
 const externalAuthServer = new ExternalAuthServer();
@@ -36,6 +37,7 @@ RequestHeaderPlugin.initialize(externalAuthServer);
 HtPasswdPlugin.initialize(externalAuthServer);
 LdapPlugin.initialize(externalAuthServer);
 JwtPlugin.initialize(externalAuthServer);
+ForwardPlugin.initialize(externalAuthServer);
 
 app.get("/ping", (req, res) => {
   res.statusCode = 200;
@@ -114,6 +116,9 @@ app.get("/verify", (req, res) => {
             case "jwt":
               plugin = new JwtPlugin(externalAuthServer, pluginConfig);
               break;
+            case "forward":
+              plugin = new ForwardPlugin(externalAuthServer, pluginConfig);
+              break;
             default:
               continue;
           }
@@ -166,6 +171,9 @@ app.get("/verify", (req, res) => {
             break;
           }
         }
+
+        // bad configuration (ie: no valid plugins defined)
+        resolve();
       }
 
       process();
