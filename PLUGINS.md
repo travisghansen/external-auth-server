@@ -1,14 +1,101 @@
 # Plugins
 
+Plugins defined in a list forming a pipeline of authentication schemes.
+
+The first plugin to result in a `2XX` response code will allow the request to
+be serviced. If **all** plugins fail, then by default the result from the
+final plugin defined in the `config_token` will be returned to the client. You
+can however alter that on a service-by-service basis by setting the
+`fallback_plugin=plugin index` (0 indexed) parameter on the authentication URL.
+
+In addition, there are various `pcb` (plugin/pipeline circuit breakers) to do 2
+distinct things:
+
+1. `skip` plugin execution based on the nature of the request
+1. `stop` pipeline execution based on the nature of the request or the plugin
+   response
+
+An example `config_token`:
+
+```
+    ...
+    plugins: [
+      {
+        type: "jwt",
+        config: {
+          secret: "foo"
+        },
+        pcb: {
+          skip: [
+            {
+              query_engine: "jp",
+              query: "$.req.headers.authorization",
+              rule: {
+                method: "regex",
+                value: "/^bearer/i",
+                negate: true
+              }
+            }
+          ],
+          stop: [
+            {
+              query_engine: "jp",
+              query: "$.req.headers.authorization",
+              rule: {
+                method: "regex",
+                value: "/^bearer/i",
+              }
+            }
+          ]
+        }
+      },
+      {
+        type: "htpasswd",
+        htpasswd: "..."
+        pcb: {
+          skip: [
+            {
+              query_engine: "jp",
+              query: "$.req.headers.authorization",
+              rule: {
+                method: "regex",
+                value: "/^basic/i",
+                negate: true
+              }
+            }
+          ],
+          stop: [
+            {
+              query_engine: "jp",
+              query: "$.req.headers.authorization",
+              rule: {
+                method: "regex",
+                value: "/^basic/i",
+              }
+            }
+          ]
+        }
+      },
+    ]
+    ...
+```
+
+The effect of the example is:
+
+- the `jwt` plugin will be skipped if the `authorization` header does not start with `bearer`
+- if the `authorization` does start with `bearer` it will be the last plugin to execute
+- ditto for the `htpasswd` plugin except with `basic` instead of `bearer`
+
 ## `htpasswd`
 
 Performs `Basic` authentiaction using a standard `htpasswd` file.
 
 ```
 {
-    type: "htpasswed",
+    type: "htpasswd",
     realm: "my realm", // optional
     htpasswd: "<password file data>" // ie: "foo:$apr1$P6l79L2I$yXjFNHLV.ZPiV86bZ73GI." be sure to properly escape for json if necessary
+
 }
 ```
 
@@ -353,8 +440,8 @@ Proxy the response from another external/forward authentication service.
 ```
 {
     type: "forward",
-    url: "https://my.other.forward.auth.service.com"
-    allow_insecure: false
+    url: "https://my.other.forward.auth.service.com",
+    allow_insecure: false // self-signed certs
 }
 ```
 

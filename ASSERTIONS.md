@@ -1,17 +1,22 @@
 # Assertions
 
 Custom assertions allow you place fine-grained access controls over who can
-authenticate and who cannot. Assertions apply to `userinfo` in the case of
-both `oauth2` and `oidc` plugins. `id_token` assertions are only available in
-the case of `oidc`.
+authenticate and who cannot or plugin behavior via `pcb` (pipeline/plugin)
+circuit breakers.
 
-The basic idea is to select a `path` (relative to `userinfo` or `id_token`
-respectively) using [`jsonpath`](https://github.com/dchester/jsonpath) syntax.
+The basic idea is to select a value from the dataset using a `query` with
+[`jsonpath`](https://github.com/dchester/jsonpath) or
+[`jq`](https://stedolan.github.io/jq/) syntax.
 
-You then define the `rule` by declare the following properties:
+You pick the `query` syntax by setting the `query_engine` parameter:
+
+- `jp` for jsonpath
+- `jq` for jq
+
+You then define the `rule` by declaring the following properties:
 
 - `method` - this determines how the assertion will be compared
-- `value` - this determines what the selected `path` value will be compared
+- `value` - this determines what the selected `query` value will be compared
   against
 - `negate` - this will negate the comparison result
 - `case_insensitive` - will make sure compared values are done in a
@@ -19,20 +24,20 @@ You then define the `rule` by declare the following properties:
 
 Valid options for method are:
 
-- `eq` - The values are equal. This assumes the `path` is ensured to only
+- `eq` - The values are equal. This assumes the `query` is ensured to only
   return a single value.
-- `regex` - The value passes a regex comparison. This assumes the `path` is
+- `regex` - The value passes a regex comparison. This assumes the `query` is
   ensured to only return a single value.
-- `in` - The selected value is `in` the provided list. This assumes the `path`
+- `in` - The selected value is `in` the provided list. This assumes the `query`
   is ensured to only return a single value. The `value` should be an array.
 - `contains` - The selected value `contains` the option specified as the
-  `value`. This assumes the `path` is returning a list of values.
+  `value`. This assumes the `query` is returning a list of values.
 - `contains-any` - Similar to `contains` but allows the `value` to be a list of
-  items. If **any** of the items in `value` are found in the `path` result then
-  the assertion passes. This assumes the `path` is returning a list of values.
+  items. If **any** of the items in `value` are found in the `query` result then
+  the assertion passes. This assumes the `query` is returning a list of values.
 - `contains-all` - Similar to `contains` but allows the `value` to be a list of
-  items. If **all** of the items in `value` are found in the `path` result then
-  the assertion passes. This assumes the `path` is returning a list of values.
+  items. If **all** of the items in `value` are found in the `query` result then
+  the assertion passes. This assumes the `query` is returning a list of values.
 
 ## examples
 
@@ -44,7 +49,8 @@ in logs or request headers to backing services (if properly enabled).
 
 ```
 {
-    path: "$.login",
+    query_engine: "jp":,
+    query: "$.login",
     rule: {
         method: "eq",
         value: "myusername",
@@ -55,7 +61,8 @@ in logs or request headers to backing services (if properly enabled).
 }
 
 {
-    path: "$.login",
+    query_engine: "jp":,
+    query: "$.login",
     rule: {
         method: "regex",
 
@@ -68,7 +75,8 @@ in logs or request headers to backing services (if properly enabled).
 }
 
 {
-    path: "$.login",
+    query_engine: "jp":,
+    query: "$.login",
     rule: {
         method: "in",
         value: ["myuser1", "myuser2", ...],
@@ -79,7 +87,7 @@ in logs or request headers to backing services (if properly enabled).
 }
 
 {
-    path: "$.emails[*].email",
+    query: "$.emails[*].email",
     rule: {
         method: "contains",
         value: "myemail@example.com",
@@ -90,7 +98,8 @@ in logs or request headers to backing services (if properly enabled).
 }
 
 {
-    path: "$.emails[*].email",
+    query_engine: "jp":,
+    query: "$.emails[*].email",
     rule: {
         method: "contains-any",
         value: ["user1@example.com", "user2@example.com", ...],
@@ -101,7 +110,8 @@ in logs or request headers to backing services (if properly enabled).
 }
 
 {
-    path: "$.emails[*].email",
+    query_engine: "jp":,
+    query: "$.emails[*].email",
     rule: {
         method: "contains-all",
         value: ["user1@example.com", "user1@another.com", ...]

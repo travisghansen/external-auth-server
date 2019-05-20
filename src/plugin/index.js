@@ -8,6 +8,7 @@ class BasePlugin {
 class PluginVerifyResponse {
   constructor() {
     this.statusCode = "";
+    this.statusMessage = "";
     this.body = "";
     this.cookies = [];
     this.clearCookies = [];

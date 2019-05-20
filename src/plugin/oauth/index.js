@@ -1,3 +1,4 @@
+const { Assertion } = require("../../assertion");
 const { BasePlugin } = require("../../plugin");
 const { Issuer } = require("openid-client");
 const jwt = require("jsonwebtoken");
@@ -322,6 +323,7 @@ class BaseOauthPlugin extends BasePlugin {
         if (plugin.is_redirectable_error(e)) {
           res.statusCode = redirectHttpCode;
           res.setHeader("Location", state.request_uri);
+          return res;
         }
 
         res.statusCode = 503;
@@ -793,6 +795,7 @@ class BaseOauthPlugin extends BasePlugin {
 
   is_redirectable_error(e) {
     if (
+      e.error ||
       (e.data && e.data.isResponseError) ||
       (e.name && e.name == "OpenIdConnectError")
     ) {
@@ -815,74 +818,20 @@ class BaseOauthPlugin extends BasePlugin {
 
   async id_token_assertions(id_token) {
     const plugin = this;
-    let test = true;
-    plugin.config.assertions.id_token.forEach(assertion => {
-      /**
-       * poor man's break
-       */
-      if (test == false) {
-        return;
-      }
 
-      let value;
-      switch (assertion.rule.method) {
-        case "contains":
-          value = plugin.server.utils.jsonpath_query(
-            id_token,
-            assertion.path,
-            false
-          );
-          break;
-        default:
-          value = plugin.server.utils.jsonpath_query(
-            id_token,
-            assertion.path,
-            true
-          );
-          break;
-      }
-
-      test = plugin.server.utils.assert(assertion.rule, value);
-    });
-
-    return test;
+    return await Assertion.assertSet(
+      id_token,
+      plugin.config.assertions.id_token
+    );
   }
 
   async userinfo_assertions(userinfo) {
     const plugin = this;
-    let test = true;
-    plugin.config.assertions.userinfo.forEach(assertion => {
-      /**
-       * poor man's break
-       */
-      if (test == false) {
-        return;
-      }
 
-      let value;
-      switch (assertion.rule.method) {
-        case "contains":
-        case "contains-any":
-        case "contains-all":
-          value = plugin.server.utils.jsonpath_query(
-            userinfo,
-            assertion.path,
-            false
-          );
-          break;
-        default:
-          value = plugin.server.utils.jsonpath_query(
-            userinfo,
-            assertion.path,
-            true
-          );
-          break;
-      }
-
-      test = plugin.server.utils.assert(assertion.rule, value);
-    });
-
-    return test;
+    return await Assertion.assertSet(
+      userinfo,
+      plugin.config.assertions.userinfo
+    );
   }
 
   async token_set_asertions(tokenSet) {

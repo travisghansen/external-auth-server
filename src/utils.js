@@ -122,9 +122,7 @@ function parse_bearer_authorization_header(value) {
   parts = value.split(" ");
 
   creds.strategy = parts[0];
-  creds.token = parts
-    .slice(1)
-    .join(" ");
+  creds.token = parts.slice(1).join(" ");
 
   return creds;
 }
@@ -156,111 +154,17 @@ function redirect_http_code(req) {
   return req.query.redirect_http_code ? req.query.redirect_http_code : 302;
 }
 
-function jsonpath_query(obj, path, singleValue = false) {
-  const values = jp.query(obj, path);
-  if (singleValue) {
-    if (values.length > 1) {
-      throw new Error("more than 1 value in jsonpath query result");
-    }
-
-    return values[0];
-  }
-  return values;
-}
-
-function assert(rule, value) {
-  let test;
-
-  //console.log("########## asserting the following rule: %j", rule);
-  //console.log("########## asserting the following value: ", value);
-
-  if (rule.case_insensitive) {
-    if (Array.isArray(value)) {
-      for (let i = 0; i < value.length; i++) {
-        value[i] = value[i].toString().toLowerCase();
-      }
-    } else {
-      value = value.toString().toLowerCase();
-    }
-
-    if (Array.isArray(rule.value)) {
-      for (let i = 0; i < rule.value.length; i++) {
-        rule.value[i] = rule.value[i].toString().toLowerCase();
-      }
-    } else {
-      rule.value = rule.value.toString().toLowerCase();
-    }
+function lower_case_keys(obj) {
+  let key,
+    keys = Object.keys(obj);
+  let n = keys.length;
+  let newobj = {};
+  while (n--) {
+    key = keys[n];
+    newobj[key.toLowerCase()] = obj[key];
   }
 
-  let a, b, c;
-  switch (rule.method) {
-    case "contains":
-      if (!Array.isArray(value)) {
-        throw new Error("value must be an array for 'contains' method");
-      }
-
-      test = value.includes(rule.value);
-      break;
-    case "contains-any":
-      if (!Array.isArray(value)) {
-        throw new Error("value must be an array for 'contains-any' method");
-      }
-
-      if (!Array.isArray(rule.value)) {
-        throw new Error(
-          "rule.value must be an array for 'contains-any' method"
-        );
-      }
-
-      a = array_unique(value);
-      b = array_unique(rule.value);
-      c = array_intersect(a, b);
-      test = c.length > 0;
-      break;
-    case "contains-all":
-      if (!Array.isArray(value)) {
-        throw new Error("value must be an array for 'contains-all' method");
-      }
-
-      if (!Array.isArray(rule.value)) {
-        throw new Error(
-          "rule.value must be an array for 'contains-all' method"
-        );
-      }
-
-      a = array_unique(value);
-      b = array_unique(rule.value);
-      c = array_intersect(a, b);
-      test = b.length == c.length;
-      break;
-    case "eq":
-      test = rule.value == value;
-      break;
-    case "in":
-      if (!Array.isArray(rule.value)) {
-        throw new Error("rule.value must be an array for 'in' method");
-      }
-
-      test = rule.value.includes(value);
-      break;
-    case "regex":
-      /**
-       * this splits the simple "/pattern/[flags]" syntaxt into something the
-       * regex constructor understands
-       */
-      const parts = /\/(.*)\/(.*)/.exec(rule.value);
-      const regex = new RegExp(parts[1], parts[2]);
-      test = regex.test(value);
-      break;
-    default:
-      throw new Error("unknown assert method: " + rule.method);
-  }
-
-  if (rule.negate) {
-    return !!!test;
-  }
-
-  return test;
+  return newobj;
 }
 
 function validateConfigToken(configToken) {}
@@ -281,8 +185,7 @@ module.exports = {
   parse_bearer_authorization_header,
   authorization_scheme_is,
   redirect_http_code,
-  jsonpath_query,
-  assert,
   array_unique,
-  array_intersect
+  array_intersect,
+  lower_case_keys
 };

@@ -1,3 +1,4 @@
+const { Assertion } = require("../../assertion");
 const { BasePlugin } = require("..");
 const jwt = require("jsonwebtoken");
 
@@ -33,8 +34,8 @@ class JwtPlugin extends BasePlugin {
     let realm = plugin.config.realm ? plugin.config.realm : parentReqInfo.uri;
 
     let error, error_description;
-    const failure_response = function() {
-      res.statusCode = 401;
+    const failure_response = function(code = 401) {
+      res.statusCode = code || 401;
       //Bearer realm="example", error="invalid_token", error_description="The access token expired"
       let value = 'Bearer realm="' + realm + '"';
       if (error) {
@@ -70,8 +71,19 @@ class JwtPlugin extends BasePlugin {
 
     try {
       const token = jwt.verify(creds.token, config.secret, config.options);
-      res.statusCode = 200;
-      return res;
+      plugin.server.logger.debug("jwt token: %j", token);
+
+      const valid = await plugin.assertions(token);
+      if (valid !== true) {
+        error = "invalid_user";
+        error_description = "user did not pass assertions";
+
+        failure_response(403);
+        return res;
+      } else {
+        res.statusCode = 200;
+        return res;
+      }
     } catch (e) {
       switch (e.name) {
         case "TokenExpiredError":
@@ -87,6 +99,12 @@ class JwtPlugin extends BasePlugin {
 
     failure_response();
     return res;
+  }
+
+  async assertions(token) {
+    const plugin = this;
+
+    return await Assertion.assertSet(token, plugin.config.assertions);
   }
 }
 

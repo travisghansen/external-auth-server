@@ -1,3 +1,4 @@
+const { Assertion } = require("./assertion");
 const express = require("express");
 const bodyParser = require("body-parser");
 const ConfigToken = require("./config_token");
@@ -131,6 +132,28 @@ app.get("/verify", (req, res) => {
           );
 
           try {
+            /**
+             * check if we should skip this plugin
+             */
+            if (pluginConfig.pcb.skip) {
+              const data = {
+                req: {},
+                res: {}
+              };
+
+              data.req.headers = JSON.parse(JSON.stringify(req.headers));
+              data.req.cookies = JSON.parse(JSON.stringify(req.cookies));
+
+              let skip = await Assertion.assertSet(data, pluginConfig.pcb.skip);
+
+              if (skip) {
+                externalAuthServer.logger.info(
+                  "skipping plugin due to pcb assertions: %s",
+                  pluginConfig.type
+                );
+                continue;
+              }
+            }
             await plugin.verify(configToken, req, pluginResponse);
           } catch (e) {
             externalAuthServer.logger.error(e);
@@ -161,6 +184,40 @@ app.get("/verify", (req, res) => {
           ) {
             resolve(pluginResponse);
             break;
+          }
+
+          /**
+           * check to see if we should stop pipeline immediately
+           */
+          if (pluginConfig.pcb.stop) {
+            const data = {
+              req: {},
+              res: {}
+            };
+
+            data.req.headers = JSON.parse(JSON.stringify(req.headers));
+            data.req.cookies = JSON.parse(JSON.stringify(req.cookies));
+
+            data.res.headers = JSON.parse(
+              JSON.stringify(
+                externalAuthServer.utils.lower_case_keys(pluginResponse.headers)
+              )
+            );
+            
+            data.res.statusCode = JSON.parse(
+              JSON.stringify(pluginResponse.statusCode)
+            );
+
+            let stop = await Assertion.assertSet(data, pluginConfig.pcb.stop);
+
+            if (stop === true) {
+              externalAuthServer.logger.info(
+                "stopping pipeline due to pcb assertions: %s",
+                pluginConfig.type
+              );
+              resolve(pluginResponse);
+              break;
+            }
           }
 
           if (configToken.eas.plugins.length == i + 1) {
