@@ -87,7 +87,10 @@ app.get("/verify", (req, res) => {
       async function process() {
         for (let i = 0; i < configToken.eas.plugins.length; i++) {
           const pluginConfig = configToken.eas.plugins[i];
+          pluginConfig.pcb = pluginConfig.pcb || {};
+
           const pluginResponse = new PluginVerifyResponse();
+
           let plugin;
           switch (pluginConfig.type) {
             case "oidc":
@@ -123,8 +126,6 @@ app.get("/verify", (req, res) => {
             default:
               continue;
           }
-
-          //plugin = new LdapPlugin(externalAuthServer, pluginConfig);
 
           externalAuthServer.logger.info(
             "starting verify for plugin: %s",
