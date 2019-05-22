@@ -36,6 +36,8 @@
 
 # 0.1.0
 
+Released 2019-05-21
+
 - ~~plugin pipeline~~
 - ~~multiple authentication plugins~~
 - ~~cache discovery/issuer details~~ (this is automatically handled by the client lib)
