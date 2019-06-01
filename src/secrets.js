@@ -1,3 +1,5 @@
+const utils = require("./utils");
+
 const config_token_sign_secret =
   process.env.EAS_CONFIG_TOKEN_SIGN_SECRET ||
   utils.exit_failure("missing EAS_CONFIG_TOKEN_SIGN_SECRET env variable");
