@@ -7,9 +7,10 @@ RUN useradd --create-home eas \
 WORKDIR /home/eas/app
 USER eas
 
-COPY . .
-
+COPY package*.json ./
 RUN npm install
+
+COPY --chown=eas:eas . .
 
 EXPOSE 8080
 
