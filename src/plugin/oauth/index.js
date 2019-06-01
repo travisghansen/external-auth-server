@@ -766,6 +766,14 @@ class BaseOauthPlugin extends BasePlugin {
 
   prepare_token_headers(res, sessionData) {
     const plugin = this;
+
+    // Set user-defined headers first so that they don't overwrite others.
+    if (plugin.config.headers && sessionData.userinfo.data) {
+      for (let [header, field] of Object.entries(plugin.config.headers)) {
+        res.setHeader(`X-${header}`, sessionData.userinfo.data[field]);
+      }
+    }
+
     if (sessionData.tokenSet.id_token) {
       res.setHeader("X-Id-Token", sessionData.tokenSet.id_token);
     }
