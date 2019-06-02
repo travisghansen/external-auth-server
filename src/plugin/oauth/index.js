@@ -2,6 +2,7 @@ const { Assertion } = require("../../assertion");
 const { BasePlugin } = require("../../plugin");
 const { Issuer } = require("openid-client");
 const jwt = require("jsonwebtoken");
+const headers = require("../../headers")
 const oauth2 = require("simple-oauth2");
 const queryString = require("query-string");
 const request = require("request");
@@ -657,7 +658,7 @@ class BaseOauthPlugin extends BasePlugin {
             await plugin.update_session(session_id, sessionPayload);
           }
 
-          plugin.prepare_token_headers(res, sessionPayload);
+          await plugin.prepare_token_headers(res, sessionPayload);
           res.statusCode = 200;
           return res;
         } else {
@@ -764,15 +765,8 @@ class BaseOauthPlugin extends BasePlugin {
     return URI.serialize(parsedURI);
   }
 
-  prepare_token_headers(res, sessionData) {
+  async prepare_token_headers(res, sessionData) {
     const plugin = this;
-
-    // Set user-defined headers first so that they don't overwrite others.
-    if (plugin.config.headers && sessionData.userinfo.data) {
-      for (let [header, field] of Object.entries(plugin.config.headers)) {
-        res.setHeader(`X-${header}`, sessionData.userinfo.data[field]);
-      }
-    }
 
     if (sessionData.tokenSet.id_token) {
       res.setHeader("X-Id-Token", sessionData.tokenSet.id_token);
@@ -784,6 +778,11 @@ class BaseOauthPlugin extends BasePlugin {
 
     if (sessionData.tokenSet.access_token) {
       res.setHeader("X-Access-Token", sessionData.tokenSet.access_token);
+    }
+
+    if (plugin.config.headers && sessionData) {
+      await headers.populateResponseHeader(
+        res, plugin.config.headers, sessionData, plugin.server.logger);
     }
 
     if (
