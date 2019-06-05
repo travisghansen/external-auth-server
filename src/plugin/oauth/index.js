@@ -2,7 +2,7 @@ const { Assertion } = require("../../assertion");
 const { BasePlugin } = require("../../plugin");
 const { Issuer } = require("openid-client");
 const jwt = require("jsonwebtoken");
-const headers = require("../../headers")
+const { HeaderInjector } = require("../../header");
 const oauth2 = require("simple-oauth2");
 const queryString = require("query-string");
 const request = require("request");
@@ -780,9 +780,20 @@ class BaseOauthPlugin extends BasePlugin {
       res.setHeader("X-Access-Token", sessionData.tokenSet.access_token);
     }
 
-    if (plugin.config.headers && sessionData) {
-      await headers.populateResponseHeader(
-        res, plugin.config.headers, sessionData, plugin.server.logger);
+    if (plugin.config.headers) {
+      const injectData = {
+        userinfo: sessionData.userinfo.data,
+        id_token: sessionData.tokenSet.id_token,
+        access_token: sessionData.tokenSet.access_token,
+        refresh_token: sessionData.tokenSet.refresh_token
+      };
+
+      const headersInjector = new HeaderInjector(
+        plugin.config.headers,
+        injectData
+      );
+
+      await headersInjector.injectHeaders(res);
     }
 
     if (

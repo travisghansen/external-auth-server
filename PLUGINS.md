@@ -262,7 +262,9 @@ can be a limitation if the same user is using multiple browsers/sessions.
         //name: "_my_company_session",//default is _oeas_oauth_session
         //domain: "example.com", //defaults to request domain, could do sso with more generic domain
         //path: "/",
-    }
+    },
+    // see HEADERS.md for details
+    headers: {},
 }
 }
 ```
@@ -429,7 +431,9 @@ can be a limitation if the same user is using multiple browsers/sessions.
         //name: "_my_company_session",//default is _oeas_oauth_session
         //domain: "example.com", //defaults to request domain, could do sso with more generic domain
         //path: "/",
-    }
+    },
+    // see HEADERS.md for details
+    headers: {},
 }
 ```
 
