@@ -33,42 +33,66 @@ class JwtPlugin extends BasePlugin {
 
     let realm = plugin.config.realm ? plugin.config.realm : parentReqInfo.uri;
 
+    let header_name = plugin.config.header_name
+      ? plugin.config.header_name
+      : "authorization";
+    header_name = header_name.toLowerCase();
+
+    let scheme = plugin.config.scheme;
+
+    if (!scheme) {
+      if (header_name == "authorization") {
+        scheme = "bearer";
+      }
+    }
+
+    scheme = scheme.toLowerCase();
+
     let error, error_description;
     const failure_response = function(code = 401) {
       res.statusCode = code || 401;
-      //Bearer realm="example", error="invalid_token", error_description="The access token expired"
-      let value = 'Bearer realm="' + realm + '"';
-      if (error) {
-        value = value + ', error="' + error + '"';
-      }
 
-      if (error_description) {
-        value = value + ', error_description="' + error_description + '"';
-      }
+      if (scheme == "bearer") {
+        //Bearer realm="example", error="invalid_token", error_description="The access token expired"
+        let value = 'Bearer realm="' + realm + '"';
+        if (error) {
+          value = value + ', error="' + error + '"';
+        }
 
-      res.setHeader("WWW-Authenticate", value);
+        if (error_description) {
+          value = value + ', error_description="' + error_description + '"';
+        }
+
+        res.setHeader("WWW-Authenticate", value);
+      }
     };
 
-    if (!req.headers.authorization) {
+    if (!req.headers[header_name]) {
       failure_response();
       return res;
     }
 
     if (
+      scheme &&
       !plugin.server.utils.authorization_scheme_is(
-        req.headers.authorization,
-        "bearer"
+        req.headers[header_name],
+        scheme
       )
     ) {
       failure_response();
       return res;
     }
 
-    const config = plugin.config.config;
-    const creds = plugin.server.utils.parse_bearer_authorization_header(
-      req.headers.authorization
-    );
+    let creds = {};
+    if (scheme) {
+      creds = plugin.server.utils.parse_bearer_authorization_header(
+        req.headers[header_name]
+      );
+    } else {
+      creds.token = req.headers[header_name];
+    }
 
+    const config = plugin.config.config;
     try {
       const token = jwt.verify(creds.token, config.secret, config.options);
       plugin.server.logger.debug("jwt token: %j", token);
@@ -81,6 +105,9 @@ class JwtPlugin extends BasePlugin {
         failure_response(403);
         return res;
       } else {
+        res.setAuthenticationData({
+          id_token: creds.token
+        });
         res.statusCode = 200;
         return res;
       }
@@ -104,7 +131,13 @@ class JwtPlugin extends BasePlugin {
   async assertions(token) {
     const plugin = this;
 
-    return await Assertion.assertSet(token, plugin.config.assertions);
+    if (plugin.config.assertions && plugin.config.assertions.id_token) {
+      return await Assertion.assertSet(
+        token,
+        plugin.config.assertions.id_token
+      );
+    }
+    return true;
   }
 }
 

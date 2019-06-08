@@ -4,6 +4,7 @@ const bodyParser = require("body-parser");
 const ConfigToken = require("./config_token");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
+const { HeaderInjector } = require("./header");
 const { PluginVerifyResponse } = require("./plugin");
 const { ExternalAuthServer } = require("./");
 
@@ -127,6 +128,8 @@ app.get("/verify", (req, res) => {
               continue;
           }
 
+          pluginResponse.setPlugin(plugin);
+
           externalAuthServer.logger.info(
             "starting verify for plugin: %s",
             pluginConfig.type
@@ -204,7 +207,7 @@ app.get("/verify", (req, res) => {
                 externalAuthServer.utils.lower_case_keys(pluginResponse.headers)
               )
             );
-            
+
             data.res.statusCode = JSON.parse(
               JSON.stringify(pluginResponse.statusCode)
             );
@@ -235,7 +238,7 @@ app.get("/verify", (req, res) => {
       }
 
       process();
-    }).then(pluginResponse => {
+    }).then(async pluginResponse => {
       if (!pluginResponse) {
         pluginResponse = new PluginVerifyResponse();
         pluginResponse.statusCode = 503;
@@ -244,6 +247,32 @@ app.get("/verify", (req, res) => {
         "end verify pipeline with status: %d",
         pluginResponse.statusCode
       );
+
+      if (pluginResponse.statusCode >= 200 && pluginResponse.statusCode < 300) {
+        const pluginConfig = pluginResponse.plugin.config;
+        const injectData = pluginResponse.authenticationData;
+        injectData.plugin_config = pluginConfig;
+        injectData.config_token = configToken;
+
+        // set config_token headers
+        if (configToken.eas.custom_service_headers) {
+          const headersInjector = new HeaderInjector(
+            configToken.eas.custom_service_headers,
+            injectData
+          );
+          await headersInjector.injectHeaders(pluginResponse);
+        }
+        
+        // set plugin headers
+        if (pluginConfig.custom_service_headers) {
+          const headersInjector = new HeaderInjector(
+            pluginConfig.custom_service_headers,
+            injectData
+          );
+          await headersInjector.injectHeaders(pluginResponse);
+        }
+      }
+
       ExternalAuthServer.setResponse(res, pluginResponse);
     });
   } catch (e) {

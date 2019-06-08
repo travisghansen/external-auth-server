@@ -124,12 +124,28 @@ Verifies a `jwt` token sent as a `Bearer` token in the `Authorization` header.
 {
     type: "jwt",
     realm: "my realm", // optional
+    header_name: "Authorization", // optional
+    scheme: "Bearer", // optional, if using a custom header_name without a scheme leave it blank
     config: {
         secret: "", // either the secret or full public key PEM data
         options: {
             ...
             see details here: https://www.npmjs.com/package/jsonwebtoken#jwtverifytoken-secretorpublickey-options-callback
         }
+    },
+    assertions: {
+        /**
+        * custom id_token assertions
+        */
+        id_token: [
+            {
+                ...
+                see ASSERTIONS.md for details
+            },
+            {
+                ...
+            }
+        ]
     }
 }
 ```

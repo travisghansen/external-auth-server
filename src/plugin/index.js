@@ -13,6 +13,8 @@ class PluginVerifyResponse {
     this.cookies = [];
     this.clearCookies = [];
     this.headers = {};
+    this.authenticationData = {};
+    this.plugin = null;
   }
 
   body(body) {
@@ -29,6 +31,18 @@ class PluginVerifyResponse {
 
   setHeader(name, value) {
     this.headers[name] = value;
+  }
+
+  setAuthenticationData(data) {
+    this.authenticationData = data;
+  }
+
+  setAuthenticationDataValue(name, value) {
+    this.authenticationData[name] = value;
+  }
+
+  setPlugin(plugin) {
+    this.plugin = plugin;
   }
 }
 

@@ -9,9 +9,9 @@ desired.
 ```
 {
     ...
-    headers: {
+    custom_service_headers: {
         "X-Injected-FooBarBaz": {
-            source: "userinfo",// userinfo, id_token, access_token, refresh_token, static
+            source: "userinfo",// userinfo, id_token, access_token, refresh_token, static, config_token, plugin_config
             query_engine: "jp",
             query: "$.emails[*].email", // if left blank the data will be passed unaltered (ie: jwt encoded data)
 

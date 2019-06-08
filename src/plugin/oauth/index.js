@@ -2,7 +2,6 @@ const { Assertion } = require("../../assertion");
 const { BasePlugin } = require("../../plugin");
 const { Issuer } = require("openid-client");
 const jwt = require("jsonwebtoken");
-const { HeaderInjector } = require("../../header");
 const oauth2 = require("simple-oauth2");
 const queryString = require("query-string");
 const request = require("request");
@@ -659,6 +658,7 @@ class BaseOauthPlugin extends BasePlugin {
           }
 
           await plugin.prepare_token_headers(res, sessionPayload);
+          await plugin.prepare_authentication_data(res, sessionPayload);
           res.statusCode = 200;
           return res;
         } else {
@@ -780,22 +780,6 @@ class BaseOauthPlugin extends BasePlugin {
       res.setHeader("X-Access-Token", sessionData.tokenSet.access_token);
     }
 
-    if (plugin.config.headers) {
-      const injectData = {
-        userinfo: sessionData.userinfo.data,
-        id_token: sessionData.tokenSet.id_token,
-        access_token: sessionData.tokenSet.access_token,
-        refresh_token: sessionData.tokenSet.refresh_token
-      };
-
-      const headersInjector = new HeaderInjector(
-        plugin.config.headers,
-        injectData
-      );
-
-      await headersInjector.injectHeaders(res);
-    }
-
     if (
       plugin.config.features.authorization_token &&
       ["id_token", "access_token", "refresh_token"].includes(
@@ -809,6 +793,15 @@ class BaseOauthPlugin extends BasePlugin {
           sessionData.tokenSet[plugin.config.features.authorization_token]
       );
     }
+  }
+
+  async prepare_authentication_data(res, sessionData) {
+    res.setAuthenticationData({
+      userinfo: sessionData.userinfo.data,
+      id_token: sessionData.tokenSet.id_token,
+      access_token: sessionData.tokenSet.access_token,
+      refresh_token: sessionData.tokenSet.refresh_token
+    });
   }
 
   is_redirectable_error(e) {
