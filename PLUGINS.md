@@ -51,7 +51,7 @@ An example `config_token`:
       },
       {
         type: "htpasswd",
-        htpasswd: "..."
+        htpasswd: "...",
         pcb: {
           skip: [
             {
@@ -138,6 +138,60 @@ Verifies a `jwt` token sent as a `Bearer` token in the `Authorization` header.
         * custom id_token assertions
         */
         id_token: [
+            {
+                ...
+                see ASSERTIONS.md for details
+            },
+            {
+                ...
+            }
+        ]
+    }
+}
+```
+
+## `firebase_jwt`
+
+Verifies a firebase `idToken`.
+
+```
+{
+    type: "firebase_jwt",
+    realm: "my realm", // optional
+    header_name: "Authorization", // optional
+    scheme: "Bearer", // optional, if using a custom header_name without a scheme leave it blank
+    config: {
+        api_key: "...",
+        project_id: "...",
+        options: {
+            checkRevoked: true, // if enabled also enable the fetch_userinfo feature and put a sane expiry (cache ttl)
+            ...
+            see details here: https://www.npmjs.com/package/jsonwebtoken#jwtverifytoken-secretorpublickey-options-callback
+            // issuer and audience are automatically validated
+        }
+    },
+    features: {
+        fetch_userinfo: true,
+        userinfo_expiry: 30 // if > 0 userinfo will be cached (seconds)
+    },
+    assertions: {
+        /**
+        * custom id_token assertions
+        */
+        id_token: [
+            {
+                ...
+                see ASSERTIONS.md for details
+            },
+            {
+                ...
+            }
+        ],
+
+        /**
+        * custom userinfo assertions
+        */
+        userinfo: [
             {
                 ...
                 see ASSERTIONS.md for details

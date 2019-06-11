@@ -6,6 +6,22 @@ headers and values to be passed down to the backing service.
 Note, the reverse proxy may need to be configured to pass/allow headers as
 desired.
 
+`custom_service_headers` can be declared at the `config_token` level or at the
+`plugin` level.
+
+```
+{
+    eas: {
+        plugins: [
+            {
+                ...
+                custom_service_headers: {}
+            }
+        ]
+        custom_service_headers: {}
+    }
+}
+
 ```
 {
     ...

@@ -1,4 +1,10 @@
-# 0.2.0
+# 1.0.0
+
+- align/generic all features/documentation
+- prometheus
+- refactor naming of store/cache/etc
+
+# 0.3.0
 
 - cache jwks keys?
 - support better logic for original URI detection `Forwarded` header and `X-Forwarded-For`, etc
@@ -19,20 +25,27 @@
 - replace `jsonwebtoken` with `@panva/jose`
 
 - ensure empty body in responses
-- server-side `config_token`(s) to overcome URL length limits and centrally manage (provide a `config_token_id` instead)
+
 - redis integration into helm chart
 
 - email link plugin
 - email code plugin
 
-* support for POST callback providers (can accept post requests on the `/oauth/callback` route and translate to `GET` params)
-* oauth2 providers
-* Google default
-* Azure
-* Facebook
-* ~~GitHub~~
-* GitLab
-* LinkedIn
+- support for POST callback providers (can accept post requests on the `/oauth/callback` route and translate to `GET` params)
+- oauth2 providers
+  - Google default
+  - Azure
+  - Facebook
+  - ~~GitHub~~
+  - GitLab
+  - LinkedIn
+
+# 0.2.0
+
+- ~~custom service headers~~
+- ~~server-side `config_token`(s) to overcome URL length limits and centrally manage~~
+- ~~firebase plugin~~
+- ~~prometheus stats~~
 
 # 0.1.0
 

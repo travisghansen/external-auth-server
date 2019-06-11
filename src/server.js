@@ -7,7 +7,9 @@ const jwt = require("jsonwebtoken");
 const { HeaderInjector } = require("./header");
 const { PluginVerifyResponse } = require("./plugin");
 const { ExternalAuthServer } = require("./");
+const promBundle = require("express-prom-bundle");
 
+// auth plugins
 const { OauthPlugin, OpenIdConnectPlugin } = require("./plugin/oauth");
 const { RequestParamPlugin } = require("./plugin/request_param");
 const { RequestHeaderPlugin } = require("./plugin/request_header");
@@ -15,12 +17,17 @@ const { HtPasswdPlugin } = require("./plugin/htpasswd");
 const { LdapPlugin } = require("./plugin/ldap");
 const { JwtPlugin } = require("./plugin/jwt");
 const { ForwardPlugin } = require("./plugin/forward");
+const { FirebaseJwtPlugin } = require("./plugin/firebase");
 
-//Issuer.defaultHttpOptions = { timeout: 2500, headers: { 'X-Your-Header': '<whatever>' } };
+// create app instance
 const externalAuthServer = new ExternalAuthServer();
 const app = express();
 
 externalAuthServer.WebServer = app;
+
+// config token store
+const { ConfigTokenStoreManager } = require("./config_token_store");
+const configTokenStoreManager = new ConfigTokenStoreManager(externalAuthServer);
 
 /**
  * register middleware
@@ -28,6 +35,17 @@ externalAuthServer.WebServer = app;
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser(externalAuthServer.secrets.cookie_sign_secret));
+app.use(
+  promBundle({
+    includeMethod: true,
+    includePath: true,
+    promClient: {
+      collectDefaultMetrics: {
+        timeout: 2000
+      }
+    }
+  })
+);
 
 /**
  * TODO: call initialize only if method exists and make sure to call on all plugins
@@ -39,6 +57,7 @@ RequestHeaderPlugin.initialize(externalAuthServer);
 HtPasswdPlugin.initialize(externalAuthServer);
 LdapPlugin.initialize(externalAuthServer);
 JwtPlugin.initialize(externalAuthServer);
+FirebaseJwtPlugin.initialize(externalAuthServer);
 ForwardPlugin.initialize(externalAuthServer);
 
 app.get("/ping", (req, res) => {
@@ -50,7 +69,7 @@ app.get("/ping", (req, res) => {
  * Verify the request with the given ConfigToken
  *
  */
-app.get("/verify", (req, res) => {
+app.get("/verify", async (req, res) => {
   externalAuthServer.logger.silly("%j", {
     headers: req.headers,
     body: req.body
@@ -72,10 +91,44 @@ app.get("/verify", (req, res) => {
       externalAuthServer.secrets.config_token_sign_secret
     );
 
+    // server-side token
+    if (
+      configToken.eas.config_token_id &&
+      configToken.eas.config_token_store_id
+    ) {
+      externalAuthServer.logger.info(
+        "sever-side token: store=%s, id=%s",
+        configToken.eas.config_token_store_id,
+        configToken.eas.config_token_id
+      );
+
+      configToken = await configTokenStoreManager.getToken(
+        configToken.eas.config_token_id,
+        configToken.eas.config_token_store_id
+      );
+      externalAuthServer.logger.debug(
+        "server-side config token: %s",
+        configToken
+      );
+
+      configToken = externalAuthServer.utils.decrypt(
+        externalAuthServer.secrets.config_token_encrypt_secret,
+        configToken
+      );
+      configToken = jwt.verify(
+        configToken,
+        externalAuthServer.secrets.config_token_sign_secret
+      );
+    }
+
     configToken = externalAuthServer.setConfigTokenDefaults(configToken);
     configToken = new ConfigToken(configToken);
 
     externalAuthServer.logger.debug("config token: %j", configToken);
+
+    if (!configToken.eas || !configToken.eas.plugins) {
+      throw new Error("missing plugins");
+    }
 
     const fallbackPlugin = req.query.fallback_plugin
       ? req.query.fallback_plugin
@@ -123,6 +176,9 @@ app.get("/verify", (req, res) => {
               break;
             case "forward":
               plugin = new ForwardPlugin(externalAuthServer, pluginConfig);
+              break;
+            case "firebase_jwt":
+              plugin = new FirebaseJwtPlugin(externalAuthServer, pluginConfig);
               break;
             default:
               continue;
@@ -262,7 +318,7 @@ app.get("/verify", (req, res) => {
           );
           await headersInjector.injectHeaders(pluginResponse);
         }
-        
+
         // set plugin headers
         if (pluginConfig.custom_service_headers) {
           const headersInjector = new HeaderInjector(
