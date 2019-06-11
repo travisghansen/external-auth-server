@@ -10,6 +10,25 @@ cookieSignSecret:
 cookieEncryptSecret:
 sessionEncryptSecret:
 storeOpts:
+configTokenStores:
+configTokens:
+
+# exmaple config_token store (server-side config_tokens) setup using env variable backing
+# in the example below the `config_token_id` would be "1", "2", etc
+# and the `config_token_store_id` would be "primary" for the `config_token` created for the
+# reverse proxy
+#
+#configTokenStores:
+#  primary:
+#    adapter: env
+#    options:
+#      cache_ttl: 3600
+#      var: EAS_CONFIG_TOKENS
+#
+#configTokens:
+#  1: encrypted config_token (NOT URL encoded)
+#  2: ...
+#  ...
 
 # set the logging level
 # WARN: debug or above will log secrets
@@ -18,6 +37,10 @@ storeOpts:
 logLevel: "info"
 
 replicaCount: 1
+
+metrics:
+  enabled: true
+  port: 8080
 
 image:
   repository: travisghansen/external-auth-server
@@ -33,7 +56,8 @@ service:
 
 ingress:
   enabled: false
-  annotations: {}
+  annotations:
+    {}
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
   paths: []
@@ -44,7 +68,8 @@ ingress:
   #    hosts:
   #      - chart-example.local
 
-resources: {}
+resources:
+  {}
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
   # resources, such as Minikube. If you do want to specify resources, uncomment the following

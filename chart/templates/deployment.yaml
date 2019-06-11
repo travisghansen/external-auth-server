@@ -20,6 +20,10 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
       annotations:
         checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+        {{- if .Values.metrics.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.metrics.port | quote }}
+        {{- end }}
     spec:
       containers:
         - name: {{ .Chart.Name }}
@@ -40,6 +44,20 @@ spec:
                 secretKeyRef:
                   name: {{ include "external-auth-server.fullname" . }}
                   key: store-opts
+            {{- end }}
+            {{- if .Values.configTokenStores }}
+            - name: EAS_CONFIG_TOKEN_STORES
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "external-auth-server.fullname" . }}
+                  key: config-token-stores
+            {{- end }}
+            {{- if .Values.configTokens }}
+            - name: EAS_CONFIG_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "external-auth-server.fullname" . }}
+                  key: config-tokens
             {{- end }}
             - name: EAS_CONFIG_TOKEN_SIGN_SECRET
               valueFrom:
