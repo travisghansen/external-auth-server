@@ -657,7 +657,8 @@ class BaseOauthPlugin extends BasePlugin {
             await plugin.update_session(session_id, sessionPayload);
           }
 
-          plugin.prepare_token_headers(res, sessionPayload);
+          await plugin.prepare_token_headers(res, sessionPayload);
+          await plugin.prepare_authentication_data(res, sessionPayload);
           res.statusCode = 200;
           return res;
         } else {
@@ -764,8 +765,9 @@ class BaseOauthPlugin extends BasePlugin {
     return URI.serialize(parsedURI);
   }
 
-  prepare_token_headers(res, sessionData) {
+  async prepare_token_headers(res, sessionData) {
     const plugin = this;
+
     if (sessionData.tokenSet.id_token) {
       res.setHeader("X-Id-Token", sessionData.tokenSet.id_token);
     }
@@ -791,6 +793,15 @@ class BaseOauthPlugin extends BasePlugin {
           sessionData.tokenSet[plugin.config.features.authorization_token]
       );
     }
+  }
+
+  async prepare_authentication_data(res, sessionData) {
+    res.setAuthenticationData({
+      userinfo: sessionData.userinfo.data,
+      id_token: sessionData.tokenSet.id_token,
+      access_token: sessionData.tokenSet.access_token,
+      refresh_token: sessionData.tokenSet.refresh_token
+    });
   }
 
   is_redirectable_error(e) {

@@ -28,6 +28,7 @@ indexed) parameter on the authentication URL.
 - request param
 - request header
 - jwt
+- firebase jwt
 
 # Features
 
@@ -39,6 +40,7 @@ indexed) parameter on the authentication URL.
   providers/configurations/vhosts/domains
 - passes tokens to the backing service via headers
 - automatically refreshes tokens
+- server-side `config_token`s [CONFIG_TOKENS](CONFIG_TOKENS.md)
 
 # Usage
 
@@ -82,6 +84,7 @@ EAS_ISSUER_ENCRYPT_SECRET="blah" \
 EAS_COOKIE_SIGN_SECRET="hello world" \
 EAS_COOKIE_ENCRYPT_SECRET="something" \
 EAS_SESSION_ENCRYPT_SECRET="baz" \
+EAS_CONFIG_TOKEN_STORES='{}' \
 EAS_LOG_LEVEL="info" \
 EAS_PORT=8080 \
 node src/server.js
@@ -98,6 +101,7 @@ docker run -d --name eas -p 8080:8080 \
 -e EAS_COOKIE_SIGN_SECRET="hello world" \
 -e EAS_COOKIE_ENCRYPT_SECRET="something" \
 -e EAS_SESSION_ENCRYPT_SECRET="baz" \
+-e EAS_CONFIG_TOKEN_STORES='{}' \
 -e EAS_LOG_LEVEL="info" \
 -e EAS_PORT=8080 \
 travisghansen/external-auth-server

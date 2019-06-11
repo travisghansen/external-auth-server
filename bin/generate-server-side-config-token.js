@@ -19,7 +19,8 @@ let config_token = {
    */
   //aud: "some application id", //should be unique to prevent cookie/session hijacking, defaults to a hash unique to the whole config
   eas: {
-    plugins: [{...}, {...},{...}], // list of plugin definitions, refer to PLUGINS.md for details
+    config_token_id: "token_id",
+    config_token_store_id: "store_id"
   }
 };
 
@@ -32,8 +33,8 @@ const conifg_token_encrypted = utils.encrypt(
 //console.log("token: %s", config_token);
 //console.log("");
 
-console.log("encrypted token (for server-side usage): %s", conifg_token_encrypted);
-console.log("");
+//console.log("encrypted token: %s", conifg_token_encrypted);
+//console.log("");
 
 console.log(
   "URL safe config_token: %s",

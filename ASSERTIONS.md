@@ -49,7 +49,7 @@ in logs or request headers to backing services (if properly enabled).
 
 ```
 {
-    query_engine: "jp":,
+    query_engine: "jp",
     query: "$.login",
     rule: {
         method: "eq",
@@ -61,7 +61,7 @@ in logs or request headers to backing services (if properly enabled).
 }
 
 {
-    query_engine: "jp":,
+    query_engine: "jp",
     query: "$.login",
     rule: {
         method: "regex",
@@ -75,7 +75,7 @@ in logs or request headers to backing services (if properly enabled).
 }
 
 {
-    query_engine: "jp":,
+    query_engine: "jp",
     query: "$.login",
     rule: {
         method: "in",
@@ -87,6 +87,7 @@ in logs or request headers to backing services (if properly enabled).
 }
 
 {
+    query_engine: "jp",
     query: "$.emails[*].email",
     rule: {
         method: "contains",
@@ -98,7 +99,7 @@ in logs or request headers to backing services (if properly enabled).
 }
 
 {
-    query_engine: "jp":,
+    query_engine: "jp",
     query: "$.emails[*].email",
     rule: {
         method: "contains-any",
@@ -110,7 +111,7 @@ in logs or request headers to backing services (if properly enabled).
 }
 
 {
-    query_engine: "jp":,
+    query_engine: "jp",
     query: "$.emails[*].email",
     rule: {
         method: "contains-all",

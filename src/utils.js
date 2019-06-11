@@ -121,15 +121,15 @@ function parse_bearer_authorization_header(value) {
   const creds = {};
   parts = value.split(" ");
 
-  creds.strategy = parts[0];
+  creds.scheme = parts[0];
   creds.token = parts.slice(1).join(" ");
 
   return creds;
 }
 
 function authorization_scheme_is(value, scheme) {
-  const value_strategy = value.split(" ")[0];
-  if (value_strategy.toLowerCase() == scheme.toLowerCase()) {
+  const value_scheme = value.split(" ")[0];
+  if (value_scheme.toLowerCase() == scheme.toLowerCase()) {
     return true;
   }
 
