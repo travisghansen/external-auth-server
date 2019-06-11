@@ -42,10 +42,13 @@
 
 # 0.2.0
 
+Released 2019-06-11
+
 - ~~custom service headers~~
-- ~~server-side `config_token`(s) to overcome URL length limits and centrally manage~~
-- ~~firebase plugin~~
+- ~~server-side `config_token`(s) to overcome URL length limits and centrally manage/update~~
+- ~~firebase_jwt plugin~~
 - ~~prometheus stats~~
+- ~~support for arbitrary header names for the `jwt` plugin (ie: non Authorization headers)~~
 
 # 0.1.0
 
