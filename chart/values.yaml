@@ -36,6 +36,15 @@ configTokens:
 # error, warn, info, verbose, debug, silly
 logLevel: "info"
 
+nodeExtraCaCerts:
+#nodeExtraCaCerts: |-
+#  -----BEGIN CERTIFICATE-----
+#  ...
+#  -----END CERTIFICATE-----
+#  -----BEGIN CERTIFICATE-----
+#  ...
+#  -----END CERTIFICATE-----
+
 replicaCount: 1
 
 metrics:

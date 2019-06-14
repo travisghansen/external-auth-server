@@ -20,6 +20,7 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
       annotations:
         checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+        checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         {{- if .Values.metrics.enabled }}
         prometheus.io/scrape: "true"
         prometheus.io/port: {{ .Values.metrics.port | quote }}
@@ -94,10 +95,17 @@ spec:
                 secretKeyRef:
                   name: {{ include "external-auth-server.fullname" . }}
                   key: session-encrypt-secret
+            {{- if .Values.nodeExtraCaCerts }}
+            - name: NODE_EXTRA_CA_CERTS
+              value: "/tmp/node-extra-ca-certs.crt"
+            {{- end }}
           ports:
             - name: http
               containerPort: 8080
               protocol: TCP
+          volumeMounts:
+            - name: node-extra-ca-certs
+              mountPath: /tmp
           livenessProbe:
             httpGet:
               path: /ping
@@ -120,4 +128,11 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
     {{- end }}
+      volumes:
+      - name: node-extra-ca-certs
+        configMap:
+          name: {{ include "external-auth-server.fullname" . }}
+          items:
+            - key: node-extra-ca-certs
+              path: node-extra-ca-certs.crt
 
