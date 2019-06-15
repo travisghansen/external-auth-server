@@ -1,5 +1,6 @@
 var cacheManager = require("cache-manager");
 var redisStore = require("cache-manager-redis-store");
+var ioredisStore = require("cache-manager-ioredis");
 
 let cacheOpts = process.env["EAS_STORE_OPTS"];
 if (cacheOpts) {
@@ -19,6 +20,9 @@ console.log("store options: %j", cacheOpts);
 switch (cacheOpts.store) {
   case "redis":
     cacheOpts.store = redisStore;
+    break;
+  case "ioredis":
+    cacheOpts.store = ioredisStore;
     break;
 }
 

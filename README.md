@@ -187,3 +187,11 @@ No support for sentinel currently, see `bin/generate-store-opts.js` with further
 ```
 EAS_STORE_OPTS='{"store":"redis","host":"localhost"}'
 ```
+
+Support for sentinel, see `bin/generate-store-opts.js` with further options.
+
+- https://github.com/luin/ioredis/blob/master/API.md#new-redisport-host-options
+
+```
+EAS_STORE_OPTS='{"store":"ioredis","host":"localhost"}'
+```

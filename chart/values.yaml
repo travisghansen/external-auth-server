@@ -77,6 +77,15 @@ ingress:
   #    hosts:
   #      - chart-example.local
 
+# https://github.com/helm/charts/tree/master/stable/redis-ha
+redis-ha:
+  enabled: false
+  # highly recommended to set auth and redisPassword (must set both simultaneously)
+  auth: false
+  redisPassword: 
+  exporter:
+    enabled: true
+
 resources:
   {}
   # We usually recommend not to specify default resources and to leave this as a conscious
