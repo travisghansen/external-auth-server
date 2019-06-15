@@ -180,13 +180,7 @@ set the `config_token` `redirect_uri` to the `eas` service at the
 
 ## redis
 
-No support for sentinel currently, see `bin/generate-store-opts.js` with further options.
-
-- https://www.npmjs.com/package/redis#options-object-properties
-
-```
-EAS_STORE_OPTS='{"store":"redis","host":"localhost"}'
-```
+### `ioredis` cache adapter
 
 Support for sentinel, see `bin/generate-store-opts.js` with further options.
 
@@ -194,4 +188,14 @@ Support for sentinel, see `bin/generate-store-opts.js` with further options.
 
 ```
 EAS_STORE_OPTS='{"store":"ioredis","host":"localhost"}'
+```
+
+### `redis` cache adapter
+
+No support for sentinel currently, see `bin/generate-store-opts.js` with further options.
+
+- https://www.npmjs.com/package/redis#options-object-properties
+
+```
+EAS_STORE_OPTS='{"store":"redis","host":"localhost"}'
 ```

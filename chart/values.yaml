@@ -9,9 +9,9 @@ issuerEncryptSecret:
 cookieSignSecret:
 cookieEncryptSecret:
 sessionEncryptSecret:
-storeOpts:
-configTokenStores:
-configTokens:
+storeOpts: {}
+configTokenStores: {}
+configTokens: {}
 
 # exmaple config_token store (server-side config_tokens) setup using env variable backing
 # in the example below the `config_token_id` would be "1", "2", etc
@@ -82,9 +82,23 @@ redis-ha:
   enabled: false
   # highly recommended to set auth and redisPassword (must set both simultaneously)
   auth: false
-  redisPassword: 
+  redisPassword:
   exporter:
     enabled: true
+
+# sample storeOpts when using redis-ha chart
+#storeOpts:
+#  store: ioredis
+#  password: <set to `redisPassword` value from above>
+#  name: mymaster
+#  keyPrefix: "eas:"
+#  sentinels:
+#  - host: eas-redis-ha-announce-0
+#    port: 26379
+#  - host: eas-redis-ha-announce-1
+#    port: 26379
+#  - host: eas-redis-ha-announce-2
+#    port: 26379
 
 resources:
   {}
