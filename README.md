@@ -180,6 +180,18 @@ set the `config_token` `redirect_uri` to the `eas` service at the
 
 ## redis
 
+### `ioredis` cache adapter
+
+Support for sentinel, see `bin/generate-store-opts.js` with further options.
+
+- https://github.com/luin/ioredis/blob/master/API.md#new-redisport-host-options
+
+```
+EAS_STORE_OPTS='{"store":"ioredis","host":"localhost"}'
+```
+
+### `redis` cache adapter
+
 No support for sentinel currently, see `bin/generate-store-opts.js` with further options.
 
 - https://www.npmjs.com/package/redis#options-object-properties
