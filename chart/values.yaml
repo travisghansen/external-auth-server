@@ -12,6 +12,7 @@ sessionEncryptSecret:
 storeOpts: {}
 configTokenStores: {}
 configTokens: {}
+revokedJtis: []
 
 # exmaple config_token store (server-side config_tokens) setup using env variable backing
 # in the example below the `config_token_id` would be "1", "2", etc

@@ -9,3 +9,4 @@ metadata:
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 data:
   node-extra-ca-certs: {{ default "" .Values.nodeExtraCaCerts | quote }}
+  rovoked-jtis: {{ .Values.revokedJtis | toJson | quote }}

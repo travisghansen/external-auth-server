@@ -39,6 +39,13 @@ spec:
             - name: EAS_LOG_LEVEL
               value: "{{ .Values.logLevel }}"
             {{- end }}
+            {{- if .Values.revokedJtis }}
+            - name: EAS_REVOKED_JTIS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "external-auth-server.fullname" . }}
+                  key: rovoked-jtis
+            {{- end }}
             {{- if .Values.storeOpts }}
             - name: EAS_STORE_OPTS
               valueFrom:

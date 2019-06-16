@@ -4,7 +4,11 @@
 - prometheus
 - refactor naming of store/cache/etc
 
-# 0.3.0
+# 0.4.0
+
+- explore client-side `config_token` encryption (ie: pki encryption of `config_tokens`)
+- look into support multiple `config_token` keys (ie: run external server as a service style setup)
+- look into 'proper' `config_token` jwt encryption
 
 - cache jwks keys?
 - support better logic for original URI detection `Forwarded` header and `X-Forwarded-For`, etc
@@ -14,9 +18,7 @@
 - allow for run-time (ie: URL params) assertions
 - configuration for turning on/off redirects (probably a query param like `redirect_http_code`) (this may simply be a verify_strategy)
 - nonce?
-- config_token revocation (blacklist specific jti's)
 
-- support self-signed certs
 - document proper annotations for common ingress controllers (traefik, nginx, ambassador, etc)
 
 - support for encyprted cookie
@@ -26,19 +28,29 @@
 
 - ensure empty body in responses
 
-- redis integration into helm chart
-
 - email link plugin
 - email code plugin
 
 - support for POST callback providers (can accept post requests on the `/oauth/callback` route and translate to `GET` params)
 - oauth2 providers
+
   - Google default
   - Azure
   - Facebook
   - ~~GitHub~~
   - GitLab
   - LinkedIn
+
+- required plugins (ie: support multi-success pipepline)
+
+# 0.3.0
+
+Released 2019-06-15
+
+- ~~support self-signed certs~~
+- ~~redis integration into helm chart~~
+- ~~noop plugin to support simply doing header injection~~
+- ~~config_token revocation (revoke specific jti's)~~
 
 # 0.2.0
 

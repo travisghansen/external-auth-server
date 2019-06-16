@@ -18,6 +18,7 @@ const { LdapPlugin } = require("./plugin/ldap");
 const { JwtPlugin } = require("./plugin/jwt");
 const { ForwardPlugin } = require("./plugin/forward");
 const { FirebaseJwtPlugin } = require("./plugin/firebase");
+const { NoopPlugin } = require("./plugin/noop");
 
 // create app instance
 const externalAuthServer = new ExternalAuthServer();
@@ -47,6 +48,20 @@ app.use(
   })
 );
 
+let revokedJtis = process.env["EAS_REVOKED_JTIS"];
+if (revokedJtis) {
+  revokedJtis = JSON.parse(revokedJtis);
+} else {
+  revokedJtis = [];
+}
+
+if (!Array.isArray(revokedJtis)) {
+  externalAuthServer.logger.warn("EAS_REVOKED_JTIS must be an array");
+  revokedJtis = [];
+}
+
+externalAuthServer.logger.info("revoked JTIs: %j", revokedJtis);
+
 /**
  * TODO: call initialize only if method exists and make sure to call on all plugins
  */
@@ -59,6 +74,7 @@ LdapPlugin.initialize(externalAuthServer);
 JwtPlugin.initialize(externalAuthServer);
 FirebaseJwtPlugin.initialize(externalAuthServer);
 ForwardPlugin.initialize(externalAuthServer);
+NoopPlugin.initialize(externalAuthServer);
 
 app.get("/ping", (req, res) => {
   res.statusCode = 200;
@@ -130,6 +146,10 @@ app.get("/verify", async (req, res) => {
       throw new Error("missing plugins");
     }
 
+    if (configToken.jti && revokedJtis.includes(configToken.jti)) {
+      throw new Error("revoked jti: " + configToken.jti);
+    }
+
     const fallbackPlugin = req.query.fallback_plugin
       ? req.query.fallback_plugin
       : null;
@@ -179,6 +199,9 @@ app.get("/verify", async (req, res) => {
               break;
             case "firebase_jwt":
               plugin = new FirebaseJwtPlugin(externalAuthServer, pluginConfig);
+              break;
+            case "noop":
+              plugin = new NoopPlugin(externalAuthServer, pluginConfig);
               break;
             default:
               continue;

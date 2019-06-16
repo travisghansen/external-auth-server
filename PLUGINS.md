@@ -552,3 +552,14 @@ params the request is allowed.
     }
 }
 ```
+
+## `noop`
+
+Helpful if you want to only do [header injection](HEADERS.md). For example
+inject a static `jwt` to a backing service.
+
+```
+{
+    type: "noop"
+}
+```
