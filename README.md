@@ -45,7 +45,10 @@ indexed) parameter on the authentication URL.
 # Usage
 
 If running multiple instances (HA) you will need a shared cache/store (see
-redis below).
+redis below). You only **really** need redis if:
+
+1. You are running HA
+1. You are using the `oidc` or `oauth2` plugins
 
 Refer to the [HOWTO](HOWTO.md) for a more detailed overview.
 
@@ -109,12 +112,15 @@ travisghansen/external-auth-server
 
 ### Kubernetes
 
-A `helm` chart is supplied in the repo directly.
+A `helm` chart is supplied in the repo directly. Reviewing
+(values.yaml)[chart/values.yaml] is **highly** recommended as examples are
+provided for common use-cases.
 
 ```
 helm upgrade \
 --install \
---namespace=kube-system \
+--namespace=external-auth-server \
+\
 --set configTokenSignSecret=<random> \
 --set configTokenEncryptSecret=<random> \
 --set issuerSignSecret=<random> \
@@ -123,9 +129,22 @@ helm upgrade \
 --set cookieEncryptSecret=<random> \
 --set sessionEncryptSecret=<random> \
 --set logLevel="info" \
---set storeOpts.store="redis" \
---set storeOpts.host="redis.lan" \
---set storeOpts.prefix="eas:" \
+\
+--set redis-ha.enabled=true \
+--set redis-ha.auth=true \
+--set redis-ha.redisPassword=53c237 \
+\
+--set storeOpts.store=ioredis \
+--set storeOpts.password=53c237 \
+--set storeOpts.name=mymaster \
+--set storeOpts.sentinels[0].host=eas-redis-ha-announce-0 \
+--set storeOpts.sentinels[0].port=26379 \
+--set storeOpts.sentinels[1].host=eas-redis-ha-announce-1 \
+--set storeOpts.sentinels[1].port=26379 \
+--set storeOpts.sentinels[2].host=eas-redis-ha-announce-2 \
+--set storeOpts.sentinels[2].port=26379 \
+--set storeOpts.keyPrefix="eas:" \
+\
 --set ingress.enabled=true \
 --set ingress.hosts[0]=eas.example.com \
 --set ingress.paths[0]=/ \

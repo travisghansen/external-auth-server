@@ -2,7 +2,6 @@ const crypto = require("crypto");
 const queryString = require("query-string");
 const URI = require("uri-js");
 const uuidv4 = require("uuid/v4");
-const jp = require("jsonpath");
 
 const algorithm = "aes-256-cbc";
 
@@ -76,11 +75,44 @@ function get_parent_request_info(req) {
 }
 
 function get_parent_request_uri(req) {
-  const originalRequestURI =
-    req.headers["x-forwarded-proto"] +
-    "://" +
-    req.headers["x-forwarded-host"] +
-    req.headers["x-forwarded-uri"];
+  let originalRequestURI = "";
+  originalRequestURI += req.headers["x-forwarded-proto"] + "://";
+  originalRequestURI += req.headers["x-forwarded-host"];
+
+  if (req.headers["x-replaced-path"]) {
+    /*
+      {
+        "headers": {
+          "x-forwarded-uri": "/test/api?var1=test",
+          "x-replaced-path": "/demo/cjm/test/api"
+        },
+        "body": {}
+      }
+    */
+
+    originalRequestURI += req.headers["x-replaced-path"];
+
+    const parsedUri = URI.parse(req.headers["x-forwarded-uri"]);
+    if (parsedUri.query) {
+      originalRequestURI += "?" + parsedUri.query;
+    }
+  } else if (req.headers["x-forwarded-prefix"]) {
+    /*
+      {
+        "headers": {
+          "x-forwarded-prefix": "/demo/cjm/",
+          "x-forwarded-uri": "/test/api?var1=test",
+        },
+        "body": {}
+      }
+    */
+
+    originalRequestURI += req.headers["x-forwarded-prefix"];
+    originalRequestURI = originalRequestURI.replace(/^(.+?)\/*?$/, "$1"); // remove all trailing slashes
+    originalRequestURI += req.headers["x-forwarded-uri"];
+  } else {
+    originalRequestURI += req.headers["x-forwarded-uri"];
+  }
 
   //x-forwarded-port
   /**
