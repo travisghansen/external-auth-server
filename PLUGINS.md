@@ -211,6 +211,8 @@ Initiates oauth `Authorization Code Flow` for authentication with any provider.
 Some providers only allow a single active token per-user per-client_id. This
 can be a limitation if the same user is using multiple browsers/sessions.
 
+Please read [further details](OAUTH_PLUGINS.md) about configuration.
+
 ```
 {
     type: "oauth2",
@@ -345,6 +347,8 @@ Initiates OpenID Connect `Authorization Code Flow` for authentication with any p
 
 Some providers only allow a single active token per-user per-client_id. This
 can be a limitation if the same user is using multiple browsers/sessions.
+
+Please read [further details](OAUTH_PLUGINS.md) about configuration.
 
 ```
 {

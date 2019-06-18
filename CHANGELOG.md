@@ -6,6 +6,8 @@
 
 # 0.4.0
 
+- helm repo analogy for server-side config tokens store IDs
+
 - explore client-side `config_token` encryption (ie: pki encryption of `config_tokens`)
 - look into support multiple `config_token` keys (ie: run external server as a service style setup)
 - look into 'proper' `config_token` jwt encryption
@@ -42,6 +44,15 @@
   - LinkedIn
 
 - required plugins (ie: support multi-success pipepline)
+
+# 0.3.1
+
+Released 2019-06-18
+
+- ~~better helm example incorportating `redis-ha`~~
+- ~~explicitly disable `nonce` checking for `oidc`~~
+- ~~better parent request URI reconstruction for traefik edge-cases (prefix replacement, regex alterations)~~
+- ~~better documentation around `oidc` and `oauth2` sessions~~
 
 # 0.3.0
 
