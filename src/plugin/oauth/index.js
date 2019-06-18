@@ -1459,6 +1459,7 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
       parentReqInfo.parsedQuery,
       {
         state: parentReqInfo.parsedQuery.state,
+        nonce: null,
         response_type
       }
     );
