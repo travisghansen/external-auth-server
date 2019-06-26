@@ -101,6 +101,7 @@ class LdapPlugin extends BasePlugin {
       const userinfo = await store.get(store_key);
 
       if (userinfo !== null) {
+        plugin.server.logger.verbose("ldap userinfo: %s", userinfo);
         res.statusCode = 200;
         return res;
       }
@@ -123,7 +124,7 @@ class LdapPlugin extends BasePlugin {
     await new Promise(resolve => {
       ldap.authenticate(creds.username, creds.password, function(err, user) {
         if (err) {
-          plugin.server.logger.error("LdapPlugin authenticate error: ", err);
+          plugin.server.logger.error("LdapPlugin authenticate error: %s", err);
           if (err.name) {
             switch (err.name) {
               case "TimeoutError":
@@ -135,16 +136,19 @@ class LdapPlugin extends BasePlugin {
           failure_response();
           resolve();
         } else {
+          const userinfo = JSON.stringify({
+            iat: Math.floor(Date.now() / 1000),
+            data: user
+          });
+
+          plugin.server.logger.verbose("ldap userinfo: %s", userinfo);
           if (plugin.config.session_cache_ttl > 0) {
             store
               .set(
                 store_key,
                 plugin.server.utils.encrypt(
                   plugin.server.secrets.session_encrypt_secret,
-                  JSON.stringify({
-                    iat: Math.floor(Date.now() / 1000),
-                    data: user
-                  })
+                  userinfo
                 ),
                 plugin.config.session_cache_ttl
               )
@@ -153,6 +157,7 @@ class LdapPlugin extends BasePlugin {
                 resolve();
               });
           } else {
+            res.statusCode = 200;
             resolve();
           }
         }

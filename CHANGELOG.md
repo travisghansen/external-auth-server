@@ -45,6 +45,18 @@
 
 - required plugins (ie: support multi-success pipepline)
 
+- update docker hub description/details/homepage/etc
+- note about contributing to the project
+- link to examples (config store/auth plugin) with simple explanation about requirements
+- update HOWTO helm example
+- redis config_token store
+
+# 0.3.2
+
+Released 2019-06-26
+
+- ~~fix ldap success response not setting http code properly~~
+
 # 0.3.1
 
 Released 2019-06-18

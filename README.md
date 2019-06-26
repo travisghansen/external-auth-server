@@ -170,10 +170,10 @@ node bin/generate-config-token.js
 # NOTE: run over https in production
 
 # traefik
-address = http://<oeas server ip>:8080/verify?config_token=<token output from above>
+address = http://<eas server ip>:8080/verify?config_token=<token output from above>
 
 # nginx
-proxy_pass "http://<oeas server ip>:8080/verify?redirect_http_code=401&config_token=<token output from above>";
+proxy_pass "http://<eas server ip>:8080/verify?redirect_http_code=401&config_token=<token output from above>";
 
 # traefik ingress
 ingress.kubernetes.io/auth-type: forward
