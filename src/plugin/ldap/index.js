@@ -110,7 +110,11 @@ class LdapPlugin extends BasePlugin {
     const cache_key = "ldap:connections:" + clientOptionHash;
     let ldap = cache.get(cache_key);
     if (ldap === undefined) {
-      ldap = new LdapAuth(plugin.config.connection);
+      const connection = JSON.parse(JSON.stringify(plugin.config.connection));
+      if (connection.log) {
+        connection.log = plugin.server.logger.bunyan;
+      }
+      ldap = new LdapAuth(connection);
 
       ldap.close(function(err) {});
 
