@@ -48,8 +48,17 @@
 - update docker hub description/details/homepage/etc
 - note about contributing to the project
 - link to examples (config store/auth plugin) with simple explanation about requirements
-- update HOWTO helm example
+
 - redis config_token store
+- try/catch in invalid responseCode getting sent by a plugin
+
+# 0.4.0
+
+- ~~various ldap improvements~~
+- ~~ldap userinfo assertions~~
+- ~~support annotations for helm service~~
+- ~~initial support for ambassador configuration~~
+- ~~update HOWTO helm example~~
 
 # 0.3.2
 

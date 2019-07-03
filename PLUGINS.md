@@ -112,9 +112,36 @@ Performs `Basic` authentication using `ldap` lookups.
         url: "...",
         ...
         see details here: https://github.com/vesse/node-ldapauth-fork#ldapauth-config-options
+    },
+    assertions: {
+        /**
+        * custom userinfo assertions
+        */
+        userinfo: [
+            {
+                ...
+                see ASSERTIONS.md for details
+            },
+            {
+                ...
+            }
+        ]
     }
 }
 ```
+
+### `connection` parameter details
+
+- `searchFilter`: be careful with whitespace between filters (ie: GOOD `()()`
+  BAD `() ()`)
+- `searchAttributes`: only determines what returned, any field can be used in
+  the `searchFilter` regardless of this setting, also note that computed fields
+  like `memberOf` are not selected with the default "all" configuration
+- `groupSearchBase`: example `ou=Groups,dc=example,dc=com`
+- `groupSearchFilter`: can be used to limit which groups will be available in
+  the `_groups` attribute
+  - `(cn=*)` - include all groups in the `_groups` userinfo property
+  - `(member={{dn}})` include only groups the user is a member of
 
 ## `jwt`
 

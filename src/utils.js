@@ -76,8 +76,18 @@ function get_parent_request_info(req) {
 
 function get_parent_request_uri(req) {
   let originalRequestURI = "";
+
+  if (req.headers["x-eas-request-uri"]) {
+    return req.headers["x-eas-request-uri"];
+  }
+
   originalRequestURI += req.headers["x-forwarded-proto"] + "://";
-  originalRequestURI += req.headers["x-forwarded-host"];
+
+  if (req.headers["x-forwarded-host"]) {
+    originalRequestURI += req.headers["x-forwarded-host"];
+  } else {
+    originalRequestURI += req.headers["host"];
+  }
 
   if (req.headers["x-replaced-path"]) {
     /*
@@ -129,6 +139,21 @@ function get_parent_request_uri(req) {
    */
 
   return originalRequestURI;
+}
+
+/**
+ * Takes the requested URI to the auth server and strips the initial parts of the url
+ * /ambasador/verify/:verify_parms/...leave this...
+ * 
+ * ie: remove the 'path_prefix' portion of the URL
+ *
+ * @param {*} req
+ */
+function get_ambassador_forwarded_uri(req) {
+  const parts = req.url.split("/");
+  parts.splice(0, 4);
+
+  return "/" + parts.join("/");
 }
 
 function parse_basic_authorization_header(value) {
@@ -212,6 +237,7 @@ module.exports = {
   generate_csrf_id,
   get_parent_request_uri,
   get_parent_request_info,
+  get_ambassador_forwarded_uri,
   validateConfigToken,
   parse_basic_authorization_header,
   parse_bearer_authorization_header,
