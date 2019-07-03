@@ -54,6 +54,8 @@
 
 # 0.4.0
 
+Released 2019-07-02
+
 - ~~various ldap improvements~~
 - ~~ldap userinfo assertions~~
 - ~~support annotations for helm service~~
