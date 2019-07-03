@@ -1,6 +1,6 @@
 # Intro
 
-By far the `oidc` and `oauth2` plugins are the most copmlex of `eas`. Several
+By far the `oidc` and `oauth2` plugins are the most complex of `eas`. Several
 factors are involved in this but this also makes the configuration more
 intricate. This document is an effort to provide as much info as possible to
 provide more detail into the various parts.

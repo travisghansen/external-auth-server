@@ -91,3 +91,16 @@ Development goals:
 
 - https://github.com/keycloak/keycloak-gatekeeper
 - https://github.com/pusher/oauth2_proxy
+
+## contour
+
+- https://github.com/heptio/contour/issues/986
+- https://github.com/heptio/contour/issues/432
+- https://github.com/heptio/contour/issues/68
+
+## ambassador
+
+- https://github.com/datawire/ambassador/issues/216
+- https://www.getambassador.io/reference/services/auth-service/
+- https://www.getambassador.io/reference/host/
+- https://www.getambassador.io/reference/add_request_headers/

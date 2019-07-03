@@ -30,18 +30,32 @@ Using helm you can deploy the service to your cluster. First clone the repo.
 ```
 helm upgrade \
 --install \
---namespace=kube-system \
---set configTokenSignSecret=<secret> \
---set configTokenEncryptSecret=<secret> \
---set issuerSignSecret=<secret> \
---set issuerEncryptSecret=<secret> \
---set cookieSignSecret=<secret> \
---set cookieEncryptSecret=<secret> \
---set sessionEncryptSecret=<secret> \
+--namespace=external-auth-server \
+\
+--set configTokenSignSecret=<random> \
+--set configTokenEncryptSecret=<random> \
+--set issuerSignSecret=<random> \
+--set issuerEncryptSecret=<random> \
+--set cookieSignSecret=<random> \
+--set cookieEncryptSecret=<random> \
+--set sessionEncryptSecret=<random> \
 --set logLevel="info" \
---set storeOpts.store="redis" \
---set storeOpts.host="redis.lan" \
---set storeOpts.prefix="eas:" \
+\
+--set redis-ha.enabled=true \
+--set redis-ha.auth=true \
+--set redis-ha.redisPassword=53c237 \
+\
+--set storeOpts.store=ioredis \
+--set storeOpts.password=53c237 \
+--set storeOpts.name=mymaster \
+--set storeOpts.sentinels[0].host=eas-redis-ha-announce-0 \
+--set storeOpts.sentinels[0].port=26379 \
+--set storeOpts.sentinels[1].host=eas-redis-ha-announce-1 \
+--set storeOpts.sentinels[1].port=26379 \
+--set storeOpts.sentinels[2].host=eas-redis-ha-announce-2 \
+--set storeOpts.sentinels[2].port=26379 \
+--set storeOpts.keyPrefix="eas:" \
+\
 --set ingress.enabled=true \
 --set ingress.hosts[0]=eas.example.com \
 --set ingress.paths[0]=/ \

@@ -81,17 +81,29 @@ app.get("/ping", (req, res) => {
   res.end("pong");
 });
 
-/**
- * Verify the request with the given ConfigToken
- *
- */
-app.get("/verify", async (req, res) => {
-  externalAuthServer.logger.silly("%j", {
+verifyHandler = async (req, res, options = {}) => {
+  externalAuthServer.logger.silly("verify request details: %j", {
+    url: req.url,
+    params: req.params,
+    query: req.query,
+    http_method: req.method,
+    http_version: req.httpVersion,
     headers: req.headers,
     body: req.body
   });
 
   externalAuthServer.logger.info("starting verify pipeline");
+
+  let easVerifyParams;
+  if (req.headers["x-eas-verify-params"]) {
+    easVerifyParams = JSON.parse(req.headers["x-eas-verify-params"]);
+  } else if (req.params["verify_params"]) {
+    easVerifyParams = JSON.parse(req.params["verify_params"]);
+  } else {
+    easVerifyParams = req.query;
+  }
+
+  externalAuthServer.logger.silly("verify params: %j", easVerifyParams);
 
   /**
    * pull the config token
@@ -100,7 +112,7 @@ app.get("/verify", async (req, res) => {
   try {
     configToken = externalAuthServer.utils.decrypt(
       externalAuthServer.secrets.config_token_encrypt_secret,
-      req.query.config_token
+      easVerifyParams.config_token
     );
     configToken = jwt.verify(
       configToken,
@@ -150,8 +162,8 @@ app.get("/verify", async (req, res) => {
       throw new Error("revoked jti: " + configToken.jti);
     }
 
-    const fallbackPlugin = req.query.fallback_plugin
-      ? req.query.fallback_plugin
+    const fallbackPlugin = easVerifyParams.fallback_plugin
+      ? easVerifyParams.fallback_plugin
       : null;
 
     let fallbackPluginResponse;
@@ -360,6 +372,20 @@ app.get("/verify", async (req, res) => {
     res.end();
     return;
   }
+};
+
+/**
+ * Verify the request with the given ConfigToken
+ *
+ */
+app.all("/verify", verifyHandler);
+app.all("/ambassador/verify-params-url/:verify_params/*", async (req, res) => {
+  if (!req.headers["x-forwarded-uri"]) {
+    req.headers[
+      "x-forwarded-uri"
+    ] = externalAuthServer.utils.get_ambassador_forwarded_uri(req);
+  }
+  verifyHandler(req, res);
 });
 
 const port = process.env.EAS_PORT || 8080;
