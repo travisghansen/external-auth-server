@@ -215,7 +215,7 @@ let helm_config = {
     }
   },
   configTokens: {
-    [config_token_store_id]: config_token_real_encrypted
+    [config_token_id]: config_token_real_encrypted
   },
   logLevel: "info",
   ingress: {
