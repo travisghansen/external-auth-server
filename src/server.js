@@ -109,30 +109,50 @@ verifyHandler = async (req, res, options = {}) => {
    * pull the config token
    */
   let configToken;
+  let isServerSideConfigToken = false;
+  let serverSideConfigTokenId = null;
+  let serverSideConfigTokenStoreId = null;
   try {
-    configToken = externalAuthServer.utils.decrypt(
-      externalAuthServer.secrets.config_token_encrypt_secret,
-      easVerifyParams.config_token
-    );
-    configToken = jwt.verify(
-      configToken,
-      externalAuthServer.secrets.config_token_sign_secret
-    );
+    if (easVerifyParams.config_token) {
+      configToken = externalAuthServer.utils.decrypt(
+        externalAuthServer.secrets.config_token_encrypt_secret,
+        easVerifyParams.config_token
+      );
+      configToken = jwt.verify(
+        configToken,
+        externalAuthServer.secrets.config_token_sign_secret
+      );
+
+      if (
+        configToken.eas.config_token_id &&
+        configToken.eas.config_token_store_id
+      ) {
+        isServerSideConfigToken = true;
+        serverSideConfigTokenId = configToken.eas.config_token_id;
+        serverSideConfigTokenStoreId = configToken.eas.config_token_store_id;
+      }
+    } else if (
+      easVerifyParams.config_token_id &&
+      easVerifyParams.config_token_store_id
+    ) {
+      isServerSideConfigToken = true;
+      serverSideConfigTokenId = easVerifyParams.config_token_id;
+      serverSideConfigTokenStoreId = easVerifyParams.config_token_store_id;
+    } else {
+      throw new Error("missing valid config_token configuration")
+    }
 
     // server-side token
-    if (
-      configToken.eas.config_token_id &&
-      configToken.eas.config_token_store_id
-    ) {
+    if (isServerSideConfigToken) {
       externalAuthServer.logger.info(
         "sever-side token: store=%s, id=%s",
-        configToken.eas.config_token_store_id,
-        configToken.eas.config_token_id
+        serverSideConfigTokenStoreId,
+        serverSideConfigTokenId
       );
 
       configToken = await configTokenStoreManager.getToken(
-        configToken.eas.config_token_id,
-        configToken.eas.config_token_store_id
+        serverSideConfigTokenId,
+        serverSideConfigTokenStoreId
       );
       externalAuthServer.logger.debug(
         "server-side config token: %s",
