@@ -149,7 +149,7 @@ function get_parent_request_uri(req) {
  *
  * @param {*} req
  */
-function get_ambassador_forwarded_uri(req) {
+function get_envoy_forwarded_uri(req) {
   const parts = req.url.split("/");
   parts.splice(0, 4);
 
@@ -237,7 +237,7 @@ module.exports = {
   generate_csrf_id,
   get_parent_request_uri,
   get_parent_request_info,
-  get_ambassador_forwarded_uri,
+  get_envoy_forwarded_uri,
   validateConfigToken,
   parse_basic_authorization_header,
   parse_bearer_authorization_header,

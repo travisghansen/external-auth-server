@@ -4,7 +4,7 @@
 - prometheus
 - refactor naming of store/cache/etc
 
-# 0.4.0
+# 0.99.0
 
 - helm repo analogy for server-side config tokens store IDs
 
@@ -12,7 +12,11 @@
 - look into support multiple `config_token` keys (ie: run external server as a service style setup)
 - look into 'proper' `config_token` jwt encryption
 
-- cache jwks keys?
+- explore setting required scopes on a per-endpoint/verb basis (outside the
+  backing service) and allowing the auth service to conditionally assert based on
+  scopes in the jwt token
+
+
 - support better logic for original URI detection `Forwarded` header and `X-Forwarded-For`, etc
 - ensure sessions (guid) does not already exist however unlikely
 - implement logout (both local and with provider)
@@ -51,6 +55,12 @@
 
 - redis config_token store
 - try/catch in invalid responseCode getting sent by a plugin
+
+# 0.5.0
+
+- ~~support jwks for `jwt` plugin~~
+- ~~cache jwks keys~~
+- ~~deprecate the `/ambasador/*` endpoints and replace with `/envoy/*`~~
 
 # 0.4.0
 

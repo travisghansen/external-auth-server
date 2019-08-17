@@ -379,11 +379,20 @@ verifyHandler = async (req, res, options = {}) => {
  *
  */
 app.all("/verify", verifyHandler);
+// deprecated endpoint
 app.all("/ambassador/verify-params-url/:verify_params/*", async (req, res) => {
   if (!req.headers["x-forwarded-uri"]) {
     req.headers[
       "x-forwarded-uri"
-    ] = externalAuthServer.utils.get_ambassador_forwarded_uri(req);
+    ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
+  }
+  verifyHandler(req, res);
+});
+app.all("/envoy/verify-params-url/:verify_params/*", async (req, res) => {
+  if (!req.headers["x-forwarded-uri"]) {
+    req.headers[
+      "x-forwarded-uri"
+    ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
   }
   verifyHandler(req, res);
 });
