@@ -123,4 +123,40 @@ in logs or request headers to backing services (if properly enabled).
         //case_insensitive: true
     }
 }
+
+{
+    query_engine: "jp",
+    query: "$.teams[*].id",
+    rule: {
+        method: "contains-any",
+        value: ["12345678", "99999999", ...]
+
+        //negate: true,
+        //case_insensitive: true
+    }
+}
+
+{
+    query_engine: "jp",
+    query: "$.teams[*].organization.id",
+    rule: {
+        method: "contains-any",
+        value: ["12345678", "99999999", ...]
+
+        //negate: true,
+        //case_insensitive: true
+    }
+}
+
+{
+    query_engine: "jp",
+    query: "$.two_factor_authentication",
+    rule: {
+        method: "eq",
+        value: true,
+
+        //negate: true,
+        //case_insensitive: true
+    }
+}
 ```
