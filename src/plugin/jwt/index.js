@@ -1,6 +1,7 @@
 const { Assertion } = require("../../assertion");
 const { BasePlugin } = require("..");
 const jwt = require("jsonwebtoken");
+const jwksClient = require("jwks-rsa");
 
 /**
  * https://www.npmjs.com/package/jsonwebtoken#jwtverifytoken-secretorpublickey-options-callback
@@ -93,8 +94,38 @@ class JwtPlugin extends BasePlugin {
     }
 
     const config = plugin.config.config;
+
+    function getKey(header, callback) {
+      if (
+        config.secret.startsWith("http://") ||
+        config.secret.startsWith("https://")
+      ) {
+        const client = jwksClient({
+          jwksUri: config.secret
+        });
+        client.getSigningKey(header.kid, function(err, key) {
+          if (err) {
+            callback(err, null);
+          } else {
+            const signingKey = key.publicKey || key.rsaPublicKey;
+            callback(null, signingKey);
+          }
+        });
+      } else {
+        callback(null, config.secret);
+      }
+    }
+
     try {
-      const token = jwt.verify(creds.token, config.secret, config.options);
+      const token = await new Promise((resolve, reject) => {
+        jwt.verify(creds.token, getKey, config.options, (err, decoded) => {
+          if (err) {
+            reject(err);
+          }
+          resolve(decoded);
+        });
+      });
+
       plugin.server.logger.debug("jwt token: %j", token);
 
       const valid = await plugin.assertions(token);
