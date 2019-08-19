@@ -1,6 +1,9 @@
 const { Assertion } = require("../../assertion");
 const { BasePlugin } = require("..");
 const jwt = require("jsonwebtoken");
+const jwksClient = require("jwks-rsa");
+
+const CLIENT_CACHE_DURATION = 43200 * 1000;
 
 /**
  * https://www.npmjs.com/package/jsonwebtoken#jwtverifytoken-secretorpublickey-options-callback
@@ -28,6 +31,7 @@ class JwtPlugin extends BasePlugin {
    */
   async verify(configToken, req, res) {
     const plugin = this;
+    const cache = plugin.server.cache;
     const parentReqInfo = plugin.server.utils.get_parent_request_info(req);
     plugin.server.logger.verbose("parent request info: %j", parentReqInfo);
 
@@ -93,8 +97,60 @@ class JwtPlugin extends BasePlugin {
     }
 
     const config = plugin.config.config;
+
+    function getKey(header, callback) {
+      if (
+        config.secret.startsWith("http://") ||
+        config.secret.startsWith("https://")
+      ) {
+        /**
+         * cache the client in memory to inherit the jwks caching from the upstream lib/client
+         * https://github.com/auth0/node-jwks-rsa#caching
+         */
+        const jwksClientOptionHash = plugin.server.utils.md5(
+          JSON.stringify(config.secret)
+        );
+        const cache_key = "jwt:jwks:clients:" + jwksClientOptionHash;
+        let client = cache.get(cache_key);
+        if (client === undefined) {
+          plugin.server.logger.debug(
+            "creating jwks client for URI %s",
+            config.secret
+          );
+          client = jwksClient({
+            jwksUri: config.secret
+          });
+          cache.set(cache_key, client, CLIENT_CACHE_DURATION);
+        } else {
+          plugin.server.logger.debug(
+            "using cached jwks client for URI %s",
+            config.secret
+          );
+        }
+
+        client.getSigningKey(header.kid, function(err, key) {
+          if (err) {
+            callback(err, null);
+          } else {
+            const signingKey = key.publicKey || key.rsaPublicKey;
+            callback(null, signingKey);
+          }
+        });
+      } else {
+        callback(null, config.secret);
+      }
+    }
+
     try {
-      const token = jwt.verify(creds.token, config.secret, config.options);
+      const token = await new Promise((resolve, reject) => {
+        jwt.verify(creds.token, getKey, config.options, (err, decoded) => {
+          if (err) {
+            reject(err);
+          }
+          resolve(decoded);
+        });
+      });
+
       plugin.server.logger.debug("jwt token: %j", token);
 
       const valid = await plugin.assertions(token);

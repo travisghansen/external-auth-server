@@ -154,7 +154,7 @@ Verifies a `jwt` token sent as a `Bearer` token in the `Authorization` header.
     header_name: "Authorization", // optional
     scheme: "Bearer", // optional, if using a custom header_name without a scheme leave it blank
     config: {
-        secret: "", // either the secret or full public key PEM data
+        secret: "", // either the secret or full public key PEM data or jwks URL
         options: {
             ...
             see details here: https://www.npmjs.com/package/jsonwebtoken#jwtverifytoken-secretorpublickey-options-callback

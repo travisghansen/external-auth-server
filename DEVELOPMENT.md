@@ -92,6 +92,9 @@ Development goals:
 - https://github.com/keycloak/keycloak-gatekeeper
 - https://github.com/pusher/oauth2_proxy
 
+- https://github.com/ory/oathkeeper
+- https://www.express-gateway.io/
+
 ## contour
 
 - https://github.com/heptio/contour/issues/986

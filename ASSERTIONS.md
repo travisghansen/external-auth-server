@@ -4,6 +4,8 @@ Custom assertions allow you place fine-grained access controls over who can
 authenticate and who cannot or plugin behavior via `pcb` (pipeline/plugin)
 circuit breakers.
 
+Assertions are logical `AND`s so **all** must pass.
+
 The basic idea is to select a value from the dataset using a `query` with
 [`jsonpath`](https://github.com/dchester/jsonpath) or
 [`jq`](https://stedolan.github.io/jq/) syntax.

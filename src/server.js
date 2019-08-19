@@ -109,30 +109,50 @@ verifyHandler = async (req, res, options = {}) => {
    * pull the config token
    */
   let configToken;
+  let isServerSideConfigToken = false;
+  let serverSideConfigTokenId = null;
+  let serverSideConfigTokenStoreId = null;
   try {
-    configToken = externalAuthServer.utils.decrypt(
-      externalAuthServer.secrets.config_token_encrypt_secret,
-      easVerifyParams.config_token
-    );
-    configToken = jwt.verify(
-      configToken,
-      externalAuthServer.secrets.config_token_sign_secret
-    );
+    if (easVerifyParams.config_token) {
+      configToken = externalAuthServer.utils.decrypt(
+        externalAuthServer.secrets.config_token_encrypt_secret,
+        easVerifyParams.config_token
+      );
+      configToken = jwt.verify(
+        configToken,
+        externalAuthServer.secrets.config_token_sign_secret
+      );
+
+      if (
+        configToken.eas.config_token_id &&
+        configToken.eas.config_token_store_id
+      ) {
+        isServerSideConfigToken = true;
+        serverSideConfigTokenId = configToken.eas.config_token_id;
+        serverSideConfigTokenStoreId = configToken.eas.config_token_store_id;
+      }
+    } else if (
+      easVerifyParams.config_token_id &&
+      easVerifyParams.config_token_store_id
+    ) {
+      isServerSideConfigToken = true;
+      serverSideConfigTokenId = easVerifyParams.config_token_id;
+      serverSideConfigTokenStoreId = easVerifyParams.config_token_store_id;
+    } else {
+      throw new Error("missing valid config_token configuration");
+    }
 
     // server-side token
-    if (
-      configToken.eas.config_token_id &&
-      configToken.eas.config_token_store_id
-    ) {
+    if (isServerSideConfigToken) {
       externalAuthServer.logger.info(
         "sever-side token: store=%s, id=%s",
-        configToken.eas.config_token_store_id,
-        configToken.eas.config_token_id
+        serverSideConfigTokenStoreId,
+        serverSideConfigTokenId
       );
 
       configToken = await configTokenStoreManager.getToken(
-        configToken.eas.config_token_id,
-        configToken.eas.config_token_store_id
+        serverSideConfigTokenId,
+        serverSideConfigTokenStoreId
       );
       externalAuthServer.logger.debug(
         "server-side config token: %s",
@@ -379,11 +399,34 @@ verifyHandler = async (req, res, options = {}) => {
  *
  */
 app.all("/verify", verifyHandler);
+
+// deprecated endpoint
 app.all("/ambassador/verify-params-url/:verify_params/*", async (req, res) => {
+  externalAuthServer.logger.warn(
+    "/ambassador endpoints have been deprecated in favor of /envoy variants"
+  );
   if (!req.headers["x-forwarded-uri"]) {
     req.headers[
       "x-forwarded-uri"
-    ] = externalAuthServer.utils.get_ambassador_forwarded_uri(req);
+    ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
+  }
+  verifyHandler(req, res);
+});
+
+app.all("/envoy/verify-params-url/:verify_params/*", async (req, res) => {
+  if (!req.headers["x-forwarded-uri"]) {
+    req.headers[
+      "x-forwarded-uri"
+    ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
+  }
+  verifyHandler(req, res);
+});
+
+app.all("/envoy/verify-params-header/*", async (req, res) => {
+  if (!req.headers["x-forwarded-uri"]) {
+    req.headers[
+      "x-forwarded-uri"
+    ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
   }
   verifyHandler(req, res);
 });

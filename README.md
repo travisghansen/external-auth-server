@@ -32,8 +32,8 @@ indexed) parameter on the authentication URL.
 
 # Features
 
-- works with any proxy server (traefik, nginx, ambassador, etc) that supports
-  forward/external auth
+- works with any proxy server (traefik, nginx, ambassador, istio, envoy, etc)
+that supports forward/external auth
 - works with any `OpenID Connect`/`oauth2` provider (tested predominantly with
   `keycloak` but it should be agnostic)
 - only requires 1 installation to service any number of
@@ -168,6 +168,10 @@ node bin/generate-config-token.js
 # See full examples in the ./examples/ directory
 # particularly nginx has some particular requirements
 # NOTE: run over https in production
+# NOTE: take care to NOT authenticate `eas` with itself (this is particularly
+# possible to happen in service mesh scenarios), whatever tool you use should
+# ensure access to the `eas` service bypasses authentication thereby avoiding
+# recursive behavior
 
 # traefik
 address = http://<eas server ip>:8080/verify?config_token=<token output from above>
@@ -179,6 +183,10 @@ proxy_pass "http://<eas server ip>:8080/verify?redirect_http_code=401&config_tok
 ingress.kubernetes.io/auth-type: forward
 ingress.kubernetes.io/auth-url: "https://eas.example.com/verify?config_token=CONFIG_TOKEN_HERE"
 ingress.kubernetes.io/auth-response-headers: X-Userinfo, X-Id-Token, X-Access-Token, Authorization
+
+# ambassador (see file in examples directory)
+
+# istio (see file in examples directory)
 
 ```
 

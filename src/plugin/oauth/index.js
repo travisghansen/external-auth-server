@@ -285,6 +285,7 @@ class BaseOauthPlugin extends BasePlugin {
        * check for csrf cookie presense
        */
       if (!req.signedCookies[STATE_CSRF_COOKIE_NAME]) {
+        plugin.server.logger.verbose("missing csrf token");
         res.statusCode = 503;
         return res;
       }
@@ -299,6 +300,7 @@ class BaseOauthPlugin extends BasePlugin {
           req.signedCookies[STATE_CSRF_COOKIE_NAME]
         )
       ) {
+        plugin.server.logger.verbose("mismatched csrf values");
         res.statusCode = 503;
         return res;
       }
@@ -441,8 +443,14 @@ class BaseOauthPlugin extends BasePlugin {
 
       /**
        * remove the csrf cookie
+       * NOTE: some servers do not appropriately send the response to the client
+       * when multiple Set-Cookie response headers are sent. For example nginx
+       * only forwards the first instance and envoy seems to send the last.
+       *
+       * Commenting out for now as whenever the value is required a new value should
+       * be sent by the server anyhow.
        */
-      res.clearCookie(STATE_CSRF_COOKIE_NAME);
+      //res.clearCookie(STATE_CSRF_COOKIE_NAME);
 
       plugin.server.logger.info(
         "redirecting to original resource: %s",
