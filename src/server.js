@@ -139,7 +139,7 @@ verifyHandler = async (req, res, options = {}) => {
       serverSideConfigTokenId = easVerifyParams.config_token_id;
       serverSideConfigTokenStoreId = easVerifyParams.config_token_store_id;
     } else {
-      throw new Error("missing valid config_token configuration")
+      throw new Error("missing valid config_token configuration");
     }
 
     // server-side token
@@ -399,8 +399,12 @@ verifyHandler = async (req, res, options = {}) => {
  *
  */
 app.all("/verify", verifyHandler);
+
 // deprecated endpoint
 app.all("/ambassador/verify-params-url/:verify_params/*", async (req, res) => {
+  externalAuthServer.logger.warn(
+    "/ambassador endpoints have been deprecated in favor of /envoy variants"
+  );
   if (!req.headers["x-forwarded-uri"]) {
     req.headers[
       "x-forwarded-uri"
@@ -408,7 +412,17 @@ app.all("/ambassador/verify-params-url/:verify_params/*", async (req, res) => {
   }
   verifyHandler(req, res);
 });
+
 app.all("/envoy/verify-params-url/:verify_params/*", async (req, res) => {
+  if (!req.headers["x-forwarded-uri"]) {
+    req.headers[
+      "x-forwarded-uri"
+    ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
+  }
+  verifyHandler(req, res);
+});
+
+app.all("/envoy/verify-params-header/*", async (req, res) => {
   if (!req.headers["x-forwarded-uri"]) {
     req.headers[
       "x-forwarded-uri"
