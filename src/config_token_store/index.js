@@ -61,7 +61,7 @@ class ConfigTokenStoreManager {
     if (configTokenStoreConfig.options.cache_ttl > 0) {
       try {
         configToken = await store.get(store_key);
-        if (!configToken) {
+        if (configToken) {
           manager.server.logger.verbose("cached config token");
           return configToken;
         }
