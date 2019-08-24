@@ -145,7 +145,9 @@ class BaseOauthPlugin extends BasePlugin {
           server.logger.verbose("parsed request uri: %j", parsedRequestURI);
 
           const parsedRedirectURI = Object.assign({}, parsedStateRedirectURI);
-          parsedRedirectURI.query = parsedRequestURI.query;
+          const parsedQuery = queryString.parse(parsedRequestURI.query);
+          parsedQuery[HANDLER_INDICATOR_PARAM_NAME] = "authorization_callback";
+          parsedRedirectURI.query = queryString.stringify(parsedQuery);
           server.logger.verbose("parsed redirect uri: %j", parsedRedirectURI);
 
           const redirect_uri = URI.serialize(parsedRedirectURI);
@@ -761,14 +763,19 @@ class BaseOauthPlugin extends BasePlugin {
   get_authorization_redirect_uri(uri) {
     const plugin = this;
     const query = {};
-    query[HANDLER_INDICATOR_PARAM_NAME] = "authorization_callback";
 
     if (plugin.config.redirect_uri) {
       uri = plugin.config.redirect_uri;
+    } else {
+      // set this in the /oauth/callback endpoint manually to avoid sending non-standard params to providers
+      // ie: okta pukes when it sees this
+      query[HANDLER_INDICATOR_PARAM_NAME] = "authorization_callback";
     }
 
     const parsedURI = URI.parse(uri);
-    parsedURI.query = queryString.stringify(query);
+    if (Object.keys(query).length) {
+      parsedURI.query = queryString.stringify(query);  
+    }
 
     return URI.serialize(parsedURI);
   }
@@ -989,8 +996,9 @@ class BaseOauthPlugin extends BasePlugin {
     }
 
     if (tokenSet.id_token) {
+      plugin.server.logger.debug("id_token %j", tokenSet.id_token);
       const idToken = jwt.decode(tokenSet.id_token);
-      plugin.server.logger.debug("id_token %j", idToken);
+      plugin.server.logger.debug("id_token decoded %j", idToken);
     }
   }
 }
