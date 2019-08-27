@@ -194,7 +194,7 @@ class BaseOauthPlugin extends BasePlugin {
     plugin.server.logger.verbose("audMD5: %s", configAudMD5);
 
     const configCookieName = this.config.cookie.name;
-    plugin.server.logger.verbose("cooking name: %s", configCookieName);
+    plugin.server.logger.verbose("cookie name: %s", configCookieName);
 
     const redirectHttpCode = req.query.redirect_http_code
       ? req.query.redirect_http_code
@@ -281,7 +281,7 @@ class BaseOauthPlugin extends BasePlugin {
       plugin.server.logger.verbose("audMD5: %s", configAudMD5);
 
       const configCookieName = plugin.config.cookie.name;
-      plugin.server.logger.verbose("cooking name: %s", configCookieName);
+      plugin.server.logger.verbose("cookie name: %s", configCookieName);
 
       /**
        * check for csrf cookie presense
@@ -774,7 +774,7 @@ class BaseOauthPlugin extends BasePlugin {
 
     const parsedURI = URI.parse(uri);
     if (Object.keys(query).length) {
-      parsedURI.query = queryString.stringify(query);  
+      parsedURI.query = queryString.stringify(query);
     }
 
     return URI.serialize(parsedURI);
@@ -787,7 +787,7 @@ class BaseOauthPlugin extends BasePlugin {
       res.setHeader("X-Id-Token", sessionData.tokenSet.id_token);
     }
 
-    if (sessionData.userinfo.data) {
+    if (sessionData.userinfo && sessionData.userinfo.data) {
       res.setHeader("X-Userinfo", JSON.stringify(sessionData.userinfo.data));
     }
 
@@ -812,7 +812,10 @@ class BaseOauthPlugin extends BasePlugin {
 
   async prepare_authentication_data(res, sessionData) {
     res.setAuthenticationData({
-      userinfo: sessionData.userinfo.data,
+      userinfo:
+        sessionData.userinfo && sessionData.userinfo.data
+          ? sessionData.userinfo.data
+          : undefined,
       id_token: sessionData.tokenSet.id_token,
       access_token: sessionData.tokenSet.access_token,
       refresh_token: sessionData.tokenSet.refresh_token
