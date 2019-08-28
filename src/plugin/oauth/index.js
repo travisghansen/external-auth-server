@@ -323,10 +323,16 @@ class BaseOauthPlugin extends BasePlugin {
           compare_redirect_uri
         );
       } catch (e) {
+        plugin.server.logger.verbose("failed to retrieve tokens");
         plugin.server.logger.error(e);
         if (plugin.is_redirectable_error(e)) {
           res.statusCode = redirectHttpCode;
           res.setHeader("Location", state.request_uri);
+          return res;
+        }
+
+        if (plugin.is_unauthorized_error(e)) {
+          res.statusCode = 403;
           return res;
         }
 
@@ -337,7 +343,7 @@ class BaseOauthPlugin extends BasePlugin {
       plugin.server.logger.verbose("received and validated tokens");
       plugin.log_token_set(tokenSet);
 
-      const tokenSetValid = await plugin.token_set_asertions(tokenSet);
+      const tokenSetValid = await plugin.token_set_assertions(tokenSet);
       if (!tokenSetValid) {
         res.statusCode = 403;
         return res;
@@ -609,7 +615,7 @@ class BaseOauthPlugin extends BasePlugin {
 
           // run tokenSet assertions (including id_token assertions)
           let tokenSetValid;
-          tokenSetValid = await plugin.token_set_asertions(tokenSet);
+          tokenSetValid = await plugin.token_set_assertions(tokenSet);
           if (!tokenSetValid) {
             plugin.server.logger.verbose("tokenSet failed assertions");
             return respond_to_failed_authorization();
@@ -845,6 +851,26 @@ class BaseOauthPlugin extends BasePlugin {
     return false;
   }
 
+  is_unauthorized_error(e) {
+    if (
+      e.error ||
+      (e.data && e.data.isResponseError) ||
+      (e.name && e.name == "OpenIdConnectError")
+    ) {
+      if (e.data && e.data.isResponseError) {
+        e = e.data.payload;
+      }
+      switch (e.error) {
+        case "unauthorized":
+          return true;
+        default:
+          return false;
+      }
+    }
+
+    return false;
+  }
+
   async id_token_assertions(id_token) {
     const plugin = this;
 
@@ -863,7 +889,7 @@ class BaseOauthPlugin extends BasePlugin {
     );
   }
 
-  async token_set_asertions(tokenSet) {
+  async token_set_assertions(tokenSet) {
     const plugin = this;
     const client = await plugin.get_client();
 
