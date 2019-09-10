@@ -237,7 +237,7 @@ let helm_config = {
         hosts: [
           `eas.${base_domain}`
         ],
-        secretName: `eas-${base_domain}-tls`.replace('.','-')
+        secretName: `eas-${base_domain}-tls`.replace(/\./g,'-')
       }
     ]
   }
