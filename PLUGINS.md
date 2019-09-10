@@ -110,8 +110,10 @@ Performs `Basic` authentication using `ldap` lookups.
     session_cache_ttl: 900, // seconds to cache successful logins
     connection: {
         url: "...",
+        log: false, // special handling to integrate with eas logging, simply set to true to turn on
         ...
         see details here: https://github.com/vesse/node-ldapauth-fork#ldapauth-config-options
+        filter syntax here: https://github.com/ldapjs/node-ldapjs/blob/v1.0.1/docs/client.md#filter-strings
     },
     assertions: {
         /**
