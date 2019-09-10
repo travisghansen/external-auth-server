@@ -149,9 +149,9 @@ function get_parent_request_uri(req) {
  *
  * @param {*} req
  */
-function get_envoy_forwarded_uri(req) {
+function get_envoy_forwarded_uri(req, leadingParts = 4) {
   const parts = req.url.split("/");
-  parts.splice(0, 4);
+  parts.splice(0, leadingParts);
 
   return "/" + parts.join("/");
 }

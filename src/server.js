@@ -422,11 +422,11 @@ app.all("/envoy/verify-params-url/:verify_params/*", async (req, res) => {
   verifyHandler(req, res);
 });
 
-app.all("/envoy/verify-params-header/*", async (req, res) => {
+app.all("/envoy/verify-params-header(/*)?", async (req, res) => {
   if (!req.headers["x-forwarded-uri"]) {
     req.headers[
       "x-forwarded-uri"
-    ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
+    ] = externalAuthServer.utils.get_envoy_forwarded_uri(req, 3);
   }
   verifyHandler(req, res);
 });
