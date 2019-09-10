@@ -31,7 +31,7 @@ const github_client_secret =
   utils.exit_failure("missing EAS_GITHUB_CLIENT_SECRET env variable");
 const github_team_ids =
   process.env.EAS_GITHUB_TEAM_IDS.split(' ').map(x => Number(x)) ||
-  utils.exit_failure("missing EAS_GITHUB_TEAM_IDS env variable");  
+  utils.exit_failure("missing EAS_GITHUB_TEAM_IDS env variable");
 const base_domain =
   process.env.EAS_BASE_DOMAIN ||
   utils.exit_failure("missing EAS_BASE_DOMAIN env variable");
@@ -65,7 +65,7 @@ let config_token_real = {
          * if your oauth provider does not support wildcards place the URL configured in the provider (that will return to this proper service) here
          */
         redirect_uri: `https://eas.${base_domain}/oauth/callback`,
-        
+
         features: {
           /**
            * if false cookies will be 'session' cookies
@@ -211,7 +211,7 @@ let helm_config = {
       options: {
         cache_ttl: 0,
         var: "EAS_CONFIG_TOKENS"
-      }        
+      }
     }
   },
   configTokens: {
@@ -237,7 +237,7 @@ let helm_config = {
         hosts: [
           `eas.${base_domain}`
         ],
-        secretName: `eas.${base_domain}-tls`.replace('.','-')
+        secretName: `eas-${base_domain}-tls`.replace('.','-')
       }
     ]
   }
