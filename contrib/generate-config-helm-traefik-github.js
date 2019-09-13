@@ -243,19 +243,18 @@ let helm_config = {
   }
 }
 
-let ingress_config = {
+const ingress_config = {
   "kubernetes.io/ingress.class": "traefik",
   "kubernetes.io/tls-acme": "true",
   "traefik.ingress.kubernetes.io/frontend-entry-points": "http,https",
   "traefik.ingress.kubernetes.io/redirect-entry-point": "https",
   "ingress.kubernetes.io/auth-response-headers": "X-Userinfo,X-Id-Token,X-Access-Token,Authorization",
-  "ingress.kubernetes.io/auth-type": "forward",
-  "ingress.kubernetes.io/auth-url": `https://eas.${base_domain}/verify?config_token=${config_token_alias_encrypted_uri}`,
-  "ingress.kubernetes.io/auth-url": `https://eas.${base_domain}/verify?config_token_id=${config_token_id}&config_token_store_id=${config_token_store_id}`
+  "ingress.kubernetes.io/auth-type": "forward"
 }
 
 console.log("Helm values for central external-auth-server deployment: \n\n%s", yaml.stringify(helm_config));
 console.log("");
 
-console.log("Ingress annotations for each protected application: \n\n%s", yaml.stringify(ingress_config));
+console.log("Ingress annotations for each protected application (crypted query param): \n\n%s", yaml.stringify({...ingress_config, "ingress.kubernetes.io/auth-url": `https://eas.${base_domain}/verify?config_token=${config_token_alias_encrypted_uri}` }));
+console.log("Ingress annotations for each protected application (plain query params): \n\n%s", yaml.stringify({...ingress_config, "ingress.kubernetes.io/auth-url": `https://eas.${base_domain}/verify?config_token_id=${config_token_id}&config_token_store_id=${config_token_store_id}`}));
 console.log("");
