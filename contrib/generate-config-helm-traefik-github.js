@@ -250,7 +250,8 @@ let ingress_config = {
   "traefik.ingress.kubernetes.io/redirect-entry-point": "https",
   "ingress.kubernetes.io/auth-response-headers": "X-Userinfo,X-Id-Token,X-Access-Token,Authorization",
   "ingress.kubernetes.io/auth-type": "forward",
-  "ingress.kubernetes.io/auth-url": `https://eas.${base_domain}/verify?config_token=${config_token_alias_encrypted_uri}`
+  "ingress.kubernetes.io/auth-url": `https://eas.${base_domain}/verify?config_token=${config_token_alias_encrypted_uri}`,
+  "ingress.kubernetes.io/auth-url": `https://eas.${base_domain}/verify?config_token_id=${config_token_id}&config_token_store_id=${config_token_store_id}`
 }
 
 console.log("Helm values for central external-auth-server deployment: \n\n%s", yaml.stringify(helm_config));
