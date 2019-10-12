@@ -132,12 +132,89 @@ verifyHandler = async (req, res, options = {}) => {
         serverSideConfigTokenStoreId = configToken.eas.config_token_store_id;
       }
     } else if (
-      easVerifyParams.config_token_id &&
-      easVerifyParams.config_token_store_id
+      (easVerifyParams.config_token_id ||
+        (easVerifyParams.config_token_id_query &&
+          easVerifyParams.config_token_id_query_engine)) &&
+      (easVerifyParams.config_token_store_id ||
+        (easVerifyParams.config_token_store_id_query &&
+          easVerifyParams.config_token_store_id_query_engine))
     ) {
+      let queryValue;
       isServerSideConfigToken = true;
-      serverSideConfigTokenId = easVerifyParams.config_token_id;
-      serverSideConfigTokenStoreId = easVerifyParams.config_token_store_id;
+
+      // prep queryable data block
+      let queryData = { req: {} };
+      if (
+        (easVerifyParams.config_token_id_query &&
+          easVerifyParams.config_token_id_query_engine) ||
+        (easVerifyParams.config_token_store_id_query &&
+          easVerifyParams.config_token_store_id_query_engine)
+      ) {
+        queryData.req.headers = req.headers;
+        queryData.req.cookies = req.cookies;
+        queryData.req.query = req.query;
+        queryData.req.method = req.method;
+        queryData.req.method.httpVersionMajor = req.method.httpVersionMajor;
+        queryData.req.method.httpVersionMinor = req.method.httpVersionMinor;
+        queryData.req.method.httpVersion = req.method.httpVersion;
+        queryData.parentRequestInfo = externalAuthServer.utils.get_parent_request_info(
+          req
+        );
+      }
+
+      // determine token_id
+      if (easVerifyParams.config_token_id) {
+        serverSideConfigTokenId = easVerifyParams.config_token_id;
+      } else if (
+        easVerifyParams.config_token_id_query &&
+        easVerifyParams.config_token_id_query_engine
+      ) {
+        externalAuthServer.logger.debug(
+          "server-side config_token_id query info - query: %s, query_engine: %s, data: %j",
+          easVerifyParams.config_token_id_query,
+          easVerifyParams.config_token_id_query_engine,
+          queryData
+        );
+
+        queryValue = await externalAuthServer.utils.json_query(
+          easVerifyParams.config_token_id_query_engine,
+          easVerifyParams.config_token_id_query,
+          queryData
+        );
+
+        if (Array.isArray(queryValue) && queryValue.length == 1) {
+          queryValue = queryValue[0];
+        }
+
+        serverSideConfigTokenId = queryValue;
+      }
+
+      // determine config_token_store_id
+      if (easVerifyParams.config_token_store_id) {
+        serverSideConfigTokenStoreId = easVerifyParams.config_token_store_id;
+      } else if (
+        easVerifyParams.config_token_store_id_query &&
+        easVerifyParams.config_token_store_id_query_engine
+      ) {
+        externalAuthServer.logger.debug(
+          "server-side config_token_store_id query info - query: %s, query_engine: %s, data: %j",
+          easVerifyParams.config_token_store_id_query,
+          easVerifyParams.config_token_store_id_query_engine,
+          queryData
+        );
+
+        queryValue = await externalAuthServer.utils.json_query(
+          easVerifyParams.config_token_store_id_query_engine,
+          easVerifyParams.config_token_store_id_query,
+          queryData
+        );
+
+        if (Array.isArray(queryValue) && queryValue.length == 1) {
+          queryValue = queryValue[0];
+        }
+
+        serverSideConfigTokenStoreId = queryValue;
+      }
     } else {
       throw new Error("missing valid config_token configuration");
     }

@@ -1,4 +1,6 @@
 const crypto = require("crypto");
+const jp = require("jsonpath");
+const jq = require("node-jq");
 const queryString = require("query-string");
 const URI = require("uri-js");
 const uuidv4 = require("uuid/v4");
@@ -144,7 +146,7 @@ function get_parent_request_uri(req) {
 /**
  * Takes the requested URI to the auth server and strips the initial parts of the url
  * /ambasador/verify/:verify_parms/...leave this...
- * 
+ *
  * ie: remove the 'path_prefix' portion of the URL
  *
  * @param {*} req
@@ -207,6 +209,37 @@ function array_intersect(a, b) {
   });
 }
 
+async function jsonpath_query(query, data) {
+  return jp.query(data, query);
+}
+
+async function jq_query(query, data) {
+  const options = {
+    input: "json",
+    output: "json"
+  };
+
+  const values = await jq.run(query, data, options);
+  return values;
+}
+
+async function json_query(query_engine, query, data) {
+  let value;
+
+  switch (query_engine) {
+    case "jp":
+      value = await jsonpath_query(query, data);
+      break;
+    case "jq":
+      value = await jq_query(query, data);
+      break;
+    default:
+      throw new Error("invalid query engine: " + query_engine);
+  }
+
+  return value;
+}
+
 function redirect_http_code(req) {
   return req.query.redirect_http_code ? req.query.redirect_http_code : 302;
 }
@@ -245,5 +278,6 @@ module.exports = {
   redirect_http_code,
   array_unique,
   array_intersect,
-  lower_case_keys
+  lower_case_keys,
+  json_query
 };
