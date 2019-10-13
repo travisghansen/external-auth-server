@@ -482,29 +482,27 @@ app.all("/ambassador/verify-params-url/:verify_params/*", async (req, res) => {
   externalAuthServer.logger.warn(
     "/ambassador endpoints have been deprecated in favor of /envoy variants"
   );
-  if (!req.headers["x-forwarded-uri"]) {
-    req.headers[
-      "x-forwarded-uri"
-    ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
-  }
+
+  req.headers[
+    "x-forwarded-uri"
+  ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
+
   verifyHandler(req, res);
 });
 
 app.all("/envoy/verify-params-url/:verify_params/*", async (req, res) => {
-  if (!req.headers["x-forwarded-uri"]) {
-    req.headers[
-      "x-forwarded-uri"
-    ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
-  }
+  req.headers[
+    "x-forwarded-uri"
+  ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
+
   verifyHandler(req, res);
 });
 
 app.all("/envoy/verify-params-header(/*)?", async (req, res) => {
-  if (!req.headers["x-forwarded-uri"]) {
-    req.headers[
-      "x-forwarded-uri"
-    ] = externalAuthServer.utils.get_envoy_forwarded_uri(req, 3);
-  }
+  req.headers[
+    "x-forwarded-uri"
+  ] = externalAuthServer.utils.get_envoy_forwarded_uri(req, 3);
+
   verifyHandler(req, res);
 });
 
