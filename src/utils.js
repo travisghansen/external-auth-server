@@ -72,7 +72,9 @@ function get_parent_request_info(req) {
     JSON.stringify(queryString.parse(info.parsedUri.query))
   );
   // not used currently but could be used for verify process
-  info.method = req.headers["x-forwarded-method"];
+  if (req.headers["x-forwarded-method"]) {
+    info.method = req.headers["x-forwarded-method"];
+  }
   return info;
 }
 
@@ -152,6 +154,7 @@ function get_parent_request_uri(req) {
  * @param {*} req
  */
 function get_envoy_forwarded_uri(req, leadingParts = 4) {
+  // TODO: properly parse the whole URL and then reconstruct for saner handling
   const parts = req.url.split("/");
   parts.splice(0, leadingParts);
 

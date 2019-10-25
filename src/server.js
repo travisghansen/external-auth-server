@@ -268,7 +268,7 @@ verifyHandler = async (req, res, options = {}) => {
     let lastPluginResponse;
 
     new Promise(resolve => {
-      async function process() {
+      async function processPipeline() {
         for (let i = 0; i < configToken.eas.plugins.length; i++) {
           const pluginConfig = configToken.eas.plugins[i];
           pluginConfig.pcb = pluginConfig.pcb || {};
@@ -433,7 +433,7 @@ verifyHandler = async (req, res, options = {}) => {
         resolve();
       }
 
-      process();
+      processPipeline();
     }).then(async pluginResponse => {
       if (!pluginResponse) {
         pluginResponse = new PluginVerifyResponse();
@@ -494,6 +494,7 @@ app.all("/ambassador/verify-params-url/:verify_params/*", async (req, res) => {
   req.headers[
     "x-forwarded-uri"
   ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
+  req.headers["x-forwarded-method"] = req.method;
 
   verifyHandler(req, res);
 });
@@ -502,6 +503,7 @@ app.all("/envoy/verify-params-url/:verify_params/*", async (req, res) => {
   req.headers[
     "x-forwarded-uri"
   ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
+  req.headers["x-forwarded-method"] = req.method;
 
   verifyHandler(req, res);
 });
@@ -510,6 +512,7 @@ app.all("/envoy/verify-params-header(/*)?", async (req, res) => {
   req.headers[
     "x-forwarded-uri"
   ] = externalAuthServer.utils.get_envoy_forwarded_uri(req, 3);
+  req.headers["x-forwarded-method"] = req.method;
 
   verifyHandler(req, res);
 });
