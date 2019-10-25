@@ -11,8 +11,9 @@ const promBundle = require("express-prom-bundle");
 
 // auth plugins
 const { OauthPlugin, OpenIdConnectPlugin } = require("./plugin/oauth");
-const { RequestParamPlugin } = require("./plugin/request_param");
 const { RequestHeaderPlugin } = require("./plugin/request_header");
+const { RequestJsPlugin } = require("./plugin/request_js");
+const { RequestParamPlugin } = require("./plugin/request_param");
 const { HtPasswdPlugin } = require("./plugin/htpasswd");
 const { LdapPlugin } = require("./plugin/ldap");
 const { JwtPlugin } = require("./plugin/jwt");
@@ -285,14 +286,21 @@ verifyHandler = async (req, res, options = {}) => {
             case "oauth2":
               plugin = new OauthPlugin(externalAuthServer, pluginConfig);
               break;
-            case "request_param":
-              plugin = new RequestParamPlugin(externalAuthServer, pluginConfig);
-              break;
             case "request_header":
               plugin = new RequestHeaderPlugin(
                 externalAuthServer,
                 pluginConfig
               );
+              break;
+            case "request_js":
+              if (process.env.EAS_ALLOW_EVAL) {
+                plugin = new RequestJsPlugin(externalAuthServer, pluginConfig);
+              } else {
+                continue;
+              }
+              break;
+            case "request_param":
+              plugin = new RequestParamPlugin(externalAuthServer, pluginConfig);
               break;
             case "htpasswd":
               plugin = new HtPasswdPlugin(externalAuthServer, pluginConfig);
