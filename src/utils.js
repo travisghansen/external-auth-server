@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const jsonata = require("jsonata");
 const jp = require("jsonpath");
 const jq = require("node-jq");
 const queryString = require("query-string");
@@ -212,6 +213,15 @@ function array_intersect(a, b) {
   });
 }
 
+async function js_query(query, data) {
+  const func = new Function("data", query);
+  return func(data);
+}
+
+async function jsonata_query(query, data) {
+  return jsonata(query).evaluate(data);
+}
+
 async function jsonpath_query(query, data) {
   return jp.query(data, query);
 }
@@ -230,6 +240,18 @@ async function json_query(query_engine, query, data) {
   let value;
 
   switch (query_engine) {
+    case "js":
+      if (process.env.EAS_ALLOW_EVAL) {
+        value = await js_query(query, data);
+      } else {
+        throw new Error(
+          "cannot use potentially unsafe query_engine 'js' unless env variable 'EAS_ALLOW_EVAL' is set"
+        );
+      }
+      break;
+    case "jsonata":
+      value = await jsonata_query(query, data);
+      break;
     case "jp":
       value = await jsonpath_query(query, data);
       break;

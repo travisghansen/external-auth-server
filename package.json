@@ -27,6 +27,8 @@
     "express": "^4.17.1",
     "express-prom-bundle": "^5.1.5",
     "htpasswd-js": "^1.0.2",
+    "jq.node": "^2.1.2",
+    "jsonata": "^1.7.0",
     "jsonpath": "^1.0.2",
     "jsonwebtoken": "^8.5.1",
     "jwks-rsa": "^1.6.0",
