@@ -106,7 +106,7 @@ spec:
             - name: NODE_EXTRA_CA_CERTS
               value: "/tmp/certs/node-extra-ca-certs.crt"
             {{- end }}
-			{{- range $k, $v := .Values.env }}
+            {{- range $k, $v := .Values.env }}
             - name: {{ $k }}
               value: {{ $v.value | quote }}
             {{- end }}

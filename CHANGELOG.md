@@ -76,11 +76,13 @@
 
 # 0.6.0
 
-Released
+Released 2019-10-29
 
 - ~~support dynamic server-side token/store id generation~~
+- ~~introduce 2 new `query_engine`s - `js` and `jsonata`~~
 - ~~introduce `request_js` as new plugin~~
 - ~~ensure helm chart only mounts specific file in /tmp leaving it writable (currently the node ca certs are being mounted and rendering it ro)~~
+- ~~new env variable `EAS_ALLOW_EVAL` which enables the usage of `request_js` plugin and/or the `js` `query_engine`~~
 
 # 0.5.0
 

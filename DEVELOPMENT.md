@@ -25,6 +25,8 @@ Development goals:
 - config aud: ensures users cannot use token (cookie) from one
   configuration/site and use it with another
 
+https://medium.com/hal24k-techblog/multitenancy-on-kubernetes-with-istio-external-authentication-server-and-openid-connect-33e02544e0db
+
 # Challenges
 
 ## kong-oidc
@@ -94,6 +96,8 @@ Development goals:
 
 - https://github.com/ory/oathkeeper
 - https://www.express-gateway.io/
+- https://github.com/buzzfeed/sso
+- https://github.com/pomerium/pomerium
 
 ## contour
 

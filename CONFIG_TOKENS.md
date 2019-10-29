@@ -36,14 +36,22 @@ store.
 
 In the `/verify` endpoint simply specify the following URL params:
 
-- `config_token_store_id`
-- `config_token_id`
+- `config_token_store_id` || `config_token_store_id_query_engine` AND `config_token_store_id_query`
+- `config_token_id` || `config_token_id_query_engine` AND `config_token_id_query`
 
 An example:
 
 ```
 http://127.0.0.1:9000/verify?fallback_plugin=5&config_token_store_id=primary&config_token_id=1
 ```
+
+The query `*_query*` variants allow you selectively pick a respective value
+based on the _nature_ of the request. For example you create `config_token`s
+which have IDs that correspond the URI or host of the service.
+
+See below for further explanation about using the `*_query*` variants.
+
+- https://github.com/travisghansen/external-auth-server/issues/29#issuecomment-541365383
 
 ### token specified via pointer token
 
