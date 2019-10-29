@@ -862,6 +862,7 @@ class BaseOauthPlugin extends BasePlugin {
       }
       switch (e.error) {
         case "unauthorized":
+        case "access_denied":
           return true;
         default:
           return false;

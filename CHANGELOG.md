@@ -56,7 +56,33 @@
 - redis config_token store
 - try/catch in invalid responseCode getting sent by a plugin
 
-- introduce options for csrf handline in `oauth2`/`oidc` plugins? currently disabling csrf deletion due to bad nginx/envoy behavior
+- introduce options for csrf handling in `oauth2`/`oidc` plugins? currently disabling csrf deletion due to bad nginx/envoy behavior
+
+- endpoint where config data can be sent and the backend will sign/encrypt and respond with newly minted `config_token` (need to consider security implications etc of this)
+
+- give a nice overview of architecture with a pretty graphic to give newcomers a easier overview
+
+- allow specifying a redirect URL for error response codes (ie: 404 -> some self hosted location, 503 -> some location with a pretty space etc)
+
+- https://www.npmjs.com/package/jq.node (new query engine for better performance than jq)
+
+- generic structure for various things
+ - request data
+ - auth data
+ - config data
+
+- opa plugin
+- opa assertions
+
+# 0.6.0
+
+Released 2019-10-29
+
+- ~~support dynamic server-side token/store id generation~~
+- ~~introduce 2 new `query_engine`s - `js` and `jsonata`~~
+- ~~introduce `request_js` as new plugin~~
+- ~~ensure helm chart only mounts specific file in /tmp leaving it writable (currently the node ca certs are being mounted and rendering it ro)~~
+- ~~new env variable `EAS_ALLOW_EVAL` which enables the usage of `request_js` plugin and/or the `js` `query_engine`~~
 
 # 0.5.0
 

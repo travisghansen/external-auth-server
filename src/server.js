@@ -11,8 +11,9 @@ const promBundle = require("express-prom-bundle");
 
 // auth plugins
 const { OauthPlugin, OpenIdConnectPlugin } = require("./plugin/oauth");
-const { RequestParamPlugin } = require("./plugin/request_param");
 const { RequestHeaderPlugin } = require("./plugin/request_header");
+const { RequestJsPlugin } = require("./plugin/request_js");
+const { RequestParamPlugin } = require("./plugin/request_param");
 const { HtPasswdPlugin } = require("./plugin/htpasswd");
 const { LdapPlugin } = require("./plugin/ldap");
 const { JwtPlugin } = require("./plugin/jwt");
@@ -132,12 +133,89 @@ verifyHandler = async (req, res, options = {}) => {
         serverSideConfigTokenStoreId = configToken.eas.config_token_store_id;
       }
     } else if (
-      easVerifyParams.config_token_id &&
-      easVerifyParams.config_token_store_id
+      (easVerifyParams.config_token_id ||
+        (easVerifyParams.config_token_id_query &&
+          easVerifyParams.config_token_id_query_engine)) &&
+      (easVerifyParams.config_token_store_id ||
+        (easVerifyParams.config_token_store_id_query &&
+          easVerifyParams.config_token_store_id_query_engine))
     ) {
+      let queryValue;
       isServerSideConfigToken = true;
-      serverSideConfigTokenId = easVerifyParams.config_token_id;
-      serverSideConfigTokenStoreId = easVerifyParams.config_token_store_id;
+
+      // prep queryable data block
+      let queryData = { req: {} };
+      if (
+        (easVerifyParams.config_token_id_query &&
+          easVerifyParams.config_token_id_query_engine) ||
+        (easVerifyParams.config_token_store_id_query &&
+          easVerifyParams.config_token_store_id_query_engine)
+      ) {
+        queryData.req.headers = req.headers;
+        queryData.req.cookies = req.cookies;
+        queryData.req.query = req.query;
+        queryData.req.method = req.method;
+        queryData.req.method.httpVersionMajor = req.method.httpVersionMajor;
+        queryData.req.method.httpVersionMinor = req.method.httpVersionMinor;
+        queryData.req.method.httpVersion = req.method.httpVersion;
+        queryData.parentRequestInfo = externalAuthServer.utils.get_parent_request_info(
+          req
+        );
+      }
+
+      // determine token_id
+      if (easVerifyParams.config_token_id) {
+        serverSideConfigTokenId = easVerifyParams.config_token_id;
+      } else if (
+        easVerifyParams.config_token_id_query &&
+        easVerifyParams.config_token_id_query_engine
+      ) {
+        externalAuthServer.logger.debug(
+          "server-side config_token_id query info - query: %s, query_engine: %s, data: %j",
+          easVerifyParams.config_token_id_query,
+          easVerifyParams.config_token_id_query_engine,
+          queryData
+        );
+
+        queryValue = await externalAuthServer.utils.json_query(
+          easVerifyParams.config_token_id_query_engine,
+          easVerifyParams.config_token_id_query,
+          queryData
+        );
+
+        if (Array.isArray(queryValue) && queryValue.length == 1) {
+          queryValue = queryValue[0];
+        }
+
+        serverSideConfigTokenId = queryValue;
+      }
+
+      // determine config_token_store_id
+      if (easVerifyParams.config_token_store_id) {
+        serverSideConfigTokenStoreId = easVerifyParams.config_token_store_id;
+      } else if (
+        easVerifyParams.config_token_store_id_query &&
+        easVerifyParams.config_token_store_id_query_engine
+      ) {
+        externalAuthServer.logger.debug(
+          "server-side config_token_store_id query info - query: %s, query_engine: %s, data: %j",
+          easVerifyParams.config_token_store_id_query,
+          easVerifyParams.config_token_store_id_query_engine,
+          queryData
+        );
+
+        queryValue = await externalAuthServer.utils.json_query(
+          easVerifyParams.config_token_store_id_query_engine,
+          easVerifyParams.config_token_store_id_query,
+          queryData
+        );
+
+        if (Array.isArray(queryValue) && queryValue.length == 1) {
+          queryValue = queryValue[0];
+        }
+
+        serverSideConfigTokenStoreId = queryValue;
+      }
     } else {
       throw new Error("missing valid config_token configuration");
     }
@@ -190,7 +268,7 @@ verifyHandler = async (req, res, options = {}) => {
     let lastPluginResponse;
 
     new Promise(resolve => {
-      async function process() {
+      async function processPipeline() {
         for (let i = 0; i < configToken.eas.plugins.length; i++) {
           const pluginConfig = configToken.eas.plugins[i];
           pluginConfig.pcb = pluginConfig.pcb || {};
@@ -208,14 +286,21 @@ verifyHandler = async (req, res, options = {}) => {
             case "oauth2":
               plugin = new OauthPlugin(externalAuthServer, pluginConfig);
               break;
-            case "request_param":
-              plugin = new RequestParamPlugin(externalAuthServer, pluginConfig);
-              break;
             case "request_header":
               plugin = new RequestHeaderPlugin(
                 externalAuthServer,
                 pluginConfig
               );
+              break;
+            case "request_js":
+              if (process.env.EAS_ALLOW_EVAL) {
+                plugin = new RequestJsPlugin(externalAuthServer, pluginConfig);
+              } else {
+                continue;
+              }
+              break;
+            case "request_param":
+              plugin = new RequestParamPlugin(externalAuthServer, pluginConfig);
               break;
             case "htpasswd":
               plugin = new HtPasswdPlugin(externalAuthServer, pluginConfig);
@@ -348,7 +433,7 @@ verifyHandler = async (req, res, options = {}) => {
         resolve();
       }
 
-      process();
+      processPipeline();
     }).then(async pluginResponse => {
       if (!pluginResponse) {
         pluginResponse = new PluginVerifyResponse();
@@ -405,29 +490,30 @@ app.all("/ambassador/verify-params-url/:verify_params/*", async (req, res) => {
   externalAuthServer.logger.warn(
     "/ambassador endpoints have been deprecated in favor of /envoy variants"
   );
-  if (!req.headers["x-forwarded-uri"]) {
-    req.headers[
-      "x-forwarded-uri"
-    ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
-  }
+
+  req.headers[
+    "x-forwarded-uri"
+  ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
+  req.headers["x-forwarded-method"] = req.method;
+
   verifyHandler(req, res);
 });
 
 app.all("/envoy/verify-params-url/:verify_params/*", async (req, res) => {
-  if (!req.headers["x-forwarded-uri"]) {
-    req.headers[
-      "x-forwarded-uri"
-    ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
-  }
+  req.headers[
+    "x-forwarded-uri"
+  ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
+  req.headers["x-forwarded-method"] = req.method;
+
   verifyHandler(req, res);
 });
 
 app.all("/envoy/verify-params-header(/*)?", async (req, res) => {
-  if (!req.headers["x-forwarded-uri"]) {
-    req.headers[
-      "x-forwarded-uri"
-    ] = externalAuthServer.utils.get_envoy_forwarded_uri(req, 3);
-  }
+  req.headers[
+    "x-forwarded-uri"
+  ] = externalAuthServer.utils.get_envoy_forwarded_uri(req, 3);
+  req.headers["x-forwarded-method"] = req.method;
+
   verifyHandler(req, res);
 });
 

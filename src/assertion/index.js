@@ -1,5 +1,4 @@
 const jp = require("jsonpath");
-const jq = require("node-jq");
 const { logger } = require("../logger");
 const utils = require("../utils");
 
@@ -50,16 +49,6 @@ class Assertion {
     return values;
   }
 
-  async jq_query() {
-    const options = {
-      input: "json",
-      output: "json"
-    };
-
-    const values = await jq.run(this.config.query, this.data, options);
-    return values;
-  }
-
   async query() {
     let value;
 
@@ -67,8 +56,14 @@ class Assertion {
       case "jp":
         value = await this.jsonpath_query();
         break;
+      case "jsonata":
+      case "js":
       case "jq":
-        value = await this.jq_query();
+        value = await utils.json_query(
+          this.config.query_engine,
+          this.config.query,
+          this.data
+        );
         break;
       default:
         throw new Error("invalid query engine: " + this.config.query_engine);

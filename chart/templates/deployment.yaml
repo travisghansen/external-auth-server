@@ -104,7 +104,11 @@ spec:
                   key: session-encrypt-secret
             {{- if .Values.nodeExtraCaCerts }}
             - name: NODE_EXTRA_CA_CERTS
-              value: "/tmp/node-extra-ca-certs.crt"
+              value: "/tmp/certs/node-extra-ca-certs.crt"
+            {{- end }}
+            {{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v.value | quote }}
             {{- end }}
           ports:
             - name: http
@@ -112,7 +116,7 @@ spec:
               protocol: TCP
           volumeMounts:
             - name: node-extra-ca-certs
-              mountPath: /tmp
+              mountPath: /tmp/certs
           livenessProbe:
             httpGet:
               path: /ping

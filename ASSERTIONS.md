@@ -12,8 +12,11 @@ The basic idea is to select a value from the dataset using a `query` with
 
 You pick the `query` syntax by setting the `query_engine` parameter:
 
-- `jp` for jsonpath
-- `jq` for jq
+- `jp` for jsonpath (highest performance)
+- `jq` for jq (highly flexible, slowest performance)
+- `jsonata` for jsonata (highly flexible, high performance)
+- `js` for eval'd js code (env var `EAS_ALLOW_EVAL` required) For this engine
+  the data will be available as a variable named `data`.
 
 You then define the `rule` by declaring the following properties:
 
@@ -158,5 +161,45 @@ in logs or request headers to backing services (if properly enabled).
         //negate: true,
         //case_insensitive: true
     }
+}
+```
+
+An example of each engine all yielding the same result:
+
+```
+{
+  "query_engine": "jp",
+  "query": "$.login",
+  "rule": {
+    "method": "eq",
+    "value": "travisghansen"
+  }
+}
+
+{
+  "query_engine": "jq",
+  "query": ".login",
+  "rule": {
+    "method": "eq",
+    "value": "travisghansen"
+  }
+}
+
+{
+  "query_engine": "jsonata",
+  "query": "login",
+  "rule": {
+    "method": "eq",
+    "value": "travisghansen"
+  }
+}
+
+{
+  "query_engine": "js",
+  "query": "return data.login;",
+  "rule": {
+    "method": "eq",
+    "value": "travisghansen"
+  }
 }
 ```
