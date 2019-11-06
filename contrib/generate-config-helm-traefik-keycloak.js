@@ -38,12 +38,9 @@ const config_token_id =
 const config_token_store_id =
   process.env.EAS_CONFIG_TOKEN_STORE_ID ||
   utils.exit_failure("missing EAS_CONFIG_TOKEN_STORE_ID env variable");
-const config_authorization_endpoint =
-  process.env.EAS_CONFIG_AUTHORIZATION_ENDPOINT ||
-  utils.exit_failure("missing EAS_CONFIG_AUTHORIZATION_ENDPOINT env variable");
-const config_token_endpoint =
-  process.env.EAS_CONFIG_TOKEN_ENDPOINT ||
-  utils.exit_failure("missing EAS_CONFIG_TOKEN_ENDPOINT env variable");
+const config_discover_endpoint =
+  process.env.EAS_CONFIG_DISCOVER_ENDPOINT ||
+  utils.exit_failure("missing EAS_CONFIG_DISCOVER_ENDPOINT env variable");
 
 let config_token_real = {
   /**
@@ -53,16 +50,15 @@ let config_token_real = {
     // list of plugin definitions, refer to PLUGINS.md for details
     plugins: [
       {
-        type: "oauth2",
+        type: "oidc",
         issuer: {
-          authorization_endpoint: config_authorization_endpoint,
-          token_endpoint: config_token_endpoint
+          discover_url: config_discover_endpoint
         },
         client: {
           client_id: client_id,
           client_secret: client_secret
         },
-        scopes: ["user"],
+        scopes: ["openid", "email", "profile"],
         /**
          * static redirect URI
          * if your oauth provider does not support wildcards place the URL configured in the provider (that will return to this proper service) here
