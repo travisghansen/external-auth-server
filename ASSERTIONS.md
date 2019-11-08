@@ -4,14 +4,19 @@ Custom assertions allow you place fine-grained access controls over who can
 authenticate and who cannot or plugin behavior via `pcb` (pipeline/plugin)
 circuit breakers.
 
+Assertions are logical `AND`s so **all** must pass.
+
 The basic idea is to select a value from the dataset using a `query` with
 [`jsonpath`](https://github.com/dchester/jsonpath) or
 [`jq`](https://stedolan.github.io/jq/) syntax.
 
 You pick the `query` syntax by setting the `query_engine` parameter:
 
-- `jp` for jsonpath
-- `jq` for jq
+- `jp` for jsonpath (highest performance)
+- `jq` for jq (highly flexible, slowest performance)
+- `jsonata` for jsonata (highly flexible, high performance)
+- `js` for eval'd js code (env var `EAS_ALLOW_EVAL` required) For this engine
+  the data will be available as a variable named `data`.
 
 You then define the `rule` by declaring the following properties:
 
@@ -120,5 +125,81 @@ in logs or request headers to backing services (if properly enabled).
         //negate: true,
         //case_insensitive: true
     }
+}
+
+{
+    query_engine: "jp",
+    query: "$.teams[*].id",
+    rule: {
+        method: "contains-any",
+        value: ["12345678", "99999999", ...]
+
+        //negate: true,
+        //case_insensitive: true
+    }
+}
+
+{
+    query_engine: "jp",
+    query: "$.teams[*].organization.id",
+    rule: {
+        method: "contains-any",
+        value: ["12345678", "99999999", ...]
+
+        //negate: true,
+        //case_insensitive: true
+    }
+}
+
+{
+    query_engine: "jp",
+    query: "$.two_factor_authentication",
+    rule: {
+        method: "eq",
+        value: true,
+
+        //negate: true,
+        //case_insensitive: true
+    }
+}
+```
+
+An example of each engine all yielding the same result:
+
+```
+{
+  "query_engine": "jp",
+  "query": "$.login",
+  "rule": {
+    "method": "eq",
+    "value": "travisghansen"
+  }
+}
+
+{
+  "query_engine": "jq",
+  "query": ".login",
+  "rule": {
+    "method": "eq",
+    "value": "travisghansen"
+  }
+}
+
+{
+  "query_engine": "jsonata",
+  "query": "login",
+  "rule": {
+    "method": "eq",
+    "value": "travisghansen"
+  }
+}
+
+{
+  "query_engine": "js",
+  "query": "return data.login;",
+  "rule": {
+    "method": "eq",
+    "value": "travisghansen"
+  }
 }
 ```

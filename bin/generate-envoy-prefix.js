@@ -5,7 +5,7 @@ let verify_params = {
 
 console.log(
   "URL safe path_prefix: %s",
-  "/ambassador/verify-params-url/" +
+  "/envoy/verify-params-url/" +
     encodeURIComponent(JSON.stringify(verify_params))
 );
 console.log("");

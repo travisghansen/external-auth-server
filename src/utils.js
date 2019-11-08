@@ -1,4 +1,7 @@
 const crypto = require("crypto");
+const jsonata = require("jsonata");
+const jp = require("jsonpath");
+const jq = require("node-jq");
 const queryString = require("query-string");
 const URI = require("uri-js");
 const uuidv4 = require("uuid/v4");
@@ -70,7 +73,9 @@ function get_parent_request_info(req) {
     JSON.stringify(queryString.parse(info.parsedUri.query))
   );
   // not used currently but could be used for verify process
-  info.method = req.headers["x-forwarded-method"];
+  if (req.headers["x-forwarded-method"]) {
+    info.method = req.headers["x-forwarded-method"];
+  }
   return info;
 }
 
@@ -144,14 +149,15 @@ function get_parent_request_uri(req) {
 /**
  * Takes the requested URI to the auth server and strips the initial parts of the url
  * /ambasador/verify/:verify_parms/...leave this...
- * 
+ *
  * ie: remove the 'path_prefix' portion of the URL
  *
  * @param {*} req
  */
-function get_ambassador_forwarded_uri(req) {
+function get_envoy_forwarded_uri(req, leadingParts = 4) {
+  // TODO: properly parse the whole URL and then reconstruct for saner handling
   const parts = req.url.split("/");
-  parts.splice(0, 4);
+  parts.splice(0, leadingParts);
 
   return "/" + parts.join("/");
 }
@@ -207,6 +213,58 @@ function array_intersect(a, b) {
   });
 }
 
+async function js_query(query, data) {
+  const func = new Function("data", query);
+  return func(data);
+}
+
+async function jsonata_query(query, data) {
+  return jsonata(query).evaluate(data);
+}
+
+async function jsonpath_query(query, data) {
+  return jp.query(data, query);
+}
+
+async function jq_query(query, data) {
+  const options = {
+    input: "json",
+    output: "json"
+  };
+
+  const values = await jq.run(query, data, options);
+  return values;
+}
+
+async function json_query(query_engine, query, data) {
+  let value;
+
+  switch (query_engine) {
+    case "js":
+      if (process.env.EAS_ALLOW_EVAL) {
+        value = await js_query(query, data);
+      } else {
+        throw new Error(
+          "cannot use potentially unsafe query_engine 'js' unless env variable 'EAS_ALLOW_EVAL' is set"
+        );
+      }
+      break;
+    case "jsonata":
+      value = await jsonata_query(query, data);
+      break;
+    case "jp":
+      value = await jsonpath_query(query, data);
+      break;
+    case "jq":
+      value = await jq_query(query, data);
+      break;
+    default:
+      throw new Error("invalid query engine: " + query_engine);
+  }
+
+  return value;
+}
+
 function redirect_http_code(req) {
   return req.query.redirect_http_code ? req.query.redirect_http_code : 302;
 }
@@ -237,7 +295,7 @@ module.exports = {
   generate_csrf_id,
   get_parent_request_uri,
   get_parent_request_info,
-  get_ambassador_forwarded_uri,
+  get_envoy_forwarded_uri,
   validateConfigToken,
   parse_basic_authorization_header,
   parse_bearer_authorization_header,
@@ -245,5 +303,6 @@ module.exports = {
   redirect_http_code,
   array_unique,
   array_intersect,
-  lower_case_keys
+  lower_case_keys,
+  json_query
 };

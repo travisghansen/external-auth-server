@@ -145,7 +145,9 @@ class BaseOauthPlugin extends BasePlugin {
           server.logger.verbose("parsed request uri: %j", parsedRequestURI);
 
           const parsedRedirectURI = Object.assign({}, parsedStateRedirectURI);
-          parsedRedirectURI.query = parsedRequestURI.query;
+          const parsedQuery = queryString.parse(parsedRequestURI.query);
+          parsedQuery[HANDLER_INDICATOR_PARAM_NAME] = "authorization_callback";
+          parsedRedirectURI.query = queryString.stringify(parsedQuery);
           server.logger.verbose("parsed redirect uri: %j", parsedRedirectURI);
 
           const redirect_uri = URI.serialize(parsedRedirectURI);
@@ -192,7 +194,7 @@ class BaseOauthPlugin extends BasePlugin {
     plugin.server.logger.verbose("audMD5: %s", configAudMD5);
 
     const configCookieName = this.config.cookie.name;
-    plugin.server.logger.verbose("cooking name: %s", configCookieName);
+    plugin.server.logger.verbose("cookie name: %s", configCookieName);
 
     const redirectHttpCode = req.query.redirect_http_code
       ? req.query.redirect_http_code
@@ -279,12 +281,13 @@ class BaseOauthPlugin extends BasePlugin {
       plugin.server.logger.verbose("audMD5: %s", configAudMD5);
 
       const configCookieName = plugin.config.cookie.name;
-      plugin.server.logger.verbose("cooking name: %s", configCookieName);
+      plugin.server.logger.verbose("cookie name: %s", configCookieName);
 
       /**
        * check for csrf cookie presense
        */
       if (!req.signedCookies[STATE_CSRF_COOKIE_NAME]) {
+        plugin.server.logger.verbose("missing csrf token");
         res.statusCode = 503;
         return res;
       }
@@ -299,6 +302,7 @@ class BaseOauthPlugin extends BasePlugin {
           req.signedCookies[STATE_CSRF_COOKIE_NAME]
         )
       ) {
+        plugin.server.logger.verbose("mismatched csrf values");
         res.statusCode = 503;
         return res;
       }
@@ -319,10 +323,16 @@ class BaseOauthPlugin extends BasePlugin {
           compare_redirect_uri
         );
       } catch (e) {
+        plugin.server.logger.verbose("failed to retrieve tokens");
         plugin.server.logger.error(e);
         if (plugin.is_redirectable_error(e)) {
           res.statusCode = redirectHttpCode;
           res.setHeader("Location", state.request_uri);
+          return res;
+        }
+
+        if (plugin.is_unauthorized_error(e)) {
+          res.statusCode = 403;
           return res;
         }
 
@@ -333,7 +343,7 @@ class BaseOauthPlugin extends BasePlugin {
       plugin.server.logger.verbose("received and validated tokens");
       plugin.log_token_set(tokenSet);
 
-      const tokenSetValid = await plugin.token_set_asertions(tokenSet);
+      const tokenSetValid = await plugin.token_set_assertions(tokenSet);
       if (!tokenSetValid) {
         res.statusCode = 403;
         return res;
@@ -441,8 +451,14 @@ class BaseOauthPlugin extends BasePlugin {
 
       /**
        * remove the csrf cookie
+       * NOTE: some servers do not appropriately send the response to the client
+       * when multiple Set-Cookie response headers are sent. For example nginx
+       * only forwards the first instance and envoy seems to send the last.
+       *
+       * Commenting out for now as whenever the value is required a new value should
+       * be sent by the server anyhow.
        */
-      res.clearCookie(STATE_CSRF_COOKIE_NAME);
+      //res.clearCookie(STATE_CSRF_COOKIE_NAME);
 
       plugin.server.logger.info(
         "redirecting to original resource: %s",
@@ -599,7 +615,7 @@ class BaseOauthPlugin extends BasePlugin {
 
           // run tokenSet assertions (including id_token assertions)
           let tokenSetValid;
-          tokenSetValid = await plugin.token_set_asertions(tokenSet);
+          tokenSetValid = await plugin.token_set_assertions(tokenSet);
           if (!tokenSetValid) {
             plugin.server.logger.verbose("tokenSet failed assertions");
             return respond_to_failed_authorization();
@@ -753,14 +769,19 @@ class BaseOauthPlugin extends BasePlugin {
   get_authorization_redirect_uri(uri) {
     const plugin = this;
     const query = {};
-    query[HANDLER_INDICATOR_PARAM_NAME] = "authorization_callback";
 
     if (plugin.config.redirect_uri) {
       uri = plugin.config.redirect_uri;
+    } else {
+      // set this in the /oauth/callback endpoint manually to avoid sending non-standard params to providers
+      // ie: okta pukes when it sees this
+      query[HANDLER_INDICATOR_PARAM_NAME] = "authorization_callback";
     }
 
     const parsedURI = URI.parse(uri);
-    parsedURI.query = queryString.stringify(query);
+    if (Object.keys(query).length) {
+      parsedURI.query = queryString.stringify(query);
+    }
 
     return URI.serialize(parsedURI);
   }
@@ -772,7 +793,7 @@ class BaseOauthPlugin extends BasePlugin {
       res.setHeader("X-Id-Token", sessionData.tokenSet.id_token);
     }
 
-    if (sessionData.userinfo.data) {
+    if (sessionData.userinfo && sessionData.userinfo.data) {
       res.setHeader("X-Userinfo", JSON.stringify(sessionData.userinfo.data));
     }
 
@@ -797,7 +818,10 @@ class BaseOauthPlugin extends BasePlugin {
 
   async prepare_authentication_data(res, sessionData) {
     res.setAuthenticationData({
-      userinfo: sessionData.userinfo.data,
+      userinfo:
+        sessionData.userinfo && sessionData.userinfo.data
+          ? sessionData.userinfo.data
+          : undefined,
       id_token: sessionData.tokenSet.id_token,
       access_token: sessionData.tokenSet.access_token,
       refresh_token: sessionData.tokenSet.refresh_token
@@ -827,6 +851,27 @@ class BaseOauthPlugin extends BasePlugin {
     return false;
   }
 
+  is_unauthorized_error(e) {
+    if (
+      e.error ||
+      (e.data && e.data.isResponseError) ||
+      (e.name && e.name == "OpenIdConnectError")
+    ) {
+      if (e.data && e.data.isResponseError) {
+        e = e.data.payload;
+      }
+      switch (e.error) {
+        case "unauthorized":
+        case "access_denied":
+          return true;
+        default:
+          return false;
+      }
+    }
+
+    return false;
+  }
+
   async id_token_assertions(id_token) {
     const plugin = this;
 
@@ -845,7 +890,7 @@ class BaseOauthPlugin extends BasePlugin {
     );
   }
 
-  async token_set_asertions(tokenSet) {
+  async token_set_assertions(tokenSet) {
     const plugin = this;
     const client = await plugin.get_client();
 
@@ -981,8 +1026,9 @@ class BaseOauthPlugin extends BasePlugin {
     }
 
     if (tokenSet.id_token) {
+      plugin.server.logger.debug("id_token %j", tokenSet.id_token);
       const idToken = jwt.decode(tokenSet.id_token);
-      plugin.server.logger.debug("id_token %j", idToken);
+      plugin.server.logger.debug("id_token decoded %j", idToken);
     }
   }
 }

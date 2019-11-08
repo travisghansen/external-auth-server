@@ -126,6 +126,7 @@ class LdapPlugin extends BasePlugin {
       if (connection.log) {
         connection.log = plugin.server.logger.bunyan;
       }
+      // https://github.com/ldapjs/node-ldapjs/issues/551 (node 10 campatibility issues)
       ldap = new LdapAuth(connection);
 
       ldap.close(function(err) {
@@ -141,7 +142,35 @@ class LdapPlugin extends BasePlugin {
       //cache.set(cache_key, ldap, CLIENT_CACHE_DURATION);
     }
 
+    // discovered events for each client instance
+    // ie: ldap._userClient and ldap._adminClient
+    //self.emit('connectError', err);
+    //self.emit('setupError', err);
+    //self.emit('end');
+    //self.emit('socketTimeout');
+    //self.emit('connect', socket);
+    //self.emit('connectTimeout', err);
+    //this.emit('close', had_err);
+    //self.emit('idle');
+    //self.emit('timeout', message);
+
     await new Promise(resolve => {
+      ldap._adminClient.once("connectError", err => {
+        plugin.server.logger.error("LdapPlugin failed to connect: %s", err);
+        cache.del(cache_key);
+        res.statusCode = 503;
+        resolve();
+        return;
+      });
+
+      ldap._userClient.once("connectError", err => {
+        plugin.server.logger.error("LdapPlugin failed to connect: %s", err);
+        cache.del(cache_key);
+        res.statusCode = 503;
+        resolve();
+        return;
+      });
+
       ldap.authenticate(creds.username, creds.password, async function(
         err,
         user
@@ -152,11 +181,24 @@ class LdapPlugin extends BasePlugin {
             switch (err.name) {
               case "TimeoutError":
               case "ConnectionError":
-              case "InvalidCredentialsError":
                 cache.del(cache_key);
                 res.statusCode = 503;
                 resolve();
                 return;
+              case "InvalidCredentialsError":
+                // differentiate between failure to bind using admin creds
+                // vs asserting the end-user
+                if (!ldap._adminBound) {
+                  plugin.server.logger.error(
+                    "LdapPlugin appears to have invalid bind credentials: %s",
+                    err
+                  );
+                  cache.del(cache_key);
+                  res.statusCode = 503;
+                  resolve();
+                  return;
+                }
+                break;
             }
           }
           failure_response();
@@ -168,7 +210,7 @@ class LdapPlugin extends BasePlugin {
             data: user
           };
 
-          plugin.server.logger.verbose("ldap userinfo: %s", userinfo);
+          plugin.server.logger.verbose("ldap userinfo: %j", userinfo);
 
           // run assertions on userinfo
           if (plugin.config.assertions.userinfo) {
@@ -200,6 +242,7 @@ class LdapPlugin extends BasePlugin {
                 });
                 res.statusCode = 200;
                 resolve();
+                return;
               });
           } else {
             res.setAuthenticationData({
@@ -207,6 +250,7 @@ class LdapPlugin extends BasePlugin {
             });
             res.statusCode = 200;
             resolve();
+            return;
           }
         }
       });

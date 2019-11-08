@@ -1,0 +1,44 @@
+# this is just a basic example, please tailor appropriately for your environment
+# also take care to exclude eas from authentication itself if exposed from outside the cluster (ie: using oauth/oidc and needing to expose the /oauth/callback endpoint etc)
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: auth-filter
+spec:
+  filters:
+    - filterConfig:
+        failure_mode_allow: false
+        httpService:
+          authorizationRequest:
+            allowedHeaders:
+              patterns:
+                - exact: cookie
+                - exact: X-Forwarded-Host
+                - exact: X-Forwarded-Method
+                - exact: X-Forwarded-Proto
+                - exact: X-Forwarded-Uri
+            headers_to_add:
+              - key: "x-eas-verify-params"
+                value: '{"config_token_store_id":"dep_a","config_token_id":"verysecure"}'
+          pathPrefix: /envoy/verify-params-header
+          #        pathPrefix: /envoy/verify-params-url/%7B%22config_token_store_id%22%3A%22dep_a%22%2C%22config_token_id%22%3A%22verysecure%22%7D
+          serverUri:
+            cluster: outbound|80||eas-external-auth-server.external-auth-server.svc.cluster.local
+            timeout: 10s
+            uri: http://eas-external-auth-server.external-auth-server.svc.cluster.local
+        statusOnError:
+          code: Forbidden
+        withRequestBody:
+          allowPartialMessage: true
+          maxRequestBytes: 4096
+      filterName: envoy.ext_authz
+      filterType: HTTP
+      insertPosition:
+        index: FIRST
+      listenerMatch:
+        listenerProtocol: HTTP
+        listenerType: GATEWAY
+        portNumber: 80
+  workloadLabels:
+    istio: ingressgateway

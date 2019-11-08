@@ -1,0 +1,44 @@
+# this is just a basic example, please tailor appropriately for your environment
+# also take care to exclude eas from authentication itself if exposed from outside the cluster (ie: using oauth/oidc and needing to expose the /oauth/callback endpoint etc)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-auth-ambassador-sample
+  annotations:
+    getambassador.io/config: |
+      ---
+      apiVersion: ambassador/v1
+      kind:  Mapping
+      name:  sample_mapping
+      prefix: /
+      service: https://httpbin.org
+      host_rewrite: httpbin.org
+spec:
+  type: ClusterIP
+  clusterIP: None
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: example-auth
+  annotations:
+    getambassador.io/config: |
+      ---
+      apiVersion: ambassador/v1
+      kind:  AuthService
+      name:  authentication
+      auth_service: http://eas-external-auth-server.external-auth-server.svc.cluster.local
+      path_prefix: "/envoy/verify-params-url/%7B%22config_token_store_id%22%3A%22dep_a%22%2C%22config_token_id%22%3A%22verysecure%22%7D"
+      allowed_request_headers:
+      - "x-qotm-session"
+      - "x-test-static"
+      allowed_authorization_headers:
+      - "x-qotm-session"
+      - "x-foobar-baz"
+#      headers_to_add:
+#        "x-foobar-baz": "something"
+spec:
+  type: ClusterIP
+  clusterIP: None

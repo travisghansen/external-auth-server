@@ -13,7 +13,49 @@ see [`bin/generate-config-token.js`](bin/generate-config-token.js) and
 `eas` allows for server-side tokens (stateful) to eliminate the need to update
 reverse proxy configuration and/or centrally manage `config_token`s.
 
-see [`bin/generate-server-side-config-token.js`](bin/generate-server-side-config-token.js)
+2 options exist to utilize server-side tokens:
+
+1. specified via URL params
+1. specified via a pointer token
+
+Both methods are meant to relays 2 datapoints to the server:
+
+1. `config_token_store_id`
+1. `config_token_id`
+
+The values for both are generally arbitrary.
+
+The `config_token_store_id` must correlate to the appropriate backing store
+configuration as declared in the `EAS_CONFIG_TOKEN_STORES` environment
+variable (see [`bin/generate-config-token-stores.js`](bin/generate-config-token-stores.js)).
+
+Subsequently, the `config_token_id` should be available as appropriate in the given
+store.
+
+### token specified via URL params
+
+In the `/verify` endpoint simply specify the following URL params:
+
+- `config_token_store_id` || `config_token_store_id_query_engine` AND `config_token_store_id_query`
+- `config_token_id` || `config_token_id_query_engine` AND `config_token_id_query`
+
+An example:
+
+```
+http://127.0.0.1:9000/verify?fallback_plugin=5&config_token_store_id=primary&config_token_id=1
+```
+
+The query `*_query*` variants allow you selectively pick a respective value
+based on the _nature_ of the request. For example you create `config_token`s
+which have IDs that correspond the URI or host of the service.
+
+See below for further explanation about using the `*_query*` variants.
+
+- https://github.com/travisghansen/external-auth-server/issues/29#issuecomment-541365383
+
+### token specified via pointer token
+
+See [`bin/generate-server-side-config-token.js`](bin/generate-server-side-config-token.js)
 
 The general idea is to create 2 `config_token`s, one which contain essentially
 a pointer to the real `config_token` and a 2nd which will be stored statefully.
@@ -31,15 +73,6 @@ authentication URL and should contain 2 attributes:
 ...
 }
 ```
-
-The values for both are generally arbitrary.
-
-The `config_token_store_id` must correlate to the appropriate backing store
-configuration as declared in the `EAS_CONFIG_TOKEN_STORES` environment
-variable (see [`bin/generate-config-token-stores.js`](bin/generate-config-token-stores.js)).
-
-Subsequently, the `token_id` should be available as appropriate in the given
-store.
 
 ### `file` adapter
 

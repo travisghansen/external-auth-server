@@ -60,6 +60,12 @@ image:
 nameOverride: ""
 fullnameOverride: ""
 
+env: {}
+#  FOO:
+#    value: "bar"
+#  BAR:
+#    value: "baz"
+
 service:
   type: ClusterIP
   port: 80

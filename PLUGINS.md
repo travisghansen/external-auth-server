@@ -110,8 +110,10 @@ Performs `Basic` authentication using `ldap` lookups.
     session_cache_ttl: 900, // seconds to cache successful logins
     connection: {
         url: "...",
+        log: false, // special handling to integrate with eas logging, simply set to true to turn on
         ...
         see details here: https://github.com/vesse/node-ldapauth-fork#ldapauth-config-options
+        filter syntax here: https://github.com/ldapjs/node-ldapjs/blob/v1.0.1/docs/client.md#filter-strings
     },
     assertions: {
         /**
@@ -154,7 +156,7 @@ Verifies a `jwt` token sent as a `Bearer` token in the `Authorization` header.
     header_name: "Authorization", // optional
     scheme: "Bearer", // optional, if using a custom header_name without a scheme leave it blank
     config: {
-        secret: "", // either the secret or full public key PEM data
+        secret: "", // either the secret or full public key PEM data or jwks URL
         options: {
             ...
             see details here: https://www.npmjs.com/package/jsonwebtoken#jwtverifytoken-secretorpublickey-options-callback
@@ -566,6 +568,52 @@ Be sure your reverse proxy is passing the appropriate headers to the service.
         "X-FooBaz": "other value"
     }
 }
+```
+
+## `request_js`
+
+Is a powerful plugin to essentially build your own plugin. Due to the level of
+_trust_ required between the deployment of the service and those issuing
+`config_token`s the `request_js` plugin is only available if the
+`EAS_ALLOW_EVAL` environment variable has been set. The plugin receives direct
+access to `eas` internals and can execute arbitrary code on the server
+including `process.exit()` etc. You have been warned :)
+
+Having said all that, great power comes from this plugin. The context of the
+invoked code will have access to several variables:
+
+- `req` - the object representing the request to the `eas` server, this
+  includes access to request headers
+- `res` - the mock response object used by `eas` internally for all plugins.
+  This primarily can/will be used to set the plugin's `statusCode` and any
+  appropriate headers
+- `configToken` - the decoded `config_token` for the request
+- `plugin` - the invoked instance of the `request_js` plugin. Mostly useful to
+  invoke various `util` methods and access the core `eas` server instance if
+  necessary
+- `parentReqInfo` - this is contains details about the request to the reverse
+  proxy (as opposed to `eas` itself). For example, the original request method
+  and uri parsed etc.
+
+```
+{
+    type: "request_js",
+    "snippet": "...javascript code...",
+}
+```
+
+A common use-case for this plugin would be to selectively allow _public_
+endpoints to be authenticated without going through the normal pipeline.
+
+```
+# allow request based on VERB
+"snippet": "if (parentReqInfo.method == 'GET') res.statusCode = 200;",
+
+# allow request based on HOST + PATH
+"snippet": "if (parentReqInfo.parsedUri.host == 'foo.example.com' && parentReqInfo.parsedUri.path == '/public/endpoint') res.statusCode = 200;",
+
+# setting a header
+"snippet": "res.setHeader('foo', 'bar');",
 ```
 
 ## `request_param`
