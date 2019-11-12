@@ -99,7 +99,7 @@ let config_token_real = {
           /**
            * fetch userinfo and include as X-Userinfo header to backing service
            */
-          fetch_userinfo: false
+          fetch_userinfo: true
 
           /**
            * which token (if any) to send back to the proxy as the Authorization Bearer value
