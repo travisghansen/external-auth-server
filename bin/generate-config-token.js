@@ -24,7 +24,7 @@ let config_token = {
 };
 
 config_token = jwt.sign(config_token, config_token_sign_secret);
-const conifg_token_encrypted = utils.encrypt(
+const config_token_encrypted = utils.encrypt(
   config_token_encrypt_secret,
   config_token
 );
@@ -32,11 +32,11 @@ const conifg_token_encrypted = utils.encrypt(
 //console.log("token: %s", config_token);
 //console.log("");
 
-console.log("encrypted token (for server-side usage): %s", conifg_token_encrypted);
+console.log("encrypted token (for server-side usage): %s", config_token_encrypted);
 console.log("");
 
 console.log(
   "URL safe config_token: %s",
-  encodeURIComponent(conifg_token_encrypted)
+  encodeURIComponent(config_token_encrypted)
 );
 console.log("");
