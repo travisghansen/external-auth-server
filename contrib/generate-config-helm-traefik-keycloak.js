@@ -23,15 +23,12 @@ const config_cookie_encrypt_secret =
 const config_session_encrypt_secret =
   process.env.EAS_CONFIG_SESSION_ENCRYPT_SECRET ||
   utils.exit_failure("missing EAS_CONFIG_SESSION_ENCRYPT_SECRET env variable");
-const github_client_id =
-  process.env.EAS_GITHUB_CLIENT_ID ||
-  utils.exit_failure("missing EAS_GITHUB_CLIENT_ID env variable");
-const github_client_secret =
-  process.env.EAS_GITHUB_CLIENT_SECRET ||
-  utils.exit_failure("missing EAS_GITHUB_CLIENT_SECRET env variable");
-const github_team_ids =
-  process.env.EAS_GITHUB_TEAM_IDS.split(' ').map(x => Number(x)) ||
-  utils.exit_failure("missing EAS_GITHUB_TEAM_IDS env variable");
+const client_id =
+  process.env.EAS_CLIENT_ID ||
+  utils.exit_failure("missing EAS_CLIENT_ID env variable");
+const client_secret =
+  process.env.EAS_CLIENT_SECRET ||
+  utils.exit_failure("missing EAS_CLIENT_SECRET env variable");
 const base_domain =
   process.env.EAS_BASE_DOMAIN ||
   utils.exit_failure("missing EAS_BASE_DOMAIN env variable");
@@ -41,6 +38,9 @@ const config_token_id =
 const config_token_store_id =
   process.env.EAS_CONFIG_TOKEN_STORE_ID ||
   utils.exit_failure("missing EAS_CONFIG_TOKEN_STORE_ID env variable");
+const config_discover_endpoint =
+  process.env.EAS_CONFIG_DISCOVER_ENDPOINT ||
+  utils.exit_failure("missing EAS_CONFIG_DISCOVER_ENDPOINT env variable");
 
 let config_token_real = {
   /**
@@ -50,16 +50,15 @@ let config_token_real = {
     // list of plugin definitions, refer to PLUGINS.md for details
     plugins: [
       {
-        type: "oauth2",
+        type: "oidc",
         issuer: {
-          authorization_endpoint: "https://github.com/login/oauth/authorize",
-          token_endpoint: "https://github.com/login/oauth/access_token"
+          discover_url: config_discover_endpoint
         },
         client: {
-          client_id: github_client_id,
-          client_secret: github_client_secret
+          client_id: client_id,
+          client_secret: client_secret
         },
-        scopes: ["user"],
+        scopes: ["openid", "email", "profile"],
         /**
          * static redirect URI
          * if your oauth provider does not support wildcards place the URL configured in the provider (that will return to this proper service) here
@@ -100,16 +99,7 @@ let config_token_real = {
           /**
            * fetch userinfo and include as X-Userinfo header to backing service
            */
-          fetch_userinfo: true,
-
-          userinfo: {
-            provider: "github",
-            config: {
-              fetch_teams: true,
-              fetch_organizations: true,
-              fetch_emails: true
-            }
-          },
+          fetch_userinfo: true
 
           /**
            * which token (if any) to send back to the proxy as the Authorization Bearer value
@@ -123,32 +113,10 @@ let config_token_real = {
           /**
            * assert the token(s) has not expired
            */
-          exp: true,
-          userinfo: [
-            {
-              query_engine: "jp",
-              query: "$.teams[*].id",
-              rule: {
-                method: "contains-any",
-                value: github_team_ids
-                //negate: true,
-                //case_insensitive: true
-              }
-            },
-            {
-              query_engine: "jp",
-              query: "$.two_factor_authentication",
-              rule: {
-                  method: "eq",
-                  value: true,
-                  //negate: true,
-                  //case_insensitive: true
-              }
-            }
-          ]
+          exp: true
         },
         cookie: {
-          name: "_eas_github_session_", //default is _oeas_oauth_session
+          name: "_oeas_oauth_session", //default is _oeas_oauth_session
           domain: base_domain //defaults to request domain, could do sso with more generic domain
           //path: "/",
         }
