@@ -1,0 +1,17 @@
+name: Helm Publish
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: J12934/helm-gh-pages-action@v1.1.0
+        with:
+          access-token: ${{ secrets.ACCESS_TOKEN }}
+          charts-folder: charts
+          deploy-branch: gh-pages
