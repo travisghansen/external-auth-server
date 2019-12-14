@@ -27,6 +27,7 @@ indexed) parameter on the authentication URL.
 - oauth2
 - request param
 - request header
+- request js
 - jwt
 - firebase jwt
 
@@ -117,6 +118,8 @@ A `helm` chart is supplied in the repo directly. Reviewing
 provided for common use-cases.
 
 ```
+helm repo add eas https://travisghansen.github.io/external-auth-server
+helm repo update
 helm upgrade \
 --install \
 --namespace=external-auth-server \
@@ -148,7 +151,7 @@ helm upgrade \
 --set ingress.enabled=true \
 --set ingress.hosts[0]=eas.example.com \
 --set ingress.paths[0]=/ \
-eas ./chart/
+eas eas/external-auth-server
 ```
 
 ## Generate a token
