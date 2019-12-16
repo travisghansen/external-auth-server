@@ -375,7 +375,7 @@ class BaseOauthPlugin extends BasePlugin {
         plugin.config.features.cookie_expiry > 0
       ) {
         cookieExpiresAt =
-          Date.now() / 1000 + plugin.config.features.session_expiry;
+          Date.now() / 1000 + plugin.config.features.cookie_expiry;
         cookieExpiresAt = cookieExpiresAt * 1000;
       } else {
         cookieExpiresAt = tokenExpiresAt;
