@@ -563,7 +563,13 @@ class BaseOauthPlugin extends BasePlugin {
             );
             try {
               plugin.server.logger.verbose("refreshing tokenSet");
+              const originalTokenSet = tokenSet;
               tokenSet = await plugin.refresh_token(tokenSet);
+              // If the refreshed tokenset doesn't contain a new refresh token then assume the
+              // original one can still be used.
+              if (tokenSet.refresh_token === undefined) {
+                tokenSet.refresh_token = originalTokenSet.refresh_token;
+              }
               sessionPayload.tokenSet = tokenSet;
 
               let userinfo;
