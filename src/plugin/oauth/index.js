@@ -445,7 +445,8 @@ class BaseOauthPlugin extends BasePlugin {
          * if omitted will be a 'session' cookie
          */
         expires: cookieExpiresAt ? new Date(cookieExpiresAt) : null,
-        httpOnly: true, //kills js access
+        httpOnly: plugin.config.cookie.httpOnly, //kills js access
+        secure: plugin.config.cookie.secure,
         signed: true
       });
 
@@ -1051,6 +1052,9 @@ class OauthPlugin extends BaseOauthPlugin {
    * @param {*} config
    */
   constructor(server, config) {
+    config.custom_authorization_parameters =
+      config.custom_authorization_parameters || {};
+
     if (!config.cookie) {
       config.cookie = {};
     }
@@ -1065,6 +1069,14 @@ class OauthPlugin extends BaseOauthPlugin {
 
     if (!config.cookie.hasOwnProperty("path")) {
       config.cookie.path = "/";
+    }
+
+    if (!config.cookie.hasOwnProperty("secure")) {
+      config.cookie.secure = false;
+    }
+
+    if (!config.cookie.hasOwnProperty("httpOnly")) {
+      config.cookie.httpOnly = true;
     }
 
     if (!config.features) {
@@ -1146,6 +1158,7 @@ class OauthPlugin extends BaseOauthPlugin {
     const plugin = this;
     const client = await plugin.get_client();
     const url = client.authorizationCode.authorizeURL({
+      ...plugin.config.custom_authorization_parameters,
       redirect_uri: authorization_redirect_uri,
       scope: plugin.config.scopes.join(" "),
       state: state
@@ -1348,6 +1361,9 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
    * @param {*} config
    */
   constructor(server, config) {
+    config.custom_authorization_parameters =
+      config.custom_authorization_parameters || {};
+
     if (!config.cookie) {
       config.cookie = {};
     }
@@ -1362,6 +1378,14 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
 
     if (!config.cookie.hasOwnProperty("path")) {
       config.cookie.path = "/";
+    }
+
+    if (!config.cookie.hasOwnProperty("secure")) {
+      config.cookie.secure = false;
+    }
+
+    if (!config.cookie.hasOwnProperty("httpOnly")) {
+      config.cookie.httpOnly = true;
     }
 
     if (!config.features) {
@@ -1486,6 +1510,7 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
     const client = await plugin.get_client();
 
     const url = client.authorizationUrl({
+      ...plugin.config.custom_authorization_parameters,
       redirect_uri: authorization_redirect_uri,
       scope: plugin.config.scopes.join(" "),
       state: state

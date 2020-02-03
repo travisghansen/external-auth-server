@@ -65,6 +65,13 @@ function generate_csrf_id() {
   return uuidv4();
 }
 
+function is_jwt(jwtString) {
+  const re = new RegExp(
+    /^[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$/
+  );
+  return re.test(jwtString);
+}
+
 function get_parent_request_info(req) {
   const info = {};
   info.uri = get_parent_request_uri(req);
@@ -293,6 +300,7 @@ module.exports = {
   base64_decode,
   generate_session_id,
   generate_csrf_id,
+  is_jwt,
   get_parent_request_uri,
   get_parent_request_info,
   get_envoy_forwarded_uri,

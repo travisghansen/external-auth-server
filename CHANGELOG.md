@@ -74,6 +74,12 @@
 - opa plugin
 - opa assertions
 
+# 0.7.0
+
+- ~~support server-side tokens being stored decrypted~~
+- ~~support setting the `httpOnly` and `secure` flag on `oauth2`/`oidc` cookies~~
+- ~~support custom authorization URL parameters for `oauth2`/`oidc`~~
+
 # 0.6.0
 
 Released 2019-10-29

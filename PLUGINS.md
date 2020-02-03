@@ -254,6 +254,10 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         client_secret: "..."
     },
     scopes: [],
+    // custom static authorization URL parameters
+    // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
+    // ie: https://developers.google.com/identity/protocols/OpenIDConnect#refresh-tokens
+    custom_authorization_parameters: {},
     /**
     * static redirect URI
     * if your oauth provider does not support wildcards place the URL configured in the provider (that will return to this proper service) here
@@ -363,6 +367,8 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //name: "_my_company_session",//default is _oeas_oauth_session
         //domain: "example.com", //defaults to request domain, could do sso with more generic domain
         //path: "/",
+        //httpOnly: true,
+        //secure: false,
     },
     // see HEADERS.md for details
     headers: {},
@@ -411,6 +417,10 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //registration_access_token: "",
     },
     scopes: ["openid", "email", "profile"], // must include openid
+    // custom static authorization URL parameters
+    // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
+    // ie: https://developers.google.com/identity/protocols/OpenIDConnect#refresh-tokens
+    custom_authorization_parameters: {},
     /**
     * static redirect URI
     * if your oauth provider does not support wildcards place the URL configured in the provider (that will return to this proper service) here
@@ -534,6 +544,8 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //name: "_my_company_session",//default is _oeas_oauth_session
         //domain: "example.com", //defaults to request domain, could do sso with more generic domain
         //path: "/",
+        //httpOnly: true,
+        //secure: false,
     },
     // see HEADERS.md for details
     headers: {},
