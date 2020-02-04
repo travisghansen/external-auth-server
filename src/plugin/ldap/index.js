@@ -109,7 +109,7 @@ class LdapPlugin extends BasePlugin {
 
       const userinfo = await store.get(store_key);
 
-      if (userinfo !== null) {
+      if (userinfo != null) {
         plugin.server.logger.verbose("ldap userinfo: %s", userinfo);
         res.setAuthenticationData({
           userinfo: userinfo.data
