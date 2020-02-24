@@ -1457,6 +1457,7 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
       return issuer;
     } else {
       const cache_key = "issuer:" + plugin.server.utils.md5(JSON.stringify(plugin.config.issuer));
+      let issuer;
       issuer = new Issuer(plugin.config.issuer);
       plugin.server.logger.verbose(
         "manual issuer %s %O",
