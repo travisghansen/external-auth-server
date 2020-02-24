@@ -1443,18 +1443,24 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
     const plugin = this;
     const cache = plugin.server.cache;
     const discover_url = plugin.config.issuer.discover_url;
-    const cache_key = "issuer:" + plugin.server.utils.md5(discover_url);
     let issuer;
-    issuer = cache.get(cache_key);
-    if (issuer !== undefined) {
-      return issuer;
-    }
-
+    
     if (discover_url) {
+      const cache_key = "issuer:" + plugin.server.utils.md5(discover_url);
+      issuer = cache.get(cache_key);
+      if (issuer !== undefined) {
+        return issuer;
+      }
       issuer = await Issuer.discover(discover_url);
       cache.set(cache_key, issuer, ISSUER_CACHE_DURATION);
       return issuer;
     } else {
+      const cache_key = "issuer:" + plugin.server.utils.md5(JSON.stringify(plugin.config.issuer));
+      issuer = cache.get(cache_key);
+      if (issuer !== undefined) {
+        return issuer;
+      }
+      
       issuer = new Issuer(plugin.config.issuer);
       plugin.server.logger.verbose(
         "manual issuer %s %O",
@@ -1464,6 +1470,7 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
       cache.set(cache_key, issuer, ISSUER_CACHE_DURATION);
       return issuer;
     }
+
   }
 
   async get_client() {
@@ -1493,8 +1500,8 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
       plugin.config.client.registration_access_token
     ) {
       client = await issuer.Client.fromUri(
-        plugin.config.issuer.registration_client_uri,
-        plugin.config.issuer.registration_access_token
+        plugin.config.client.registration_client_uri,
+        plugin.config.client.registration_access_token
       );
 
       client.CLOCK_TOLERANCE = DEFAULT_CLIENT_CLOCK_TOLERANCE;
