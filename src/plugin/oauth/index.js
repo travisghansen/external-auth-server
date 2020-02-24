@@ -1452,8 +1452,6 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
         return issuer;
       }
       issuer = await Issuer.discover(discover_url);
-      cache.set(cache_key, issuer, ISSUER_CACHE_DURATION);
-      return issuer;
     } else {
       const cache_key = "issuer:" + plugin.server.utils.md5(JSON.stringify(plugin.config.issuer));
       issuer = cache.get(cache_key);
@@ -1467,9 +1465,9 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
         issuer.issuer,
         issuer.metadata
       );
-      cache.set(cache_key, issuer, ISSUER_CACHE_DURATION);
-      return issuer;
     }
+    cache.set(cache_key, issuer, ISSUER_CACHE_DURATION);
+    return issuer;
   }
 
   async get_client() {
