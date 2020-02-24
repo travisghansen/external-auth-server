@@ -1496,8 +1496,8 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
       plugin.config.client.registration_access_token
     ) {
       client = await issuer.Client.fromUri(
-        plugin.config.issuer.registration_client_uri,
-        plugin.config.issuer.registration_access_token
+        plugin.config.client.registration_client_uri,
+        plugin.config.client.registration_access_token
       );
 
       client.CLOCK_TOLERANCE = DEFAULT_CLIENT_CLOCK_TOLERANCE;
