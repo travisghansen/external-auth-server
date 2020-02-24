@@ -1443,18 +1443,20 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
     const plugin = this;
     const cache = plugin.server.cache;
     const discover_url = plugin.config.issuer.discover_url;
-    const cache_key = "issuer:" + plugin.server.utils.md5(discover_url);
-    let issuer;
-    issuer = cache.get(cache_key);
-    if (issuer !== undefined) {
-      return issuer;
-    }
+    
 
     if (discover_url) {
+      const cache_key = "issuer:" + plugin.server.utils.md5(discover_url);
+      let issuer;
+      issuer = cache.get(cache_key);
+      if (issuer !== undefined) {
+        return issuer;
+      }
       issuer = await Issuer.discover(discover_url);
       cache.set(cache_key, issuer, ISSUER_CACHE_DURATION);
       return issuer;
     } else {
+      const cache_key = "issuer:" + plugin.server.utils.md5(JSON.stringify(plugin.config.issuer));
       issuer = new Issuer(plugin.config.issuer);
       plugin.server.logger.verbose(
         "manual issuer %s %O",
