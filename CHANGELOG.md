@@ -77,8 +77,11 @@
 # 0.7.0
 
 - ~~support server-side tokens being stored decrypted~~
-- ~~support setting the `httpOnly` and `secure` flag on `oauth2`/`oidc` cookies~~
+- ~~support setting the `httpOnly`, `secure`, and `sameSite` flags on `oauth2`/`oidc` session/csrf cookies~~
+- ~~allow for disabling the `csrf` cookie on `oauth2`/`oidc`~~
 - ~~support custom authorization URL parameters for `oauth2`/`oidc`~~
+- ~~support new endpoint to destroy `oidc`/`oauth2` sessions with `eas`~~
+
 
 # 0.6.0
 

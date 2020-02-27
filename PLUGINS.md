@@ -363,12 +363,21 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
             }
         ]
     },
+    csrf_cookie: {
+        //enabled: true, //can disable the use of csrf cookies completely
+        //domain: "example.com", //defaults to request domain, could do sso with more generic domain
+        //path: "/",
+        //httpOnly: true,
+        //secure: false,
+        //sameSite: none,
+    },
     cookie: {
         //name: "_my_company_session",//default is _oeas_oauth_session
         //domain: "example.com", //defaults to request domain, could do sso with more generic domain
         //path: "/",
         //httpOnly: true,
         //secure: false,
+        //sameSite: none,
     },
     // see HEADERS.md for details
     headers: {},
@@ -540,12 +549,21 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
             }
         ]
     },
+    csrf_cookie: {
+        //enabled: true, //can disable the use of csrf cookies completely
+        //domain: "example.com", //defaults to request domain, could do sso with more generic domain
+        //path: "/",
+        //httpOnly: true,
+        //secure: false,
+        //sameSite: none,
+    },
     cookie: {
         //name: "_my_company_session",//default is _oeas_oauth_session
         //domain: "example.com", //defaults to request domain, could do sso with more generic domain
         //path: "/",
         //httpOnly: true,
         //secure: false,
+        //sameSite: none,
     },
     // see HEADERS.md for details
     headers: {},
