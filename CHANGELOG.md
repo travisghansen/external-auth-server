@@ -74,14 +74,18 @@
 - opa plugin
 - opa assertions
 
+- NODE_JQ_SKIP_INSTALL_BINARY=true
+
 # 0.7.0
+
+Released 2020-02-28
 
 - ~~support server-side tokens being stored decrypted~~
 - ~~support setting the `httpOnly`, `secure`, and `sameSite` flags on `oauth2`/`oidc` session/csrf cookies~~
 - ~~allow for disabling the `csrf` cookie on `oauth2`/`oidc`~~
 - ~~support custom authorization URL parameters for `oauth2`/`oidc`~~
 - ~~support new endpoint to destroy `oidc`/`oauth2` sessions with `eas`~~
-
+- ~~multi-arch docker images~~
 
 # 0.6.0
 
