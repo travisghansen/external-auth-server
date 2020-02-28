@@ -13,12 +13,15 @@ see [`bin/generate-config-token.js`](bin/generate-config-token.js) and
 `eas` allows for server-side tokens (stateful) to eliminate the need to update
 reverse proxy configuration and/or centrally manage `config_token`s.
 
+Server-side tokens can be stored in the various adapters either encrypted or
+non-encrypted.
+
 2 options exist to utilize server-side tokens:
 
 1. specified via URL params
 1. specified via a pointer token
 
-Both methods are meant to relays 2 datapoints to the server:
+Both methods are meant to relay 2 datapoints to the server:
 
 1. `config_token_store_id`
 1. `config_token_id`

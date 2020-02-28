@@ -237,10 +237,14 @@ verifyHandler = async (req, res, options = {}) => {
         configToken
       );
 
-      configToken = externalAuthServer.utils.decrypt(
-        externalAuthServer.secrets.config_token_encrypt_secret,
-        configToken
-      );
+      // server-side tokens can be stored encrypted or not
+      if (!externalAuthServer.utils.is_jwt(configToken)) {
+        configToken = externalAuthServer.utils.decrypt(
+          externalAuthServer.secrets.config_token_encrypt_secret,
+          configToken
+        );
+      }
+
       configToken = jwt.verify(
         configToken,
         externalAuthServer.secrets.config_token_sign_secret

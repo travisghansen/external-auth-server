@@ -36,6 +36,104 @@ const CLIENT_CACHE_DURATION = 43200 * 1000;
 
 let initialized = false;
 
+/**
+ * Initialize common config options for oidc/oauth2 plugins
+ *
+ * @param {*} config
+ */
+function initialize_common_config_options(config) {
+  config.custom_authorization_parameters =
+    config.custom_authorization_parameters || {};
+
+  if (!config.cookie) {
+    config.cookie = {};
+  }
+
+  if (!config.csrf_cookie) {
+    config.csrf_cookie = {};
+  }
+
+  if (!config.csrf_cookie.hasOwnProperty("enabled")) {
+    config.csrf_cookie.enabled = true;
+  }
+
+  if (!config.csrf_cookie.hasOwnProperty("domain")) {
+    config.csrf_cookie.domain = null;
+  }
+
+  if (!config.csrf_cookie.hasOwnProperty("path")) {
+    config.csrf_cookie.path = "/";
+  }
+
+  if (!config.csrf_cookie.hasOwnProperty("secure")) {
+    config.csrf_cookie.secure = false;
+  }
+
+  if (!config.csrf_cookie.hasOwnProperty("httpOnly")) {
+    config.csrf_cookie.httpOnly = true;
+  }
+
+  if (!config.csrf_cookie.hasOwnProperty("sameSite")) {
+    config.csrf_cookie.sameSite = "none";
+  }
+
+  config.cookie.name = config.cookie.hasOwnProperty("name")
+    ? config.cookie.name
+    : DEFAULT_COOKIE_NAME;
+
+  if (!config.cookie.hasOwnProperty("domain")) {
+    config.cookie.domain = null;
+  }
+
+  if (!config.cookie.hasOwnProperty("path")) {
+    config.cookie.path = "/";
+  }
+
+  if (!config.cookie.hasOwnProperty("secure")) {
+    config.cookie.secure = false;
+  }
+
+  if (!config.cookie.hasOwnProperty("httpOnly")) {
+    config.cookie.httpOnly = true;
+  }
+
+  if (!config.cookie.hasOwnProperty("sameSite")) {
+    config.cookie.sameSite = "none";
+  }
+
+  if (!config.features) {
+    config.features = {};
+  }
+
+  if (!config.assertions) {
+    config.assertions = {};
+  }
+
+  if (!config.features.hasOwnProperty("cookie_expiry")) {
+    config.features.cookie_expiry = false;
+  }
+
+  if (!config.features.hasOwnProperty("userinfo_expiry")) {
+    config.features.userinfo_expiry = true;
+  }
+
+  if (!config.features.hasOwnProperty("session_retain_id")) {
+    config.features.session_retain_id = true;
+  }
+
+  if (!config.features.hasOwnProperty("session_expiry")) {
+    config.features.session_expiry = true;
+  }
+
+  if (!config.features.hasOwnProperty("refresh_access_token")) {
+    config.features.refresh_access_token = true;
+  }
+
+  if (!config.features.hasOwnProperty("fetch_userinfo")) {
+    config.features.fetch_userinfo = true;
+  }
+}
+
 function token_is_expired(token) {
   return !!(token.exp && token.exp < Date.now() / 1000);
 }
@@ -239,22 +337,79 @@ class BaseOauthPlugin extends BasePlugin {
               '"'
           );
         default:
-          res.cookie(
-            STATE_CSRF_COOKIE_NAME,
-            plugin.server.utils.encrypt(
-              plugin.server.secrets.cookie_encrypt_secret,
-              payload.csrf
-            ),
-            {
-              expires: new Date(Date.now() + STATE_CSRF_COOKIE_EXPIRY * 1000),
-              httpOnly: true, //kills js access
-              signed: true
-            }
-          );
+          if (plugin.config.csrf_cookie.enabled) {
+            res.cookie(
+              STATE_CSRF_COOKIE_NAME,
+              plugin.server.utils.encrypt(
+                plugin.server.secrets.cookie_encrypt_secret,
+                payload.csrf
+              ),
+              {
+                /**
+                 * if omitted will be a 'session' cookie
+                 */
+                expires: new Date(Date.now() + STATE_CSRF_COOKIE_EXPIRY * 1000),
+
+                domain: plugin.config.csrf_cookie.domain,
+                path: plugin.config.csrf_cookie.path,
+                httpOnly: plugin.config.csrf_cookie.httpOnly, //kills js access
+                secure: plugin.config.csrf_cookie.secure,
+
+                /**
+                 * None: what Chrome defaults to today without a SameSite value set
+                 * Lax: some limits on sending cookies on a cross-origin request
+                 * Strict: tight limits on sending cookies on a cross-origin request
+                 */
+                sameSite: plugin.config.csrf_cookie.sameSite,
+                signed: true
+              }
+            );
+          }
+
           res.statusCode = redirectHttpCode;
           res.setHeader("Location", url);
           return res;
       }
+    };
+
+    /**
+     * state should be the decrypted and decoded state token
+     *
+     *
+     * @param {*} req
+     * @param {*} res
+     * @param {*} state
+     */
+    const handle_logout_callback_request = async function(
+      req,
+      res,
+      parentReqInfo
+    ) {
+      const redirectHttpCode = req.query.redirect_http_code
+        ? req.query.redirect_http_code
+        : 302;
+
+      const configCookieName = plugin.config.cookie.name;
+      plugin.server.logger.verbose("cookie name: %s", configCookieName);
+
+      const session_id = req.signedCookies[configCookieName];
+      const redirect_uri = parentReqInfo.parsedQuery.redirect_uri;
+      if (session_id) {
+        plugin.server.logger.info("deleting session: %s", session_id);
+        await plugin.delete_session(session_id);
+        //res.clearCookie(configCookieName);
+      } else {
+        plugin.server.logger.verbose("no session to delete, moving on");
+      }
+
+      plugin.server.logger.info(
+        "redirecting after logout to redirect_uri: %s",
+        redirect_uri
+      );
+
+      res.statusCode = redirectHttpCode;
+      res.setHeader("Location", redirect_uri);
+      return res;
     };
 
     /**
@@ -283,28 +438,30 @@ class BaseOauthPlugin extends BasePlugin {
       const configCookieName = plugin.config.cookie.name;
       plugin.server.logger.verbose("cookie name: %s", configCookieName);
 
-      /**
-       * check for csrf cookie presense
-       */
-      if (!req.signedCookies[STATE_CSRF_COOKIE_NAME]) {
-        plugin.server.logger.verbose("missing csrf token");
-        res.statusCode = 503;
-        return res;
-      }
+      if (plugin.config.csrf_cookie.enabled) {
+        /**
+         * check for csrf cookie presense
+         */
+        if (!req.signedCookies[STATE_CSRF_COOKIE_NAME]) {
+          plugin.server.logger.verbose("missing csrf token");
+          res.statusCode = 503;
+          return res;
+        }
 
-      /**
-       * validate csrf token
-       */
-      if (
-        state.csrf !=
-        plugin.server.utils.decrypt(
-          plugin.server.secrets.cookie_encrypt_secret,
-          req.signedCookies[STATE_CSRF_COOKIE_NAME]
-        )
-      ) {
-        plugin.server.logger.verbose("mismatched csrf values");
-        res.statusCode = 503;
-        return res;
+        /**
+         * validate csrf token
+         */
+        if (
+          state.csrf !=
+          plugin.server.utils.decrypt(
+            plugin.server.secrets.cookie_encrypt_secret,
+            req.signedCookies[STATE_CSRF_COOKIE_NAME]
+          )
+        ) {
+          plugin.server.logger.verbose("mismatched csrf values");
+          res.statusCode = 503;
+          return res;
+        }
       }
 
       plugin.server.logger.verbose("begin token fetch with authorization code");
@@ -445,7 +602,15 @@ class BaseOauthPlugin extends BasePlugin {
          * if omitted will be a 'session' cookie
          */
         expires: cookieExpiresAt ? new Date(cookieExpiresAt) : null,
-        httpOnly: true, //kills js access
+        httpOnly: plugin.config.cookie.httpOnly, //kills js access
+        secure: plugin.config.cookie.secure,
+
+        /**
+         * None: what Chrome defaults to today without a SameSite value set
+         * Lax: some limits on sending cookies on a cross-origin request
+         * Strict: tight limits on sending cookies on a cross-origin request
+         */
+        sameSite: plugin.config.cookie.sameSite,
         signed: true
       });
 
@@ -479,6 +644,8 @@ class BaseOauthPlugin extends BasePlugin {
      *
      */
     switch (parentReqInfo.parsedQuery[HANDLER_INDICATOR_PARAM_NAME]) {
+      case "logout":
+        return handle_logout_callback_request(req, res, parentReqInfo);
       case "authorization_callback":
         const state = plugin.server.utils.decrypt(
           issuer_encrypt_secret,
@@ -732,6 +899,14 @@ class BaseOauthPlugin extends BasePlugin {
       ),
       ttl
     );
+  }
+
+  async delete_session(session_id) {
+    const plugin = this;
+    const store = plugin.server.store;
+    if (session_id) {
+      await store.del(SESSION_CACHE_PREFIX + session_id);
+    }
   }
 
   async update_session(session_id, sessionPayload) {
@@ -1051,52 +1226,7 @@ class OauthPlugin extends BaseOauthPlugin {
    * @param {*} config
    */
   constructor(server, config) {
-    if (!config.cookie) {
-      config.cookie = {};
-    }
-
-    config.cookie.name = config.cookie.hasOwnProperty("name")
-      ? config.cookie.name
-      : DEFAULT_COOKIE_NAME;
-
-    if (!config.cookie.hasOwnProperty("domain")) {
-      config.cookie.domain = null;
-    }
-
-    if (!config.cookie.hasOwnProperty("path")) {
-      config.cookie.path = "/";
-    }
-
-    if (!config.features) {
-      config.features = {};
-    }
-
-    if (!config.assertions) {
-      config.assertions = {};
-    }
-
-    if (!config.features.hasOwnProperty("cookie_expiry")) {
-      config.features.cookie_expiry = false;
-    }
-
-    if (!config.features.hasOwnProperty("userinfo_expiry")) {
-      config.features.userinfo_expiry = true;
-    }
-
-    if (!config.features.hasOwnProperty("session_retain_id")) {
-      config.features.session_retain_id = true;
-    }
-
-    if (!config.features.hasOwnProperty("session_expiry")) {
-      config.features.session_expiry = true;
-    }
-
-    if (!config.features.hasOwnProperty("refresh_access_token")) {
-      config.features.refresh_access_token = true;
-    }
-
-    //config.scopes = [];
-
+    initialize_common_config_options(config);
     super(...arguments);
   }
 
@@ -1146,6 +1276,7 @@ class OauthPlugin extends BaseOauthPlugin {
     const plugin = this;
     const client = await plugin.get_client();
     const url = client.authorizationCode.authorizeURL({
+      ...plugin.config.custom_authorization_parameters,
       redirect_uri: authorization_redirect_uri,
       scope: plugin.config.scopes.join(" "),
       state: state
@@ -1348,53 +1479,7 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
    * @param {*} config
    */
   constructor(server, config) {
-    if (!config.cookie) {
-      config.cookie = {};
-    }
-
-    config.cookie.name = config.cookie.hasOwnProperty("name")
-      ? config.cookie.name
-      : DEFAULT_COOKIE_NAME;
-
-    if (!config.cookie.hasOwnProperty("domain")) {
-      config.cookie.domain = null;
-    }
-
-    if (!config.cookie.hasOwnProperty("path")) {
-      config.cookie.path = "/";
-    }
-
-    if (!config.features) {
-      config.features = {};
-    }
-
-    if (!config.assertions) {
-      config.assertions = {};
-    }
-
-    if (!config.features.hasOwnProperty("cookie_expiry")) {
-      config.features.cookie_expiry = false;
-    }
-
-    if (!config.features.hasOwnProperty("userinfo_expiry")) {
-      config.features.userinfo_expiry = true;
-    }
-
-    if (!config.features.hasOwnProperty("session_expiry")) {
-      config.features.session_expiry = true;
-    }
-
-    if (!config.features.hasOwnProperty("session_retain_id")) {
-      config.features.session_retain_id = true;
-    }
-
-    if (!config.features.hasOwnProperty("refresh_access_token")) {
-      config.features.refresh_access_token = true;
-    }
-
-    if (!config.features.hasOwnProperty("fetch_userinfo")) {
-      config.features.fetch_userinfo = true;
-    }
+    initialize_common_config_options(config);
 
     if (!config.features.hasOwnProperty("introspect_access_token")) {
       config.features.introspect_access_token = false;
@@ -1419,18 +1504,26 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
     const plugin = this;
     const cache = plugin.server.cache;
     const discover_url = plugin.config.issuer.discover_url;
-    const cache_key = "issuer:" + plugin.server.utils.md5(discover_url);
     let issuer;
-    issuer = cache.get(cache_key);
-    if (issuer !== undefined) {
-      return issuer;
-    }
 
     if (discover_url) {
+      const cache_key = "issuer:" + plugin.server.utils.md5(discover_url);
+      issuer = cache.get(cache_key);
+      if (issuer !== undefined) {
+        return issuer;
+      }
       issuer = await Issuer.discover(discover_url);
       cache.set(cache_key, issuer, ISSUER_CACHE_DURATION);
       return issuer;
     } else {
+      const cache_key =
+        "issuer:" +
+        plugin.server.utils.md5(JSON.stringify(plugin.config.issuer));
+      issuer = cache.get(cache_key);
+      if (issuer !== undefined) {
+        return issuer;
+      }
+
       issuer = new Issuer(plugin.config.issuer);
       plugin.server.logger.verbose(
         "manual issuer %s %O",
@@ -1469,8 +1562,8 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
       plugin.config.client.registration_access_token
     ) {
       client = await issuer.Client.fromUri(
-        plugin.config.issuer.registration_client_uri,
-        plugin.config.issuer.registration_access_token
+        plugin.config.client.registration_client_uri,
+        plugin.config.client.registration_access_token
       );
 
       client.CLOCK_TOLERANCE = DEFAULT_CLIENT_CLOCK_TOLERANCE;
@@ -1486,6 +1579,7 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
     const client = await plugin.get_client();
 
     const url = client.authorizationUrl({
+      ...plugin.config.custom_authorization_parameters,
       redirect_uri: authorization_redirect_uri,
       scope: plugin.config.scopes.join(" "),
       state: state
