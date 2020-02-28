@@ -448,12 +448,12 @@ verifyHandler = async (req, res, options = {}) => {
         pluginResponse.statusCode
       );
 
-      if (pluginResponse.statusCode >= 200 && pluginResponse.statusCode < 300) {
-        const pluginConfig = pluginResponse.plugin.config;
-        const injectData = pluginResponse.authenticationData;
-        injectData.plugin_config = pluginConfig;
-        injectData.config_token = configToken;
+      const pluginConfig = pluginResponse.plugin.config;
+      const injectData = pluginResponse.authenticationData;
+      injectData.plugin_config = pluginConfig;
+      injectData.config_token = configToken;
 
+      if (pluginResponse.statusCode >= 200 && pluginResponse.statusCode < 300) {
         // set config_token headers
         if (configToken.eas.custom_service_headers) {
           const headersInjector = new HeaderInjector(
@@ -467,6 +467,24 @@ verifyHandler = async (req, res, options = {}) => {
         if (pluginConfig.custom_service_headers) {
           const headersInjector = new HeaderInjector(
             pluginConfig.custom_service_headers,
+            injectData
+          );
+          await headersInjector.injectHeaders(pluginResponse);
+        }
+      } else {
+        // set config_token headers
+        if (configToken.eas.custom_error_headers) {
+          const headersInjector = new HeaderInjector(
+            configToken.eas.custom_error_headers,
+            injectData
+          );
+          await headersInjector.injectHeaders(pluginResponse);
+        }
+
+        // set plugin headers
+        if (pluginConfig.custom_error_headers) {
+          const headersInjector = new HeaderInjector(
+            pluginConfig.custom_error_headers,
             injectData
           );
           await headersInjector.injectHeaders(pluginResponse);

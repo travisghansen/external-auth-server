@@ -76,6 +76,10 @@
 
 - NODE_JQ_SKIP_INSTALL_BINARY=true
 
+# 0.8.0
+
+- ~~support custom_error_headers~~
+
 # 0.7.0
 
 Released 2020-02-28
