@@ -452,6 +452,17 @@ verifyHandler = async (req, res, options = {}) => {
       const injectData = pluginResponse.authenticationData;
       injectData.plugin_config = pluginConfig;
       injectData.config_token = configToken;
+      injectData.req = {};
+      injectData.req.headers = req.headers;
+      injectData.req.cookies = req.cookies;
+      injectData.req.query = req.query;
+      injectData.req.method = req.method;
+      injectData.req.method.httpVersionMajor = req.method.httpVersionMajor;
+      injectData.req.method.httpVersionMinor = req.method.httpVersionMinor;
+      injectData.req.method.httpVersion = req.method.httpVersion;
+      injectData.parentRequestInfo = externalAuthServer.utils.get_parent_request_info(
+        req
+      );
 
       if (pluginResponse.statusCode >= 200 && pluginResponse.statusCode < 300) {
         // set config_token headers

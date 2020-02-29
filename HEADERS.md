@@ -38,7 +38,7 @@ as tokens etc may not exist.
     ...
     custom_service_headers: {
         "X-Injected-FooBarBaz": {
-            source: "userinfo",// userinfo, id_token, access_token, refresh_token, static, config_token, plugin_config
+            source: "userinfo",// userinfo, id_token, access_token, refresh_token, static, config_token, plugin_config, req, parentRequestInfo
             query_engine: "jp",
             query: "$.emails[*].email", // if left blank the data will be passed unaltered (ie: jwt encoded data)
 
