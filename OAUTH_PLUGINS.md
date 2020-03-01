@@ -62,3 +62,16 @@ The applicable `config_token` options would be:
 - `cookie.domain` set to `example.com`
 - `cookie.name` set to `_oeas_oauth_session_admins`
 - `redirect_uri` set to `https://eas.example.com/oauth/callback`
+
+## Logout
+
+If you wish to destroy a session with `eas` you may send the user to any link
+that would invoke `eas` from an authentication perspective (ie: do NOT send the
+user agent to `eas` directly) including the following `GET` parameters:
+
+- `__eas_oauth_handler__=logout`
+- `redirect_uri=<url encoded redirect location>`
+
+As an example, if you are authenticating the domain `https://svc.example.com`
+with `eas` you could direct the browser to
+`https://svc.example.com?__eas_oauth_handler__=logout&redirect_uri=https%3A%2F%2Fgithub.com`

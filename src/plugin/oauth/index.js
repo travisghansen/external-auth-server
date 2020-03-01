@@ -132,6 +132,10 @@ function initialize_common_config_options(config) {
   if (!config.features.hasOwnProperty("fetch_userinfo")) {
     config.features.fetch_userinfo = true;
   }
+
+  if (!config.xhr) {
+    config.xhr = {};
+  }
 }
 
 function token_is_expired(token) {
@@ -294,9 +298,22 @@ class BaseOauthPlugin extends BasePlugin {
     const configCookieName = this.config.cookie.name;
     plugin.server.logger.verbose("cookie name: %s", configCookieName);
 
-    const redirectHttpCode = req.query.redirect_http_code
-      ? req.query.redirect_http_code
-      : 302;
+    let redirectHttpCode;
+    if (!redirectHttpCode && req.query.redirect_http_code) {
+      redirectHttpCode = req.query.redirect_http_code;
+    }
+
+    if (
+      !redirectHttpCode &&
+      plugin.config.xhr.redirect_http_code &&
+      req.headers.origin
+    ) {
+      redirectHttpCode = plugin.config.xhr.redirect_http_code;
+    }
+
+    if (!redirectHttpCode) {
+      redirectHttpCode = 302;
+    }
 
     const authorization_redirect_uri = plugin.get_authorization_redirect_uri(
       parentReqInfo.uri
@@ -331,7 +348,7 @@ class BaseOauthPlugin extends BasePlugin {
           res.setHeader(
             "WWW-Authenticate",
             'Bearer realm="' +
-              authorization_redirect_uri +
+              url +
               ', scope="' +
               plugin.config.scopes.join(" ") +
               '"'

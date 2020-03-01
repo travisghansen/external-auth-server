@@ -16,29 +16,28 @@
   backing service) and allowing the auth service to conditionally assert based on
   scopes in the jwt token
 
+* support better logic for original URI detection `Forwarded` header and `X-Forwarded-For`, etc
+* ensure sessions (guid) does not already exist however unlikely
+* implement logout (both local and with provider)
 
-- support better logic for original URI detection `Forwarded` header and `X-Forwarded-For`, etc
-- ensure sessions (guid) does not already exist however unlikely
-- implement logout (both local and with provider)
+* allow for run-time (ie: URL params) assertions
+* configuration for turning on/off redirects (probably a query param like `redirect_http_code`) (this may simply be a verify_strategy)
+* nonce?
 
-- allow for run-time (ie: URL params) assertions
-- configuration for turning on/off redirects (probably a query param like `redirect_http_code`) (this may simply be a verify_strategy)
-- nonce?
+* document proper annotations for common ingress controllers (traefik, nginx, ambassador, etc)
 
-- document proper annotations for common ingress controllers (traefik, nginx, ambassador, etc)
+* support for encyprted cookie
+* cookie as struct {id: foo, storage_type: cookie|backend}?
+* update to 3.x `openid-client`
+* replace `jsonwebtoken` with `@panva/jose`
 
-- support for encyprted cookie
-- cookie as struct {id: foo, storage_type: cookie|backend}?
-- update to 3.x `openid-client`
-- replace `jsonwebtoken` with `@panva/jose`
+* ensure empty body in responses
 
-- ensure empty body in responses
+* email link plugin
+* email code plugin
 
-- email link plugin
-- email code plugin
-
-- support for POST callback providers (can accept post requests on the `/oauth/callback` route and translate to `GET` params)
-- oauth2 providers
+* support for POST callback providers (can accept post requests on the `/oauth/callback` route and translate to `GET` params)
+* oauth2 providers
 
   - Google default
   - Azure
@@ -47,38 +46,45 @@
   - GitLab
   - LinkedIn
 
-- required plugins (ie: support multi-success pipepline)
+* required plugins (ie: support multi-success pipepline)
 
-- update docker hub description/details/homepage/etc
-- note about contributing to the project
-- link to examples (config store/auth plugin) with simple explanation about requirements
+* update docker hub description/details/homepage/etc
+* note about contributing to the project
+* link to examples (config store/auth plugin) with simple explanation about requirements
 
-- redis config_token store
-- try/catch in invalid responseCode getting sent by a plugin
+* redis config_token store
+* try/catch in invalid responseCode getting sent by a plugin
 
-- introduce options for csrf handling in `oauth2`/`oidc` plugins? currently disabling csrf deletion due to bad nginx/envoy behavior
+* introduce options for csrf handling in `oauth2`/`oidc` plugins? currently disabling csrf deletion due to bad nginx/envoy behavior
 
-- endpoint where config data can be sent and the backend will sign/encrypt and respond with newly minted `config_token` (need to consider security implications etc of this)
+* endpoint where config data can be sent and the backend will sign/encrypt and respond with newly minted `config_token` (need to consider security implications etc of this)
 
-- give a nice overview of architecture with a pretty graphic to give newcomers a easier overview
+* give a nice overview of architecture with a pretty graphic to give newcomers a easier overview
 
-- allow specifying a redirect URL for error response codes (ie: 404 -> some self hosted location, 503 -> some location with a pretty space etc)
+* allow specifying a redirect URL for error response codes (ie: 404 -> some self hosted location, 503 -> some location with a pretty space etc)
 
-- https://www.npmjs.com/package/jq.node (new query engine for better performance than jq)
+* https://www.npmjs.com/package/jq.node (new query engine for better performance than jq)
 
-- generic structure for various things
- - request data
- - auth data
- - config data
+* generic structure for various things
+* request data
+* auth data
+* config data
 
-- opa plugin
-- opa assertions
+* opa plugin
+* opa assertions
 
-- NODE_JQ_SKIP_INSTALL_BINARY=true
+* NODE_JQ_SKIP_INSTALL_BINARY=true
+* pass previous response to subsequent plugins' verify method
+
+# 0.8.0
+
+- further data available to header injection (`req` and `parentRequestInfo`)
+- update header injection to use generic query function
+- only get parentRequestInfo once in server.js and more performance enhancements
 
 # 0.7.0
 
-Released 2020-02-28
+Released 2020-02-29
 
 - ~~support server-side tokens being stored decrypted~~
 - ~~support setting the `httpOnly`, `secure`, and `sameSite` flags on `oauth2`/`oidc` session/csrf cookies~~
@@ -86,6 +92,8 @@ Released 2020-02-28
 - ~~support custom authorization URL parameters for `oauth2`/`oidc`~~
 - ~~support new endpoint to destroy `oidc`/`oauth2` sessions with `eas`~~
 - ~~multi-arch docker images~~
+- ~~support custom_error_headers~~
+- ~~support for custom redirect code for xhr requests in `oidc`/`oauth2`~~
 
 # 0.6.0
 
