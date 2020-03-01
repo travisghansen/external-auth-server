@@ -363,6 +363,12 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
             }
         ]
     },
+    xhr: {
+        //defaults to 302 but could be set to anything
+        //if set to 401 the response will include a WWW-Authenticate header with proper realm/scopes
+        //only triggered if the request contains the Origin header
+        //redirect_http_code: 302,
+    },
     csrf_cookie: {
         //enabled: true, //can disable the use of csrf cookies completely
         //domain: "example.com", //defaults to request domain, could do sso with more generic domain
@@ -380,8 +386,8 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //sameSite: none,
     },
     // see HEADERS.md for details
-    headers: {},
-}
+    custom_error_headers: {},
+    custom_service_headers: {},
 }
 ```
 
@@ -549,6 +555,12 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
             }
         ]
     },
+    xhr: {
+        //defaults to 302 but could be set to anything
+        //if set to 401 the response will include a WWW-Authenticate header with proper realm/scopes
+        //only triggered if the request contains the Origin header
+        //redirect_http_code: 302,
+    },
     csrf_cookie: {
         //enabled: true, //can disable the use of csrf cookies completely
         //domain: "example.com", //defaults to request domain, could do sso with more generic domain
@@ -566,7 +578,8 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //sameSite: none,
     },
     // see HEADERS.md for details
-    headers: {},
+    custom_error_headers: {},
+    custom_service_headers: {},
 }
 ```
 
