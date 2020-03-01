@@ -78,9 +78,11 @@
 
 # 0.8.0
 
+- ~~impleent `use_referer_as_redirect_uri` for `oidc`/`oauth2` `xhr` scenarios~~
 - further data available to header injection (`req` and `parentRequestInfo`)
 - update header injection to use generic query function
 - only get parentRequestInfo once in server.js and more performance enhancements
+
 
 # 0.7.0
 

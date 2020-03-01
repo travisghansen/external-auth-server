@@ -315,8 +315,23 @@ class BaseOauthPlugin extends BasePlugin {
       redirectHttpCode = 302;
     }
 
+    let parentUri;
+
+    if (
+      !parentUri &&
+      plugin.config.xhr.use_referer_as_redirect_uri &&
+      req.headers.origin &&
+      req.headers.referer
+    ) {
+      parentUri = req.headers.referer;
+    }
+
+    if (!parentUri) {
+      parentUri = parentReqInfo.uri;
+    }
+
     const authorization_redirect_uri = plugin.get_authorization_redirect_uri(
-      parentReqInfo.uri
+      parentUri
     );
 
     const respond_to_failed_authorization = async function() {
@@ -325,7 +340,7 @@ class BaseOauthPlugin extends BasePlugin {
         authorization_redirect_uri
       );
       const payload = {
-        request_uri: parentReqInfo.uri,
+        request_uri: parentUri,
         aud: configAudMD5,
         csrf: plugin.server.utils.generate_csrf_id()
       };
