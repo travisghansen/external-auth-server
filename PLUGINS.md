@@ -379,7 +379,7 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //path: "/",
         //httpOnly: true,
         //secure: false,
-        //sameSite: none,
+        //sameSite: lax,
     },
     cookie: {
         //name: "_my_company_session",//default is _oeas_oauth_session
@@ -387,7 +387,7 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //path: "/",
         //httpOnly: true,
         //secure: false,
-        //sameSite: none,
+        //sameSite: lax,
     },
     // see HEADERS.md for details
     custom_error_headers: {},
@@ -575,7 +575,7 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //path: "/",
         //httpOnly: true,
         //secure: false,
-        //sameSite: none,
+        //sameSite: lax,
     },
     cookie: {
         //name: "_my_company_session",//default is _oeas_oauth_session
@@ -583,7 +583,7 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //path: "/",
         //httpOnly: true,
         //secure: false,
-        //sameSite: none,
+        //sameSite: lax,
     },
     // see HEADERS.md for details
     custom_error_headers: {},

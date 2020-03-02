@@ -74,7 +74,7 @@ function initialize_common_config_options(config) {
   }
 
   if (!config.csrf_cookie.hasOwnProperty("sameSite")) {
-    config.csrf_cookie.sameSite = "none";
+    config.csrf_cookie.sameSite = "lax";
   }
 
   config.cookie.name = config.cookie.hasOwnProperty("name")
@@ -98,7 +98,7 @@ function initialize_common_config_options(config) {
   }
 
   if (!config.cookie.hasOwnProperty("sameSite")) {
-    config.cookie.sameSite = "none";
+    config.cookie.sameSite = "lax";
   }
 
   if (!config.features) {
