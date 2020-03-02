@@ -3,11 +3,11 @@ entries:
   external-auth-server:
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2020-03-01T04:27:51.838408444Z"
+    created: "2020-03-02T18:44:56.097729743Z"
     description: A Helm chart for Kubernetes
-    digest: bf6b2f57ec0cd59b8a424c939af55e50e49e862f6c599edd026b327ebe09ba6d
+    digest: a8b059095db68c7316965508bc3c702971ad600ae5a083fc79436580c5401b45
     name: external-auth-server
     urls:
     - external-auth-server-0.1.0.tgz
     version: 0.1.0
-generated: "2020-03-01T04:27:51.836603542Z"
+generated: "2020-03-02T18:44:56.096548836Z"
