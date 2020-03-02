@@ -368,6 +368,10 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //if set to 401 the response will include a WWW-Authenticate header with proper realm/scopes
         //only triggered if the request contains the Origin header
         //redirect_http_code: 302,
+
+        //if set to true, the browser will be redirected to the referer
+        //setting this generally assumes the API and UI are secured by the same eas config
+        //use_referer_as_redirect_uri: true
     },
     csrf_cookie: {
         //enabled: true, //can disable the use of csrf cookies completely
@@ -375,7 +379,7 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //path: "/",
         //httpOnly: true,
         //secure: false,
-        //sameSite: none,
+        //sameSite: lax,
     },
     cookie: {
         //name: "_my_company_session",//default is _oeas_oauth_session
@@ -383,7 +387,7 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //path: "/",
         //httpOnly: true,
         //secure: false,
-        //sameSite: none,
+        //sameSite: lax,
     },
     // see HEADERS.md for details
     custom_error_headers: {},
@@ -560,6 +564,10 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //if set to 401 the response will include a WWW-Authenticate header with proper realm/scopes
         //only triggered if the request contains the Origin header
         //redirect_http_code: 302,
+
+        //if set to true, the browser will be redirected to the referer
+        //setting this generally assumes the API and UI are secured by the same eas config
+        //use_referer_as_redirect_uri: true
     },
     csrf_cookie: {
         //enabled: true, //can disable the use of csrf cookies completely
@@ -567,7 +575,7 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //path: "/",
         //httpOnly: true,
         //secure: false,
-        //sameSite: none,
+        //sameSite: lax,
     },
     cookie: {
         //name: "_my_company_session",//default is _oeas_oauth_session
@@ -575,7 +583,7 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //path: "/",
         //httpOnly: true,
         //secure: false,
-        //sameSite: none,
+        //sameSite: lax,
     },
     // see HEADERS.md for details
     custom_error_headers: {},
