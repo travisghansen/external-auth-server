@@ -30,7 +30,7 @@ const github_client_secret =
   process.env.EAS_GITHUB_CLIENT_SECRET ||
   utils.exit_failure("missing EAS_GITHUB_CLIENT_SECRET env variable");
 const github_team_ids =
-  process.env.EAS_GITHUB_TEAM_IDS.split(' ').map(x => Number(x)) ||
+  process.env.EAS_GITHUB_TEAM_IDS.replace(/"/g,'').split(' ').map(x => Number(x)) ||
   utils.exit_failure("missing EAS_GITHUB_TEAM_IDS env variable");
 const base_domain =
   process.env.EAS_BASE_DOMAIN ||
