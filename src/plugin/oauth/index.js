@@ -306,10 +306,12 @@ class BaseOauthPlugin extends BasePlugin {
       redirectHttpCode = req.query.redirect_http_code;
     }
 
+    const request_is_xhr = plugin.server.utils.request_is_xhr(req);
+
     if (
+      request_is_xhr &&
       !redirectHttpCode &&
-      plugin.config.xhr.redirect_http_code &&
-      req.headers.origin
+      plugin.config.xhr.redirect_http_code
     ) {
       redirectHttpCode = plugin.config.xhr.redirect_http_code;
     }
@@ -327,16 +329,17 @@ class BaseOauthPlugin extends BasePlugin {
         "redirect_uri: %s",
         authorization_redirect_uri
       );
+
       const payload = {
         request_uri: parentReqInfo.uri,
         aud: configAudMD5,
         csrf: plugin.server.utils.generate_csrf_id(),
         req: {
           headers: {
-            origin: req.headers.origin,
             referer: req.headers.referer
           }
-        }
+        },
+        request_is_xhr
       };
       const stateToken = jwt.sign(payload, issuer_sign_secret);
       const state = plugin.server.utils.encrypt(
@@ -503,7 +506,7 @@ class BaseOauthPlugin extends BasePlugin {
       let realRedirectUri;
       if (
         plugin.config.xhr.use_referer_as_redirect_uri &&
-        state.req.headers.origin &&
+        state.request_is_xhr &&
         state.req.headers.referer
       ) {
         realRedirectUri = state.req.headers.referer;

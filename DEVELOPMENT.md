@@ -100,6 +100,9 @@ https://medium.com/hal24k-techblog/multitenancy-on-kubernetes-with-istio-externa
 - https://github.com/pomerium/pomerium
 - https://www.pomerium.io/
 
+- https://www.troyhunt.com/promiscuous-cookies-and-their-impending-death-via-the-samesite-policy/
+- https://web.dev/samesite-cookies-explained/
+
 ## contour
 
 - https://github.com/heptio/contour/issues/986

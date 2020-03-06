@@ -363,14 +363,13 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
             }
         ]
     },
+    //xhr detection is determind by the presence of an 'origin' header OR X-Requested-With: XMLHttpRequest
     xhr: {
         //defaults to 302 but could be set to anything
         //if set to 401 the response will include a WWW-Authenticate header with proper realm/scopes
-        //only triggered if the request contains the Origin header
         //redirect_http_code: 302,
 
         //if set to true, the browser will be redirected to the referer
-        //setting this generally assumes the API and UI are secured by the same eas config
         //use_referer_as_redirect_uri: true
     },
     csrf_cookie: {
@@ -559,14 +558,13 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
             }
         ]
     },
+    //xhr detection is determind by the presence of an 'origin' header OR X-Requested-With: XMLHttpRequest
     xhr: {
         //defaults to 302 but could be set to anything
         //if set to 401 the response will include a WWW-Authenticate header with proper realm/scopes
-        //only triggered if the request contains the Origin header
         //redirect_http_code: 302,
 
         //if set to true, the browser will be redirected to the referer
-        //setting this generally assumes the API and UI are secured by the same eas config
         //use_referer_as_redirect_uri: true
     },
     csrf_cookie: {

@@ -1,0 +1,12 @@
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  ...
+  # you MUST expose eas directly to the clients for this configuration to work
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: "https://eas.example.com/verify?redirect_http_code=401&config_token="
+    nginx.ingress.kubernetes.io/auth-signin: "https://eas.example.com/nginx/auth-signin?rd=$auth_redirect"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      auth_request_set $auth_redirect $upstream_http_location;
+...

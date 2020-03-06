@@ -9,6 +9,9 @@ const { PluginVerifyResponse } = require("./plugin");
 const { ExternalAuthServer } = require("./");
 const promBundle = require("express-prom-bundle");
 
+const queryString = require("query-string");
+const URI = require("uri-js");
+
 // auth plugins
 const { OauthPlugin, OpenIdConnectPlugin } = require("./plugin/oauth");
 const { RequestHeaderPlugin } = require("./plugin/request_header");
@@ -548,6 +551,59 @@ app.all("/envoy/verify-params-header(/*)?", async (req, res) => {
   req.headers["x-forwarded-method"] = req.method;
 
   verifyHandler(req, res);
+});
+
+// ingress-nginx
+app.get("/nginx/auth-signin", (req, res) => {
+  externalAuthServer.logger.silly("%j", {
+    headers: req.headers,
+    body: req.body
+  });
+
+  try {
+    const parsedRequestURI = URI.parse(req.url);
+    externalAuthServer.logger.verbose(
+      "parsed request uri: %j",
+      parsedRequestURI
+    );
+
+    let parsedRequestQuery = queryString.parse(parsedRequestURI.query);
+    /**
+     * Hack to workaround nginx configuration limitations
+     */
+    if (Object.keys(parsedRequestQuery).length > 1) {
+      const rd_index = parsedRequestURI.query.indexOf("rd=");
+      const query_before_rd = parsedRequestURI.query.substring(0, rd_index);
+      const query_after_rd = parsedRequestURI.query.substring(rd_index + 3);
+      parsedRequestQuery = queryString.parse(
+        query_before_rd + "rd=" + encodeURIComponent(query_after_rd)
+      );
+    }
+
+    externalAuthServer.logger.verbose(
+      "parsed request query: %j",
+      parsedRequestQuery
+    );
+    let redirect_uri;
+    if (!redirect_uri && parsedRequestQuery.rd) {
+      redirect_uri = parsedRequestQuery.rd;
+    }
+
+    if (!redirect_uri) {
+      throw new Error("missing redirect_uri");
+    }
+
+    externalAuthServer.logger.info("redirecting browser to: %j", redirect_uri);
+
+    res.statusCode = 302;
+    res.setHeader("Location", redirect_uri);
+    res.end();
+    return;
+  } catch (e) {
+    server.logger.error(e);
+    res.statusCode = 503;
+    res.end();
+  }
 });
 
 const port = process.env.EAS_PORT || 8080;
