@@ -73,7 +73,7 @@ function is_jwt(jwtString) {
 }
 
 /**
- * nginx-ingress-controller headers
+ * ingress-nginx headers
  * - x-sent-from: nginx-ingress-controller
  * - x-auth-request-redirect:/anything?foo=bar
  * - x-original-method: GET
@@ -93,7 +93,7 @@ function get_parent_request_info(req) {
     info.method = req.headers["x-forwarded-method"];
   }
 
-  // nginx-ingress-controller
+  // ingress-nginx
   if (!info.method && req.headers["x-original-method"]) {
     info.method = req.headers["x-original-method"];
   }
@@ -108,7 +108,7 @@ function get_parent_request_uri(req) {
     return req.headers["x-eas-request-uri"];
   }
 
-  // nginx-ingress
+  // ingress-nginx
   if (req.headers["x-original-url"]) {
     return req.headers["x-original-url"];
   }
