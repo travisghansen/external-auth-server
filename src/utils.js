@@ -72,6 +72,15 @@ function is_jwt(jwtString) {
   return re.test(jwtString);
 }
 
+/**
+ * ingress-nginx headers
+ * - x-sent-from: nginx-ingress-controller
+ * - x-auth-request-redirect:/anything?foo=bar
+ * - x-original-method: GET
+ * - x-original-url: <full url>
+ *
+ * @param {*} req
+ */
 function get_parent_request_info(req) {
   const info = {};
   info.uri = get_parent_request_uri(req);
@@ -83,6 +92,12 @@ function get_parent_request_info(req) {
   if (req.headers["x-forwarded-method"]) {
     info.method = req.headers["x-forwarded-method"];
   }
+
+  // ingress-nginx
+  if (!info.method && req.headers["x-original-method"]) {
+    info.method = req.headers["x-original-method"];
+  }
+
   return info;
 }
 
@@ -91,6 +106,11 @@ function get_parent_request_uri(req) {
 
   if (req.headers["x-eas-request-uri"]) {
     return req.headers["x-eas-request-uri"];
+  }
+
+  // ingress-nginx
+  if (req.headers["x-original-url"]) {
+    return req.headers["x-original-url"];
   }
 
   originalRequestURI += req.headers["x-forwarded-proto"] + "://";
@@ -167,6 +187,26 @@ function get_envoy_forwarded_uri(req, leadingParts = 4) {
   parts.splice(0, leadingParts);
 
   return "/" + parts.join("/");
+}
+
+/**
+ * Attempts to detect if a request is xhr or not
+ *
+ * @param {*} req
+ */
+function request_is_xhr(req) {
+  if (req.headers.origin) {
+    return true;
+  }
+
+  if (
+    req.headers["x-requested-with"] &&
+    req.headers["x-requested-with"].toLowerCase() == "xmlhttprequest"
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function parse_basic_authorization_header(value) {
@@ -304,6 +344,7 @@ module.exports = {
   get_parent_request_uri,
   get_parent_request_info,
   get_envoy_forwarded_uri,
+  request_is_xhr,
   validateConfigToken,
   parse_basic_authorization_header,
   parse_bearer_authorization_header,

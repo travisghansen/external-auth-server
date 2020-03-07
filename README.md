@@ -1,3 +1,6 @@
+![Image](https://img.shields.io/docker/pulls/travisghansen/external-auth-server.svg)
+![Image](https://img.shields.io/github/workflow/status/travisghansen/external-auth-server/CI?style=flat-square)
+
 # `external-auth-server`
 
 `eas` (pronounced `eez`) is primarily focused on lowering the barrier to
@@ -179,8 +182,12 @@ node bin/generate-config-token.js
 # traefik
 address = http://<eas server ip>:8080/verify?config_token=<token output from above>
 
-# nginx
+# nginx (see examples/nginx.conf)
 proxy_pass "http://<eas server ip>:8080/verify?redirect_http_code=401&config_token=<token output from above>";
+
+# ingress-nginx (see examples/ingress-nginx.yaml)
+
+# nginx-ingress-controller (see examples/nginx-ingress-controller.yaml)
 
 # traefik ingress
 ingress.kubernetes.io/auth-type: forward

@@ -100,6 +100,9 @@ https://medium.com/hal24k-techblog/multitenancy-on-kubernetes-with-istio-externa
 - https://github.com/pomerium/pomerium
 - https://www.pomerium.io/
 
+- https://www.troyhunt.com/promiscuous-cookies-and-their-impending-death-via-the-samesite-policy/
+- https://web.dev/samesite-cookies-explained/
+
 ## contour
 
 - https://github.com/heptio/contour/issues/986
@@ -112,3 +115,14 @@ https://medium.com/hal24k-techblog/multitenancy-on-kubernetes-with-istio-externa
 - https://www.getambassador.io/reference/services/auth-service/
 - https://www.getambassador.io/reference/host/
 - https://www.getambassador.io/reference/add_request_headers/
+
+## ingress-nginx
+
+- https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/
+- https://kubernetes.github.io/ingress-nginx/examples/auth/oauth-external-auth/
+- https://github.com/kubernetes/ingress-nginx
+
+## nginx-ingress-controller
+
+- https://github.com/nginxinc/kubernetes-ingress/tree/master/deployments/helm-chart
+- https://docs.nginx.com/nginx-ingress-controller/overview/

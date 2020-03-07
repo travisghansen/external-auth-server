@@ -34,6 +34,9 @@ const DEFAULT_CLIENT_CLOCK_TOLERANCE = 5;
 const ISSUER_CACHE_DURATION = 43200 * 1000;
 const CLIENT_CACHE_DURATION = 43200 * 1000;
 
+const STATE_CACHE_PREFIX = "state:oauth:";
+const STATE_CACHE_EXPIRY = "43200"; //12 hours
+
 let initialized = false;
 
 /**
@@ -303,10 +306,12 @@ class BaseOauthPlugin extends BasePlugin {
       redirectHttpCode = req.query.redirect_http_code;
     }
 
+    const request_is_xhr = plugin.server.utils.request_is_xhr(req);
+
     if (
+      request_is_xhr &&
       !redirectHttpCode &&
-      plugin.config.xhr.redirect_http_code &&
-      req.headers.origin
+      plugin.config.xhr.redirect_http_code
     ) {
       redirectHttpCode = plugin.config.xhr.redirect_http_code;
     }
@@ -315,23 +320,8 @@ class BaseOauthPlugin extends BasePlugin {
       redirectHttpCode = 302;
     }
 
-    let parentUri;
-
-    if (
-      !parentUri &&
-      plugin.config.xhr.use_referer_as_redirect_uri &&
-      req.headers.origin &&
-      req.headers.referer
-    ) {
-      parentUri = req.headers.referer;
-    }
-
-    if (!parentUri) {
-      parentUri = parentReqInfo.uri;
-    }
-
     const authorization_redirect_uri = plugin.get_authorization_redirect_uri(
-      parentUri
+      parentReqInfo.uri
     );
 
     const respond_to_failed_authorization = async function() {
@@ -339,10 +329,17 @@ class BaseOauthPlugin extends BasePlugin {
         "redirect_uri: %s",
         authorization_redirect_uri
       );
+
       const payload = {
-        request_uri: parentUri,
+        request_uri: parentReqInfo.uri,
         aud: configAudMD5,
-        csrf: plugin.server.utils.generate_csrf_id()
+        csrf: plugin.server.utils.generate_csrf_id(),
+        req: {
+          headers: {
+            referer: req.headers.referer
+          }
+        },
+        request_is_xhr
       };
       const stateToken = jwt.sign(payload, issuer_sign_secret);
       const state = plugin.server.utils.encrypt(
@@ -505,6 +502,18 @@ class BaseOauthPlugin extends BasePlugin {
         "compare_redirect_uri: %s",
         compare_redirect_uri
       );
+
+      let realRedirectUri;
+      if (
+        plugin.config.xhr.use_referer_as_redirect_uri &&
+        state.request_is_xhr &&
+        state.req.headers.referer
+      ) {
+        realRedirectUri = state.req.headers.referer;
+      } else {
+        realRedirectUri = state.request_uri;
+      }
+
       let tokenSet;
       try {
         tokenSet = await plugin.authorization_code_callback(
@@ -516,7 +525,7 @@ class BaseOauthPlugin extends BasePlugin {
         plugin.server.logger.error(e);
         if (plugin.is_redirectable_error(e)) {
           res.statusCode = redirectHttpCode;
-          res.setHeader("Location", state.request_uri);
+          res.setHeader("Location", realRedirectUri);
           return res;
         }
 
@@ -659,11 +668,11 @@ class BaseOauthPlugin extends BasePlugin {
 
       plugin.server.logger.info(
         "redirecting to original resource: %s",
-        state.request_uri
+        realRedirectUri
       );
 
       res.statusCode = redirectHttpCode;
-      res.setHeader("Location", state.request_uri);
+      res.setHeader("Location", realRedirectUri);
       return res;
     };
 
@@ -969,6 +978,58 @@ class BaseOauthPlugin extends BasePlugin {
       ),
       ttl
     );
+  }
+
+  async get_state(state_id) {
+    const plugin = this;
+    const store = plugin.server.store;
+    plugin.server.logger.verbose("retrieving state: %s", state_id);
+
+    const encryptedState = await store.get(STATE_CACHE_PREFIX + state_id);
+
+    plugin.server.logger.verbose(
+      "retrieved encrypted state content: %s",
+      encryptedState
+    );
+
+    if (!encryptedState) {
+      plugin.server.logger.verbose("failed to decrypt state");
+      return false;
+    }
+
+    let statePayload = plugin.server.utils.decrypt(
+      plugin.server.secrets.session_encrypt_secret,
+      encryptedState
+    );
+    plugin.server.logger.debug("state data: %s", statePayload);
+    statePayload = JSON.parse(statePayload);
+
+    return statePayload;
+  }
+
+  async save_state(state_id, payload, ttl = null) {
+    const plugin = this;
+    const store = plugin.server.store;
+
+    const plugin = this;
+    const store = plugin.server.store;
+
+    await store.set(
+      STATE_CACHE_PREFIX + state_id,
+      plugin.server.utils.encrypt(
+        plugin.server.secrets.session_encrypt_secret,
+        JSON.stringify(payload)
+      ),
+      ttl
+    );
+  }
+
+  async delete_state(state_id) {
+    const plugin = this;
+    const store = plugin.server.store;
+    if (state_id) {
+      await store.del(STATE_CACHE_PREFIX + state_id);
+    }
   }
 
   /**
