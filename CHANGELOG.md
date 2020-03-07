@@ -76,13 +76,17 @@
 * NODE_JQ_SKIP_INSTALL_BINARY=true
 * pass previous response to subsequent plugins' verify method
 
-# 0.8.0
-
-- ~~impleent `use_referer_as_redirect_uri` for `oidc`/`oauth2` `xhr` scenarios~~
 - further data available to header injection (`req` and `parentRequestInfo`)
 - update header injection to use generic query function
 - only get parentRequestInfo once in server.js and more performance enhancements
 
+# 0.8.0
+
+Released 2020-03-06
+
+- ~~implement `use_referer_as_redirect_uri` for `oidc`/`oauth2` `xhr` scenarios~~
+- ~~better support ingress-nginx~~
+- ~~document nginx-ingress-controller and ingress-nginx~~
 
 # 0.7.0
 

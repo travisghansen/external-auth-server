@@ -187,6 +187,7 @@ proxy_pass "http://<eas server ip>:8080/verify?redirect_http_code=401&config_tok
 
 # ingress-nginx (see examples/ingress-nginx.yaml)
 
+# nginx-ingress-controller (see examples/nginx-ingress-controller.yaml)
 
 # traefik ingress
 ingress.kubernetes.io/auth-type: forward

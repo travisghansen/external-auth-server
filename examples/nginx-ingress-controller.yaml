@@ -1,0 +1,46 @@
+# https://docs.nginx.com/nginx-ingress-controller/overview/
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  ...
+  nginx.org/server-snippets: |
+    location /auth {
+        internal;
+        # $scheme$request_method$host$request_uri"
+        # localhost:8000
+        proxy_set_header X-Forwarded-Host $http_host;
+        # GET
+        proxy_set_header X-Forwarded-Method $request_method;
+        # http
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # /anything?foo=bar
+        proxy_set_header X-Forwarded-Uri $request_uri;
+
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_pass "https://eas.example.com/verify?redirect_http_code=401&config_token=";
+    }
+
+    location @error401 {
+        if ($auth_redirect) {
+            add_header Set-Cookie $saved_set_cookie;
+            return 302 $auth_redirect;
+        }
+    }
+  nginx.org/location-snippets: |
+    auth_request /auth;
+
+    auth_request_set $saved_set_cookie $upstream_http_set_cookie;
+    auth_request_set $auth_redirect $upstream_http_location;
+    auth_request_set $auth_id_token $upstream_http_x_id_token;
+    auth_request_set $auth_userinfo $upstream_http_x_userinfo;
+    auth_request_set $auth_access_token $upstream_http_x_access_token;
+
+    error_page 401 = @error401;
+
+    # note headers will NOT show up if variable value is blank
+    proxy_set_header X-Id-Token $auth_id_token;
+    proxy_set_header X-Userinfo $auth_userinfo;
+    proxy_set_header X-Access-Token $auth_access_token;
+...
