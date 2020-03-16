@@ -94,6 +94,7 @@ redis-ha:
   redisPassword:
   exporter:
     enabled: true
+  hardAntiAffinity: true # set to false for development environments with less than 3 nodes available
 
 # sample storeOpts when using redis-ha chart
 #storeOpts:
