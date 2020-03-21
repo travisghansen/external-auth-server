@@ -1,14 +1,16 @@
 const { Assertion } = require("../../assertion");
 const { BasePlugin } = require("../../plugin");
-const { Issuer } = require("openid-client");
+const { Issuer, custom } = require("openid-client");
 const jwt = require("jsonwebtoken");
-const oauth2 = require("simple-oauth2");
 const queryString = require("query-string");
 const request = require("request");
 const URI = require("uri-js");
 
-Issuer.useRequest();
-Issuer.defaultHttpOptions = { timeout: 10000, headers: {} };
+custom.setHttpOptionsDefaults({
+  followRedirect: false,
+  timeout: 10000,
+  headers: {}
+});
 
 const exit_failure = function(message = "", code = 1) {
   if (message) {
@@ -1011,9 +1013,6 @@ class BaseOauthPlugin extends BasePlugin {
     const plugin = this;
     const store = plugin.server.store;
 
-    const plugin = this;
-    const store = plugin.server.store;
-
     await store.set(
       STATE_CACHE_PREFIX + state_id,
       plugin.server.utils.encrypt(
@@ -1305,6 +1304,103 @@ class BaseOauthPlugin extends BasePlugin {
       plugin.server.logger.debug("id_token decoded %j", idToken);
     }
   }
+
+  // #################### common client/issue methods ####################
+
+  async get_issuer() {
+    const plugin = this;
+    const cache = plugin.server.cache;
+    const discover_url = plugin.config.issuer.discover_url;
+    let issuer;
+
+    if (discover_url) {
+      const cache_key = "issuer:" + plugin.server.utils.md5(discover_url);
+      issuer = cache.get(cache_key);
+      if (issuer !== undefined) {
+        return issuer;
+      }
+      issuer = await Issuer.discover(discover_url);
+      cache.set(cache_key, issuer, ISSUER_CACHE_DURATION);
+      return issuer;
+    } else {
+      const cache_key =
+        "issuer:" +
+        plugin.server.utils.md5(JSON.stringify(plugin.config.issuer));
+      issuer = cache.get(cache_key);
+      if (issuer !== undefined) {
+        return issuer;
+      }
+
+      issuer = new Issuer(plugin.config.issuer);
+      plugin.server.logger.verbose(
+        "manual issuer %s %O",
+        issuer.issuer,
+        issuer.metadata
+      );
+      cache.set(cache_key, issuer, ISSUER_CACHE_DURATION);
+      return issuer;
+    }
+  }
+
+  async get_client() {
+    const plugin = this;
+    const cache = plugin.server.cache;
+    const cache_key =
+      "client:" + plugin.server.utils.md5(JSON.stringify(plugin.config));
+    let client;
+    const issuer = await plugin.get_issuer();
+
+    client = cache.get(cache_key);
+    if (client !== undefined) {
+      return client;
+    }
+
+    if (plugin.config.client.client_id && plugin.config.client.client_secret) {
+      client = new issuer.Client({
+        client_id: plugin.config.client.client_id,
+        client_secret: plugin.config.client.client_secret
+      });
+      client.CLOCK_TOLERANCE = DEFAULT_CLIENT_CLOCK_TOLERANCE;
+
+      cache.set(cache_key, client, CLIENT_CACHE_DURATION);
+      return client;
+    } else if (
+      plugin.config.client.registration_client_uri &&
+      plugin.config.client.registration_access_token
+    ) {
+      client = await issuer.Client.fromUri(
+        plugin.config.client.registration_client_uri,
+        plugin.config.client.registration_access_token
+      );
+
+      client.CLOCK_TOLERANCE = DEFAULT_CLIENT_CLOCK_TOLERANCE;
+      cache.set(cache_key, client, CLIENT_CACHE_DURATION);
+      return client;
+    } else {
+      throw new Error("invalid client configuration");
+    }
+  }
+
+  async get_authorization_url(authorization_redirect_uri, state) {
+    const plugin = this;
+    const client = await plugin.get_client();
+
+    const url = client.authorizationUrl({
+      ...plugin.config.custom_authorization_parameters,
+      redirect_uri: authorization_redirect_uri,
+      scope: plugin.config.scopes.join(" "),
+      state: state
+    });
+
+    return url;
+  }
+
+  async refresh_token(tokenSet) {
+    const plugin = this;
+    const client = await plugin.get_client();
+
+    return client.refresh(tokenSet.refresh_token);
+  }
 }
 
 /**
@@ -1323,67 +1419,20 @@ class OauthPlugin extends BaseOauthPlugin {
     super(...arguments);
   }
 
-  async get_client() {
-    const plugin = this;
-
-    const credentials = {
-      client: {
-        id: plugin.config.client.client_id,
-        secret: plugin.config.client.client_secret
-      },
-      auth: {}
-    };
-
-    let tokenHost, tokenPath, authorizeHost, authorizePath;
-    if (plugin.config.issuer.token_endpoint) {
-      let parsedTokenURI = URI.parse(plugin.config.issuer.token_endpoint);
-      tokenHost = URI.serialize({
-        scheme: parsedTokenURI.scheme,
-        host: parsedTokenURI.host,
-        port: parsedTokenURI.port
-      }).replace(/\/$/, "");
-      tokenPath = parsedTokenURI.path;
-    }
-
-    if (plugin.config.issuer.authorization_endpoint) {
-      let parsedAuthorizeURI = URI.parse(
-        plugin.config.issuer.authorization_endpoint
-      );
-      authorizeHost = URI.serialize({
-        scheme: parsedAuthorizeURI.scheme,
-        host: parsedAuthorizeURI.host,
-        port: parsedAuthorizeURI.port
-      }).replace(/\/$/, "");
-      authorizePath = parsedAuthorizeURI.path;
-    }
-
-    credentials.auth.tokenHost = tokenHost;
-    credentials.auth.tokenPath = tokenPath;
-    credentials.auth.authorizeHost = authorizeHost;
-    credentials.auth.authorizePath = authorizePath;
-
-    return oauth2.create(credentials);
-  }
-
-  async get_authorization_url(authorization_redirect_uri, state) {
+  async authorization_code_callback(parentReqInfo, authorization_redirect_uri) {
     const plugin = this;
     const client = await plugin.get_client();
-    const url = client.authorizationCode.authorizeURL({
-      ...plugin.config.custom_authorization_parameters,
-      redirect_uri: authorization_redirect_uri,
-      scope: plugin.config.scopes.join(" "),
-      state: state
-    });
+    const response_type = "code";
 
-    return url;
-  }
-
-  async refresh_token(tokenSet) {
-    const plugin = this;
-    const client = await plugin.get_client();
-    let accessToken = client.accessToken.create(tokenSet);
-
-    return accessToken.refresh();
+    return client.oauthCallback(
+      authorization_redirect_uri,
+      parentReqInfo.parsedQuery,
+      {
+        state: parentReqInfo.parsedQuery.state,
+        nonce: null,
+        response_type
+      }
+    );
   }
 
   async get_userinfo(tokenSet) {
@@ -1542,26 +1591,6 @@ class OauthPlugin extends BaseOauthPlugin {
 
     return { iat: Math.floor(Date.now() / 1000), data: userinfo };
   }
-
-  async authorization_code_callback(parentReqInfo, authorization_redirect_uri) {
-    const plugin = this;
-    const client = await plugin.get_client();
-    const tokenConfig = {
-      code: parentReqInfo.parsedQuery.code,
-      redirect_uri: authorization_redirect_uri,
-      scope: plugin.config.scopes.join(" ")
-    };
-
-    plugin.server.logger.verbose("tokenConfig: %j", tokenConfig);
-
-    const result = await client.authorizationCode.getToken(tokenConfig);
-    plugin.server.logger.debug("oauth code result: %j", result);
-    if (result.error) {
-      throw result;
-    }
-    const accessToken = client.accessToken.create(result);
-    return accessToken.token;
-  }
 }
 
 class OpenIdConnectPlugin extends BaseOauthPlugin {
@@ -1593,107 +1622,12 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
     super(...arguments);
   }
 
-  async get_issuer() {
-    const plugin = this;
-    const cache = plugin.server.cache;
-    const discover_url = plugin.config.issuer.discover_url;
-    let issuer;
-
-    if (discover_url) {
-      const cache_key = "issuer:" + plugin.server.utils.md5(discover_url);
-      issuer = cache.get(cache_key);
-      if (issuer !== undefined) {
-        return issuer;
-      }
-      issuer = await Issuer.discover(discover_url);
-      cache.set(cache_key, issuer, ISSUER_CACHE_DURATION);
-      return issuer;
-    } else {
-      const cache_key =
-        "issuer:" +
-        plugin.server.utils.md5(JSON.stringify(plugin.config.issuer));
-      issuer = cache.get(cache_key);
-      if (issuer !== undefined) {
-        return issuer;
-      }
-
-      issuer = new Issuer(plugin.config.issuer);
-      plugin.server.logger.verbose(
-        "manual issuer %s %O",
-        issuer.issuer,
-        issuer.metadata
-      );
-      cache.set(cache_key, issuer, ISSUER_CACHE_DURATION);
-      return issuer;
-    }
-  }
-
-  async get_client() {
-    const plugin = this;
-    const cache = plugin.server.cache;
-    const cache_key =
-      "client:" + plugin.server.utils.md5(JSON.stringify(plugin.config));
-    let client;
-    const issuer = await plugin.get_issuer();
-
-    client = cache.get(cache_key);
-    if (client !== undefined) {
-      return client;
-    }
-
-    if (plugin.config.client.client_id && plugin.config.client.client_secret) {
-      client = new issuer.Client({
-        client_id: plugin.config.client.client_id,
-        client_secret: plugin.config.client.client_secret
-      });
-      client.CLOCK_TOLERANCE = DEFAULT_CLIENT_CLOCK_TOLERANCE;
-
-      cache.set(cache_key, client, CLIENT_CACHE_DURATION);
-      return client;
-    } else if (
-      plugin.config.client.registration_client_uri &&
-      plugin.config.client.registration_access_token
-    ) {
-      client = await issuer.Client.fromUri(
-        plugin.config.client.registration_client_uri,
-        plugin.config.client.registration_access_token
-      );
-
-      client.CLOCK_TOLERANCE = DEFAULT_CLIENT_CLOCK_TOLERANCE;
-      cache.set(cache_key, client, CLIENT_CACHE_DURATION);
-      return client;
-    } else {
-      throw new Error("invalid client configuration");
-    }
-  }
-
-  async get_authorization_url(authorization_redirect_uri, state) {
-    const plugin = this;
-    const client = await plugin.get_client();
-
-    const url = client.authorizationUrl({
-      ...plugin.config.custom_authorization_parameters,
-      redirect_uri: authorization_redirect_uri,
-      scope: plugin.config.scopes.join(" "),
-      state: state
-    });
-
-    return url;
-  }
-
-  async refresh_token(tokenSet) {
-    const plugin = this;
-    const client = await plugin.get_client();
-
-    return client.refresh(tokenSet.refresh_token);
-  }
-
   async authorization_code_callback(parentReqInfo, authorization_redirect_uri) {
     const plugin = this;
     const client = await plugin.get_client();
     const response_type = "code";
 
-    return client.authorizationCallback(
+    return client.callback(
       authorization_redirect_uri,
       parentReqInfo.parsedQuery,
       {
