@@ -128,3 +128,8 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+securityContext:
+  enabled: false
+  fsGroup: 1001
+  runAsUser: 1001
