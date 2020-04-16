@@ -556,6 +556,19 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
             {
                 ...
             }
+        ],
+
+        /**
+        * custom access_token assertions
+        */
+        access_token: [
+            {
+                ...
+                see ASSERTIONS.md for details
+            },
+            {
+                ...
+            }
         ]
     },
     //xhr detection is determind by the presence of an 'origin' header OR X-Requested-With: XMLHttpRequest

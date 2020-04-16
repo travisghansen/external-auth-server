@@ -88,6 +88,8 @@
 - ~~use the same library for `oauth2`/`oidc` plugins~~
 - ~~introduce `EAS_ENCRYPT_IV_SECRET` environment variable to address `crypto.createCipher is deprecated.`~~
 - ~~update to node 12~~
+- ~~assertions on `oidc` `access_token`~~
+- ~~support token generation using docker~~
 
 # 0.8.0
 

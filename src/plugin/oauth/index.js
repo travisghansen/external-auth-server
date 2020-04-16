@@ -9,10 +9,10 @@ const URI = require("uri-js");
 custom.setHttpOptionsDefaults({
   followRedirect: false,
   timeout: 10000,
-  headers: {}
+  headers: {},
 });
 
-const exit_failure = function(message = "", code = 1) {
+const exit_failure = function (message = "", code = 1) {
   if (message) {
     console.log(message);
   }
@@ -230,7 +230,7 @@ class BaseOauthPlugin extends BasePlugin {
       server.WebServer.get("/oauth/callback", (req, res) => {
         server.logger.silly("%j", {
           headers: req.headers,
-          body: req.body
+          body: req.body,
         });
 
         try {
@@ -326,7 +326,7 @@ class BaseOauthPlugin extends BasePlugin {
       parentReqInfo.uri
     );
 
-    const respond_to_failed_authorization = async function() {
+    const respond_to_failed_authorization = async function () {
       plugin.server.logger.verbose(
         "redirect_uri: %s",
         authorization_redirect_uri
@@ -338,10 +338,10 @@ class BaseOauthPlugin extends BasePlugin {
         csrf: plugin.server.utils.generate_csrf_id(),
         req: {
           headers: {
-            referer: req.headers.referer
-          }
+            referer: req.headers.referer,
+          },
         },
-        request_is_xhr
+        request_is_xhr,
       };
       const stateToken = jwt.sign(payload, issuer_sign_secret);
       const state = plugin.server.utils.encrypt(
@@ -392,7 +392,7 @@ class BaseOauthPlugin extends BasePlugin {
                  * Strict: tight limits on sending cookies on a cross-origin request
                  */
                 sameSite: plugin.config.csrf_cookie.sameSite,
-                signed: true
+                signed: true,
               }
             );
           }
@@ -411,7 +411,7 @@ class BaseOauthPlugin extends BasePlugin {
      * @param {*} res
      * @param {*} state
      */
-    const handle_logout_callback_request = async function(
+    const handle_logout_callback_request = async function (
       req,
       res,
       parentReqInfo
@@ -451,7 +451,7 @@ class BaseOauthPlugin extends BasePlugin {
      * @param {*} res
      * @param {*} state
      */
-    const handle_auth_callback_request = async function(
+    const handle_auth_callback_request = async function (
       configToken,
       req,
       res,
@@ -597,7 +597,7 @@ class BaseOauthPlugin extends BasePlugin {
       let sessionPayload = {
         iat: Math.floor(Date.now() / 1000),
         tokenSet,
-        aud: configAudMD5
+        aud: configAudMD5,
       };
 
       let userinfo;
@@ -654,7 +654,7 @@ class BaseOauthPlugin extends BasePlugin {
          * Strict: tight limits on sending cookies on a cross-origin request
          */
         sameSite: plugin.config.cookie.sameSite,
-        signed: true
+        signed: true,
       });
 
       /**
@@ -804,8 +804,8 @@ class BaseOauthPlugin extends BasePlugin {
               await plugin.update_session(session_id, sessionPayload);
             } catch (e) {
               //TODO: better logic here to detect invalid_grant, etc
-              const snooze = ms =>
-                new Promise(resolve => setTimeout(resolve, ms));
+              const snooze = (ms) =>
+                new Promise((resolve) => setTimeout(resolve, ms));
               await snooze(500);
               sessionPayload = await plugin.get_session_data(session_id);
               tokenSet = sessionPayload.tokenSet;
@@ -1097,7 +1097,7 @@ class BaseOauthPlugin extends BasePlugin {
           : undefined,
       id_token: sessionData.tokenSet.id_token,
       access_token: sessionData.tokenSet.access_token,
-      refresh_token: sessionData.tokenSet.refresh_token
+      refresh_token: sessionData.tokenSet.refresh_token,
     });
   }
 
@@ -1379,7 +1379,7 @@ class BaseOauthPlugin extends BasePlugin {
     if (plugin.config.client.client_id && plugin.config.client.client_secret) {
       client = new issuer.Client({
         client_id: plugin.config.client.client_id,
-        client_secret: plugin.config.client.client_secret
+        client_secret: plugin.config.client.client_secret,
       });
       client.CLOCK_TOLERANCE = DEFAULT_CLIENT_CLOCK_TOLERANCE;
 
@@ -1410,7 +1410,7 @@ class BaseOauthPlugin extends BasePlugin {
       ...plugin.config.custom_authorization_parameters,
       redirect_uri: authorization_redirect_uri,
       scope: plugin.config.scopes.join(" "),
-      state: state
+      state: state,
     });
 
     return url;
@@ -1451,7 +1451,7 @@ class OauthPlugin extends BaseOauthPlugin {
       {
         state: parentReqInfo.parsedQuery.state,
         nonce: null,
-        response_type
+        response_type,
       }
     );
   }
@@ -1477,7 +1477,7 @@ class OauthPlugin extends BaseOauthPlugin {
         const results = {};
         let promise;
 
-        const log_repsonse = function(error, response, body) {
+        const log_repsonse = function (error, response, body) {
           plugin.server.logger.debug("GITHUB ERROR: " + error);
           plugin.server.logger.debug("GITHUB STATUS: " + response.statusCode);
           plugin.server.logger.debug(
@@ -1486,7 +1486,7 @@ class OauthPlugin extends BaseOauthPlugin {
           plugin.server.logger.debug("GITHUB BODY: " + JSON.stringify(body));
         };
 
-        promise = new Promise(async resolve => {
+        promise = new Promise(async (resolve) => {
           await new Promise((resolve, reject) => {
             const options = {
               method: "GET",
@@ -1494,10 +1494,10 @@ class OauthPlugin extends BaseOauthPlugin {
               headers: {
                 Authorization: "token " + tokenSet.access_token,
                 Accept: "application/vnd.github.v3+json",
-                "User-Agent": "external-auth-server"
-              }
+                "User-Agent": "external-auth-server",
+              },
             };
-            request(options, function(error, response, body) {
+            request(options, function (error, response, body) {
               log_repsonse(...arguments);
               if (response.statusCode == 200) {
                 results.userinfo = JSON.parse(body);
@@ -1516,10 +1516,10 @@ class OauthPlugin extends BaseOauthPlugin {
                 headers: {
                   Authorization: "token " + tokenSet.access_token,
                   Accept: "application/vnd.github.v3+json",
-                  "User-Agent": "external-auth-server"
-                }
+                  "User-Agent": "external-auth-server",
+                },
               };
-              request(options, function(error, response, body) {
+              request(options, function (error, response, body) {
                 log_repsonse(...arguments);
                 if (response.statusCode == 200) {
                   results.organizations = JSON.parse(body);
@@ -1546,10 +1546,10 @@ class OauthPlugin extends BaseOauthPlugin {
               headers: {
                 Authorization: "token " + tokenSet.access_token,
                 Accept: "application/vnd.github.v3+json",
-                "User-Agent": "external-auth-server"
-              }
+                "User-Agent": "external-auth-server",
+              },
             };
-            request(options, function(error, response, body) {
+            request(options, function (error, response, body) {
               log_repsonse(...arguments);
               if (response.statusCode == 200) {
                 results.teams = JSON.parse(body);
@@ -1573,10 +1573,10 @@ class OauthPlugin extends BaseOauthPlugin {
               headers: {
                 Authorization: "token " + tokenSet.access_token,
                 Accept: "application/vnd.github.v3+json",
-                "User-Agent": "external-auth-server"
-              }
+                "User-Agent": "external-auth-server",
+              },
             };
-            request(options, function(error, response, body) {
+            request(options, function (error, response, body) {
               log_repsonse(...arguments);
               if (response.statusCode == 200) {
                 results.emails = JSON.parse(body);
@@ -1654,7 +1654,7 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
       {
         state: parentReqInfo.parsedQuery.state,
         nonce: null,
-        response_type
+        response_type,
       }
     );
   }
@@ -1671,5 +1671,5 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
 
 module.exports = {
   OauthPlugin,
-  OpenIdConnectPlugin
+  OpenIdConnectPlugin,
 };
