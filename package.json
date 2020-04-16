@@ -5,7 +5,8 @@
   "main": "src/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node --nouse-idle-notification --expose-gc --max-old-space-size=8192 src/server.js"
+    "start": "node --nouse-idle-notification --expose-gc --max-old-space-size=8192 src/server.js",
+    "generate-config-token": "node --nouse-idle-notification --expose-gc --max-old-space-size=8192 bin/generate-config-token-stdin.js"
   },
   "author": "Travis Glenn Hansen <travisghansen@yahoo.com>",
   "bugs": {

@@ -13,5 +13,5 @@ RUN npm install
 COPY --chown=eas:eas . .
 
 EXPOSE 8080
-
-CMD [ "npm", "start" ]
+ENTRYPOINT [ "npm", "run", "--silent"]
+CMD [ "start" ]

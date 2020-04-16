@@ -1145,6 +1145,15 @@ class BaseOauthPlugin extends BasePlugin {
     return false;
   }
 
+  async access_token_assertions(access_token) {
+    const plugin = this;
+
+    return await Assertion.assertSet(
+      access_token,
+      plugin.config.assertions.access_token
+    );
+  }
+
   async id_token_assertions(id_token) {
     const plugin = this;
 
@@ -1264,6 +1273,18 @@ class BaseOauthPlugin extends BasePlugin {
       idToken = jwt.decode(tokenSet.id_token);
       let idTokenValid = await plugin.id_token_assertions(idToken);
       if (!idTokenValid) {
+        return false;
+      }
+    }
+
+    if (
+      pluginStrategy == PLUGIN_STRATEGY_OIDC &&
+      plugin.config.assertions.access_token
+    ) {
+      let accessToken;
+      accessToken = jwt.decode(tokenSet.access_token);
+      let accessTokenValid = await plugin.access_token_assertions(accessToken);
+      if (!accessTokenValid) {
         return false;
       }
     }
