@@ -1,16 +1,18 @@
 const { Assertion } = require("../../assertion");
 const { BasePlugin } = require("../../plugin");
-const { Issuer } = require("openid-client");
+const { Issuer, custom } = require("openid-client");
 const jwt = require("jsonwebtoken");
-const oauth2 = require("simple-oauth2");
 const queryString = require("query-string");
 const request = require("request");
 const URI = require("uri-js");
 
-Issuer.useRequest();
-Issuer.defaultHttpOptions = { timeout: 10000, headers: {} };
+custom.setHttpOptionsDefaults({
+  followRedirect: false,
+  timeout: 10000,
+  headers: {},
+});
 
-const exit_failure = function(message = "", code = 1) {
+const exit_failure = function (message = "", code = 1) {
   if (message) {
     console.log(message);
   }
@@ -228,7 +230,7 @@ class BaseOauthPlugin extends BasePlugin {
       server.WebServer.get("/oauth/callback", (req, res) => {
         server.logger.silly("%j", {
           headers: req.headers,
-          body: req.body
+          body: req.body,
         });
 
         try {
@@ -324,7 +326,7 @@ class BaseOauthPlugin extends BasePlugin {
       parentReqInfo.uri
     );
 
-    const respond_to_failed_authorization = async function() {
+    const respond_to_failed_authorization = async function () {
       plugin.server.logger.verbose(
         "redirect_uri: %s",
         authorization_redirect_uri
@@ -336,10 +338,10 @@ class BaseOauthPlugin extends BasePlugin {
         csrf: plugin.server.utils.generate_csrf_id(),
         req: {
           headers: {
-            referer: req.headers.referer
-          }
+            referer: req.headers.referer,
+          },
         },
-        request_is_xhr
+        request_is_xhr,
       };
       const stateToken = jwt.sign(payload, issuer_sign_secret);
       const state = plugin.server.utils.encrypt(
@@ -390,7 +392,7 @@ class BaseOauthPlugin extends BasePlugin {
                  * Strict: tight limits on sending cookies on a cross-origin request
                  */
                 sameSite: plugin.config.csrf_cookie.sameSite,
-                signed: true
+                signed: true,
               }
             );
           }
@@ -409,7 +411,7 @@ class BaseOauthPlugin extends BasePlugin {
      * @param {*} res
      * @param {*} state
      */
-    const handle_logout_callback_request = async function(
+    const handle_logout_callback_request = async function (
       req,
       res,
       parentReqInfo
@@ -449,7 +451,7 @@ class BaseOauthPlugin extends BasePlugin {
      * @param {*} res
      * @param {*} state
      */
-    const handle_auth_callback_request = async function(
+    const handle_auth_callback_request = async function (
       configToken,
       req,
       res,
@@ -595,7 +597,7 @@ class BaseOauthPlugin extends BasePlugin {
       let sessionPayload = {
         iat: Math.floor(Date.now() / 1000),
         tokenSet,
-        aud: configAudMD5
+        aud: configAudMD5,
       };
 
       let userinfo;
@@ -652,7 +654,7 @@ class BaseOauthPlugin extends BasePlugin {
          * Strict: tight limits on sending cookies on a cross-origin request
          */
         sameSite: plugin.config.cookie.sameSite,
-        signed: true
+        signed: true,
       });
 
       /**
@@ -802,8 +804,8 @@ class BaseOauthPlugin extends BasePlugin {
               await plugin.update_session(session_id, sessionPayload);
             } catch (e) {
               //TODO: better logic here to detect invalid_grant, etc
-              const snooze = ms =>
-                new Promise(resolve => setTimeout(resolve, ms));
+              const snooze = (ms) =>
+                new Promise((resolve) => setTimeout(resolve, ms));
               await snooze(500);
               sessionPayload = await plugin.get_session_data(session_id);
               tokenSet = sessionPayload.tokenSet;
@@ -1011,9 +1013,6 @@ class BaseOauthPlugin extends BasePlugin {
     const plugin = this;
     const store = plugin.server.store;
 
-    const plugin = this;
-    const store = plugin.server.store;
-
     await store.set(
       STATE_CACHE_PREFIX + state_id,
       plugin.server.utils.encrypt(
@@ -1098,7 +1097,7 @@ class BaseOauthPlugin extends BasePlugin {
           : undefined,
       id_token: sessionData.tokenSet.id_token,
       access_token: sessionData.tokenSet.access_token,
-      refresh_token: sessionData.tokenSet.refresh_token
+      refresh_token: sessionData.tokenSet.refresh_token,
     });
   }
 
@@ -1326,293 +1325,8 @@ class BaseOauthPlugin extends BasePlugin {
       plugin.server.logger.debug("id_token decoded %j", idToken);
     }
   }
-}
 
-/**
- * https://github.com/lelylan/simple-oauth2
- */
-class OauthPlugin extends BaseOauthPlugin {
-  /**
-   * Create new instance
-   *
-   * @name constructor
-   * @param {*} server
-   * @param {*} config
-   */
-  constructor(server, config) {
-    initialize_common_config_options(config);
-    super(...arguments);
-  }
-
-  async get_client() {
-    const plugin = this;
-
-    const credentials = {
-      client: {
-        id: plugin.config.client.client_id,
-        secret: plugin.config.client.client_secret
-      },
-      auth: {}
-    };
-
-    let tokenHost, tokenPath, authorizeHost, authorizePath;
-    if (plugin.config.issuer.token_endpoint) {
-      let parsedTokenURI = URI.parse(plugin.config.issuer.token_endpoint);
-      tokenHost = URI.serialize({
-        scheme: parsedTokenURI.scheme,
-        host: parsedTokenURI.host,
-        port: parsedTokenURI.port
-      }).replace(/\/$/, "");
-      tokenPath = parsedTokenURI.path;
-    }
-
-    if (plugin.config.issuer.authorization_endpoint) {
-      let parsedAuthorizeURI = URI.parse(
-        plugin.config.issuer.authorization_endpoint
-      );
-      authorizeHost = URI.serialize({
-        scheme: parsedAuthorizeURI.scheme,
-        host: parsedAuthorizeURI.host,
-        port: parsedAuthorizeURI.port
-      }).replace(/\/$/, "");
-      authorizePath = parsedAuthorizeURI.path;
-    }
-
-    credentials.auth.tokenHost = tokenHost;
-    credentials.auth.tokenPath = tokenPath;
-    credentials.auth.authorizeHost = authorizeHost;
-    credentials.auth.authorizePath = authorizePath;
-
-    return oauth2.create(credentials);
-  }
-
-  async get_authorization_url(authorization_redirect_uri, state) {
-    const plugin = this;
-    const client = await plugin.get_client();
-    const url = client.authorizationCode.authorizeURL({
-      ...plugin.config.custom_authorization_parameters,
-      redirect_uri: authorization_redirect_uri,
-      scope: plugin.config.scopes.join(" "),
-      state: state
-    });
-
-    return url;
-  }
-
-  async refresh_token(tokenSet) {
-    const plugin = this;
-    const client = await plugin.get_client();
-    let accessToken = client.accessToken.create(tokenSet);
-
-    return accessToken.refresh();
-  }
-
-  async get_userinfo(tokenSet) {
-    const plugin = this;
-    const userinfoConfig = plugin.config.features.userinfo;
-    userinfoConfig.config = userinfoConfig.config || {};
-    plugin.server.logger.debug("get userinfo with tokenSet: %j", tokenSet);
-    let userinfo;
-
-    switch (userinfoConfig.provider) {
-      /**
-       * `user` scope adds more info
-       * `user:email` allows to hit the `GET /user/emails` endpoint and `GET /user/public_emails` endpoint
-       *
-       * List all of the teams across all of the organizations to which the authenticated user belongs. This method requires user, repo, or read:org scope when authenticating via OAuth.
-       * GET /user/teams
-       */
-      case "github":
-        const GITHUB_API_URI = "https://api.github.com";
-        const promises = [];
-        const results = {};
-        let promise;
-
-        const log_repsonse = function(error, response, body) {
-          plugin.server.logger.debug("GITHUB ERROR: " + error);
-          plugin.server.logger.debug("GITHUB STATUS: " + response.statusCode);
-          plugin.server.logger.debug(
-            "GITHUB HEADERS: " + JSON.stringify(response.headers)
-          );
-          plugin.server.logger.debug("GITHUB BODY: " + JSON.stringify(body));
-        };
-
-        promise = new Promise(async resolve => {
-          await new Promise((resolve, reject) => {
-            const options = {
-              method: "GET",
-              url: GITHUB_API_URI + "/user",
-              headers: {
-                Authorization: "token " + tokenSet.access_token,
-                Accept: "application/vnd.github.v3+json",
-                "User-Agent": "external-auth-server"
-              }
-            };
-            request(options, function(error, response, body) {
-              log_repsonse(...arguments);
-              if (response.statusCode == 200) {
-                results.userinfo = JSON.parse(body);
-                resolve();
-              } else {
-                reject(body);
-              }
-            });
-          });
-
-          if (userinfoConfig.config.fetch_organizations) {
-            await new Promise((resolve, reject) => {
-              const options = {
-                method: "GET",
-                url: results.userinfo.organizations_url,
-                headers: {
-                  Authorization: "token " + tokenSet.access_token,
-                  Accept: "application/vnd.github.v3+json",
-                  "User-Agent": "external-auth-server"
-                }
-              };
-              request(options, function(error, response, body) {
-                log_repsonse(...arguments);
-                if (response.statusCode == 200) {
-                  results.organizations = JSON.parse(body);
-                  resolve();
-                } else {
-                  reject(body);
-                }
-              });
-            });
-          }
-
-          resolve();
-        });
-        promises.push(promise);
-
-        if (userinfoConfig.config.fetch_teams) {
-          promise = new Promise((resolve, reject) => {
-            /**
-             * https://developer.github.com/v3/teams/#list-user-teams
-             */
-            const options = {
-              method: "GET",
-              url: "https://api.github.com/user/teams",
-              headers: {
-                Authorization: "token " + tokenSet.access_token,
-                Accept: "application/vnd.github.v3+json",
-                "User-Agent": "external-auth-server"
-              }
-            };
-            request(options, function(error, response, body) {
-              log_repsonse(...arguments);
-              if (response.statusCode == 200) {
-                results.teams = JSON.parse(body);
-                resolve();
-              } else {
-                reject(body);
-              }
-            });
-          });
-          promises.push(promise);
-        }
-
-        if (userinfoConfig.config.fetch_emails) {
-          promise = new Promise((resolve, reject) => {
-            /**
-             * https://developer.github.com/v3/users/emails/
-             */
-            const options = {
-              method: "GET",
-              url: "https://api.github.com/user/emails",
-              headers: {
-                Authorization: "token " + tokenSet.access_token,
-                Accept: "application/vnd.github.v3+json",
-                "User-Agent": "external-auth-server"
-              }
-            };
-            request(options, function(error, response, body) {
-              log_repsonse(...arguments);
-              if (response.statusCode == 200) {
-                results.emails = JSON.parse(body);
-                resolve();
-              } else {
-                reject(body);
-              }
-            });
-          });
-          promises.push(promise);
-        }
-
-        await Promise.all(promises);
-
-        userinfo = results.userinfo;
-
-        if (results.organizations) {
-          userinfo.organizations = results.organizations;
-        }
-
-        if (results.teams) {
-          userinfo.teams = results.teams;
-        }
-
-        if (results.emails) {
-          userinfo.emails = results.emails;
-        }
-
-        break;
-      default:
-        return;
-    }
-
-    return { iat: Math.floor(Date.now() / 1000), data: userinfo };
-  }
-
-  async authorization_code_callback(parentReqInfo, authorization_redirect_uri) {
-    const plugin = this;
-    const client = await plugin.get_client();
-    const tokenConfig = {
-      code: parentReqInfo.parsedQuery.code,
-      redirect_uri: authorization_redirect_uri,
-      scope: plugin.config.scopes.join(" ")
-    };
-
-    plugin.server.logger.verbose("tokenConfig: %j", tokenConfig);
-
-    const result = await client.authorizationCode.getToken(tokenConfig);
-    plugin.server.logger.debug("oauth code result: %j", result);
-    if (result.error) {
-      throw result;
-    }
-    const accessToken = client.accessToken.create(result);
-    return accessToken.token;
-  }
-}
-
-class OpenIdConnectPlugin extends BaseOauthPlugin {
-  /**
-   * Create new instance
-   *
-   * @name constructor
-   * @param {*} config
-   */
-  constructor(server, config) {
-    initialize_common_config_options(config);
-
-    if (!config.features.hasOwnProperty("introspect_access_token")) {
-      config.features.introspect_access_token = false;
-    }
-
-    if (!config.assertions.hasOwnProperty("exp")) {
-      config.assertions.exp = true;
-    }
-
-    if (!config.assertions.hasOwnProperty("nbf")) {
-      config.assertions.nbf = true;
-    }
-
-    if (!config.assertions.hasOwnProperty("iss")) {
-      config.assertions.iss = true;
-    }
-
-    super(...arguments);
-  }
+  // #################### common client/issue methods ####################
 
   async get_issuer() {
     const plugin = this;
@@ -1665,7 +1379,7 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
     if (plugin.config.client.client_id && plugin.config.client.client_secret) {
       client = new issuer.Client({
         client_id: plugin.config.client.client_id,
-        client_secret: plugin.config.client.client_secret
+        client_secret: plugin.config.client.client_secret,
       });
       client.CLOCK_TOLERANCE = DEFAULT_CLIENT_CLOCK_TOLERANCE;
 
@@ -1696,7 +1410,7 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
       ...plugin.config.custom_authorization_parameters,
       redirect_uri: authorization_redirect_uri,
       scope: plugin.config.scopes.join(" "),
-      state: state
+      state: state,
     });
 
     return url;
@@ -1708,19 +1422,239 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
 
     return client.refresh(tokenSet.refresh_token);
   }
+}
+
+/**
+ * https://github.com/lelylan/simple-oauth2
+ */
+class OauthPlugin extends BaseOauthPlugin {
+  /**
+   * Create new instance
+   *
+   * @name constructor
+   * @param {*} server
+   * @param {*} config
+   */
+  constructor(server, config) {
+    initialize_common_config_options(config);
+    super(...arguments);
+  }
 
   async authorization_code_callback(parentReqInfo, authorization_redirect_uri) {
     const plugin = this;
     const client = await plugin.get_client();
     const response_type = "code";
 
-    return client.authorizationCallback(
+    return client.oauthCallback(
       authorization_redirect_uri,
       parentReqInfo.parsedQuery,
       {
         state: parentReqInfo.parsedQuery.state,
         nonce: null,
-        response_type
+        response_type,
+      }
+    );
+  }
+
+  async get_userinfo(tokenSet) {
+    const plugin = this;
+    const userinfoConfig = plugin.config.features.userinfo;
+    userinfoConfig.config = userinfoConfig.config || {};
+    plugin.server.logger.debug("get userinfo with tokenSet: %j", tokenSet);
+    let userinfo;
+
+    switch (userinfoConfig.provider) {
+      /**
+       * `user` scope adds more info
+       * `user:email` allows to hit the `GET /user/emails` endpoint and `GET /user/public_emails` endpoint
+       *
+       * List all of the teams across all of the organizations to which the authenticated user belongs. This method requires user, repo, or read:org scope when authenticating via OAuth.
+       * GET /user/teams
+       */
+      case "github":
+        const GITHUB_API_URI = "https://api.github.com";
+        const promises = [];
+        const results = {};
+        let promise;
+
+        const log_repsonse = function (error, response, body) {
+          plugin.server.logger.debug("GITHUB ERROR: " + error);
+          plugin.server.logger.debug("GITHUB STATUS: " + response.statusCode);
+          plugin.server.logger.debug(
+            "GITHUB HEADERS: " + JSON.stringify(response.headers)
+          );
+          plugin.server.logger.debug("GITHUB BODY: " + JSON.stringify(body));
+        };
+
+        promise = new Promise(async (resolve) => {
+          await new Promise((resolve, reject) => {
+            const options = {
+              method: "GET",
+              url: GITHUB_API_URI + "/user",
+              headers: {
+                Authorization: "token " + tokenSet.access_token,
+                Accept: "application/vnd.github.v3+json",
+                "User-Agent": "external-auth-server",
+              },
+            };
+            request(options, function (error, response, body) {
+              log_repsonse(...arguments);
+              if (response.statusCode == 200) {
+                results.userinfo = JSON.parse(body);
+                resolve();
+              } else {
+                reject(body);
+              }
+            });
+          });
+
+          if (userinfoConfig.config.fetch_organizations) {
+            await new Promise((resolve, reject) => {
+              const options = {
+                method: "GET",
+                url: results.userinfo.organizations_url,
+                headers: {
+                  Authorization: "token " + tokenSet.access_token,
+                  Accept: "application/vnd.github.v3+json",
+                  "User-Agent": "external-auth-server",
+                },
+              };
+              request(options, function (error, response, body) {
+                log_repsonse(...arguments);
+                if (response.statusCode == 200) {
+                  results.organizations = JSON.parse(body);
+                  resolve();
+                } else {
+                  reject(body);
+                }
+              });
+            });
+          }
+
+          resolve();
+        });
+        promises.push(promise);
+
+        if (userinfoConfig.config.fetch_teams) {
+          promise = new Promise((resolve, reject) => {
+            /**
+             * https://developer.github.com/v3/teams/#list-user-teams
+             */
+            const options = {
+              method: "GET",
+              url: "https://api.github.com/user/teams",
+              headers: {
+                Authorization: "token " + tokenSet.access_token,
+                Accept: "application/vnd.github.v3+json",
+                "User-Agent": "external-auth-server",
+              },
+            };
+            request(options, function (error, response, body) {
+              log_repsonse(...arguments);
+              if (response.statusCode == 200) {
+                results.teams = JSON.parse(body);
+                resolve();
+              } else {
+                reject(body);
+              }
+            });
+          });
+          promises.push(promise);
+        }
+
+        if (userinfoConfig.config.fetch_emails) {
+          promise = new Promise((resolve, reject) => {
+            /**
+             * https://developer.github.com/v3/users/emails/
+             */
+            const options = {
+              method: "GET",
+              url: "https://api.github.com/user/emails",
+              headers: {
+                Authorization: "token " + tokenSet.access_token,
+                Accept: "application/vnd.github.v3+json",
+                "User-Agent": "external-auth-server",
+              },
+            };
+            request(options, function (error, response, body) {
+              log_repsonse(...arguments);
+              if (response.statusCode == 200) {
+                results.emails = JSON.parse(body);
+                resolve();
+              } else {
+                reject(body);
+              }
+            });
+          });
+          promises.push(promise);
+        }
+
+        await Promise.all(promises);
+
+        userinfo = results.userinfo;
+
+        if (results.organizations) {
+          userinfo.organizations = results.organizations;
+        }
+
+        if (results.teams) {
+          userinfo.teams = results.teams;
+        }
+
+        if (results.emails) {
+          userinfo.emails = results.emails;
+        }
+
+        break;
+      default:
+        return;
+    }
+
+    return { iat: Math.floor(Date.now() / 1000), data: userinfo };
+  }
+}
+
+class OpenIdConnectPlugin extends BaseOauthPlugin {
+  /**
+   * Create new instance
+   *
+   * @name constructor
+   * @param {*} config
+   */
+  constructor(server, config) {
+    initialize_common_config_options(config);
+
+    if (!config.features.hasOwnProperty("introspect_access_token")) {
+      config.features.introspect_access_token = false;
+    }
+
+    if (!config.assertions.hasOwnProperty("exp")) {
+      config.assertions.exp = true;
+    }
+
+    if (!config.assertions.hasOwnProperty("nbf")) {
+      config.assertions.nbf = true;
+    }
+
+    if (!config.assertions.hasOwnProperty("iss")) {
+      config.assertions.iss = true;
+    }
+
+    super(...arguments);
+  }
+
+  async authorization_code_callback(parentReqInfo, authorization_redirect_uri) {
+    const plugin = this;
+    const client = await plugin.get_client();
+    const response_type = "code";
+
+    return client.callback(
+      authorization_redirect_uri,
+      parentReqInfo.parsedQuery,
+      {
+        state: parentReqInfo.parsedQuery.state,
+        nonce: null,
+        response_type,
       }
     );
   }
@@ -1737,5 +1671,5 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
 
 module.exports = {
   OauthPlugin,
-  OpenIdConnectPlugin
+  OpenIdConnectPlugin,
 };

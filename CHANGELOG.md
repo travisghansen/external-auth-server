@@ -3,6 +3,7 @@
 - align/generic all features/documentation
 - prometheus
 - refactor naming of store/cache/etc
+- force `EAS_ENCRYPT_IV_SECRET` parameter and document (`FLUSHDB` in redis to clear all old sessions)
 
 # 0.99.0
 
@@ -79,6 +80,16 @@
 - further data available to header injection (`req` and `parentRequestInfo`)
 - update header injection to use generic query function
 - only get parentRequestInfo once in server.js and more performance enhancements
+- store `state` server-side in `oauth2`/`oidc` plugins
+
+# 0.9.0
+
+- ~~update all dependencies~~
+- ~~use the same library for `oauth2`/`oidc` plugins~~
+- ~~introduce `EAS_ENCRYPT_IV_SECRET` environment variable to address `crypto.createCipher is deprecated.`~~
+- ~~update to node 12~~
+- ~~assertions on `oidc` `access_token`~~
+- ~~support token generation using docker~~
 
 # 0.8.0
 

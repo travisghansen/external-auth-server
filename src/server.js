@@ -444,6 +444,8 @@ verifyHandler = async (req, res, options = {}) => {
     }).then(async pluginResponse => {
       if (!pluginResponse) {
         pluginResponse = new PluginVerifyResponse();
+        pluginResponse.plugin = {};
+        pluginResponse.plugin.config = {};
         pluginResponse.statusCode = 503;
       }
       externalAuthServer.logger.info(

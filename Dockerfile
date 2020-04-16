@@ -1,4 +1,4 @@
-FROM node:10
+FROM node:12
 
 # Run as a non-root user
 RUN useradd --create-home eas \

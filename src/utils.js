@@ -4,9 +4,21 @@ const jp = require("jsonpath");
 const jq = require("node-jq");
 const queryString = require("query-string");
 const URI = require("uri-js");
-const uuidv4 = require("uuid/v4");
+const { v4: uuidv4 } = require("uuid");
 
-const algorithm = "aes-256-cbc";
+const CRYPTO_ALGORITHM = "aes-256-cbc";
+const CRYPTO_IV_LENGTH = 16;
+const CRYPTO_KEY_LENGTH = 32;
+
+const ivSecret = process.env.EAS_ENCRYPT_IV_SECRET;
+let iv;
+if (ivSecret) {
+  iv = crypto
+    .createHash("sha256")
+    .update(String(ivSecret))
+    .digest("hex")
+    .substr(0, CRYPTO_IV_LENGTH);
+}
 
 function exit_failure(message = "", code = 1) {
   if (message) {
@@ -22,10 +34,25 @@ function md5(text) {
     .digest("hex");
 }
 
+function generate_crypto_key(salt) {
+  return crypto
+    .createHash("sha256")
+    .update(String(salt))
+    .digest("hex")
+    .substr(0, CRYPTO_KEY_LENGTH);
+}
+
 function encrypt(salt, text, encoding = "base64") {
   try {
-    var cipher = crypto.createCipher(algorithm, salt);
-    var encrypted = Buffer.concat([
+    let cipher;
+    if (iv) {
+      const key = generate_crypto_key(salt);
+      cipher = crypto.createCipheriv(CRYPTO_ALGORITHM, key, iv);
+    } else {
+      cipher = crypto.createCipher(CRYPTO_ALGORITHM, salt);
+    }
+
+    const encrypted = Buffer.concat([
       cipher.update(Buffer.from(text, "utf8")),
       cipher.final()
     ]);
@@ -38,8 +65,15 @@ function encrypt(salt, text, encoding = "base64") {
 
 function decrypt(salt, text, encoding = "base64") {
   try {
-    var decipher = crypto.createDecipher(algorithm, salt);
-    var decrypted = Buffer.concat([
+    let decipher;
+    if (iv) {
+      const key = generate_crypto_key(salt);
+      decipher = crypto.createDecipheriv(CRYPTO_ALGORITHM, key, iv);
+    } else {
+      decipher = crypto.createDecipher(CRYPTO_ALGORITHM, salt);
+    }
+
+    const decrypted = Buffer.concat([
       decipher.update(Buffer.from(text, encoding)),
       decipher.final()
     ]);
