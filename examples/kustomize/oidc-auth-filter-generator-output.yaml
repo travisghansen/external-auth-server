@@ -1,0 +1,43 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: frontend-auth
+spec:
+  workloadLabels:
+    app: webapp
+  filters:
+    - filterConfig:
+        failure_mode_allow: false
+        httpService:
+          authorizationRequest:
+            allowedHeaders:
+              patterns:
+                - exact: cookie
+                - exact: X-Forwarded-Host
+                - exact: X-Forwarded-Method
+                - exact: X-Forwarded-Proto
+                - exact: X-Forwarded-Uri
+            headers_to_add:
+              - key: x-eas-verify-params
+                value: >-
+                  {"config_token":"W2JCsUPqFyMxTDJj2ytZL54mAT0REppoGwtlEJBndgdZyYXzILgq5JdOgJ4PBgy1kw/dt9AYqu+KxxkDY6OtS8A9QRvmAQvsN5SnBw3fskGexXVLD4lvOM6gcmZnLBAJzNhiy4wnjKkoaLftQksTNe3UOwhzGaUL6Vcz1p+y/yGr3500XAiKDM3LTFrbFpQN+f6rjsy9pYGarI/wSDzg1AvQc1BHzbpqo/eQ6Sn1mjOw055Pv88lQBdBlTX02+42pjclp+RFZcR2YUpBpXQQ6yE3DLOZSJU807uhbV8mWXneC4VK1/FhpzUzDCznO/bKrpkWpMGFeu44TSt11GVKTsl6AkmhLYnxvuha1BJeseuzyt8mqwza8FhUbrOxr842d4RFf5iuj6qGjlP3uJUV2WvSCzkIdu3WiKH2C+Bk1KSyLRdzda5eC2HeSPd8lCUK3JgmxOW9gyZC+k7k5bz1d/SgifEvi2CiEmUOE+HGxR7R0LiwA/wYFEcVP1tG+Ifiy01OMRwZhjIoBpyS4rvgxj70N6IDo/pkMkVr9kEKXDmQyJM4zlIRVil4tKLsX5fZfF/Z1vZuwWoPVJnCxqTsDNuknY6zV5p2rZh7AMZaHycMnI75CWChMABgqXwzhcMniJlgYUHIINMFUba3AHclgzF5q+kf3wsxuKg9z6x9KMzLuXwgKgzCaeAwUuE+EXJ4ltgsg8Tf3Zu4t1jDGLbZ51WoS5CRBF/qJR3r3EfeAkhCsiLxGxw8Ou4MSIBzgTHTihCIjOcUxgrsP0I6qxzQ1WO3Vcyaf8GAQuCGxeYj3zrlF1s+lNf6HtM2mIWqIHjYE2Dnr7pdR3DlkYRctb7pfRp0nkt0bCDoYrpWMakoRSIAZqGuq2n827n3q6JLokDDTLamuiqWPiiQDmH4T/ilA9IprriUg3/CuxOrt+zRaWwJOTK73r6EVFWVF5lVc82FO0ZyUloKx0aw+eVbQHx/BgKZ4cN6QIlw698uCFkAqn58hx28gkcOcWIAgh/yxxMS"}
+          pathPrefix: /envoy/verify-params-header
+          serverUri:
+            cluster: >-
+              outbound|80||eas-external-auth-server.external-auth-server.svc.cluster.local
+            timeout: 10s
+            uri: >-
+              http://eas-external-auth-server.external-auth-server.svc.cluster.local
+        statusOnError:
+          code: Forbidden
+        withRequestBody:
+          allowPartialMessage: true
+          maxRequestBytes: 4096
+      filterName: envoy.ext_authz
+      filterType: HTTP
+      insertPosition:
+        index: FIRST
+      listenerMatch:
+        listenerProtocol: HTTP
+        listenerType: SIDECAR_INBOUND
+        portNumber: 80

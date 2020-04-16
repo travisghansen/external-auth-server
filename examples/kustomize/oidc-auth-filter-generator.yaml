@@ -1,0 +1,37 @@
+apiVersion: kustomize.drivenow.com.au/v1
+kind: ExternalAuthServiceEnvoyFilter
+metadata:
+  name: frontend-auth
+spec:
+  # must match the secets used in the eas config
+  configTokenSignSecret: 1ba3a359093ea4f7a7b65bb1
+  configTokenEncryptSecret: 0f5d0319bb947978a8ea5f79
+
+  # specifies the workload selector and port for targeting the sidecar to fitler
+  sidecar:
+    selector: 
+      app: webapp
+    port: 80
+
+  token:
+    eas:
+      plugins:
+        - type: oidc
+          issuer:
+            discover_url: https://id.example.com/auth/realms/example/.well-known/openid-configuration
+          client:
+            client_id: webapp
+            client_secret: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxx
+          scopes: ["openid", "email", "profile"]
+          redirect_uri: "https://eas.example.com/oauth/callback"
+          assertions:
+            exp: true
+            nbf: true
+            iss: true
+            access_token: 
+              - query_engine: "jp"
+                query: "$.realm_access.roles[*]"
+                rule:
+                  method: contains-any
+                  value: ["admin"]
+
