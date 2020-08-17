@@ -27,6 +27,7 @@ const issuer_sign_secret =
   exit_failure("missing EAS_ISSUER_SIGN_SECRET env variable");
 
 const SESSION_CACHE_PREFIX = "session:oauth:";
+const INTROSPECTION_CACHE_PREFIX = "introspection:oauth:";
 const DEFAULT_COOKIE_NAME = "_eas_oauth_session";
 
 const HANDLER_INDICATOR_PARAM_NAME = "__eas_oauth_handler__";
@@ -831,7 +832,10 @@ class BaseOauthPlugin extends BasePlugin {
 
           // run tokenSet assertions (including id_token assertions)
           let tokenSetValid;
-          tokenSetValid = await plugin.token_set_assertions(tokenSet);
+          tokenSetValid = await plugin.token_set_assertions(
+            tokenSet,
+            session_id
+          );
           if (!tokenSetValid) {
             plugin.server.logger.verbose("tokenSet failed assertions");
             return respond_to_failed_authorization();
@@ -980,6 +984,69 @@ class BaseOauthPlugin extends BasePlugin {
       ),
       ttl
     );
+  }
+
+  async set_introspection_cache(session_id, introspectionPayload) {
+    const plugin = this;
+    const store = plugin.server.store;
+
+    if (!session_id) {
+      return;
+    }
+
+    if (plugin.config.features.introspect_expiry > 0) {
+      let ttl = plugin.config.features.introspect_expiry;
+      plugin.server.logger.verbose(
+        "setting introspection cache with TTL: %s",
+        ttl
+      );
+
+      await store.set(
+        INTROSPECTION_CACHE_PREFIX + session_id,
+        plugin.server.utils.encrypt(
+          plugin.server.secrets.session_encrypt_secret,
+          JSON.stringify(introspectionPayload)
+        ),
+        ttl
+      );
+    }
+  }
+
+  async get_introspection_cache(session_id) {
+    const plugin = this;
+    const store = plugin.server.store;
+
+    if (!session_id) {
+      return false;
+    }
+
+    plugin.server.logger.verbose(
+      "retrieving introspection cache: %s",
+      session_id
+    );
+
+    const encryptedIntrospection = await store.get(
+      INTROSPECTION_CACHE_PREFIX + session_id
+    );
+
+    plugin.server.logger.verbose(
+      "retrieved encrypted introspection content: %s",
+      encryptedIntrospection
+    );
+
+    if (!encryptedIntrospection) {
+      plugin.server.logger.verbose("failed to decrypt introspection");
+      return false;
+    }
+
+    let introspectionPayload = plugin.server.utils.decrypt(
+      plugin.server.secrets.session_encrypt_secret,
+      encryptedIntrospection
+    );
+    plugin.server.logger.debug("introspection data: %s", introspectionPayload);
+    introspectionPayload = JSON.parse(introspectionPayload);
+
+    return introspectionPayload;
   }
 
   async get_state(state_id) {
@@ -1172,7 +1239,7 @@ class BaseOauthPlugin extends BasePlugin {
     );
   }
 
-  async token_set_assertions(tokenSet) {
+  async token_set_assertions(tokenSet, session_id = null) {
     const plugin = this;
     const client = await plugin.get_client();
 
@@ -1251,17 +1318,34 @@ class BaseOauthPlugin extends BasePlugin {
     ) {
       const issuer = await plugin.get_issuer();
 
-      if (!issuer.metadata.token_introspection_endpoint) {
+      if (!issuer.introspection_endpoint) {
         plugin.server.logger.error("issuer does not support introspection");
         throw new Error("issuer does not support introspection");
       }
 
-      const response = await client.introspect(tokenSet.access_token);
+      let response;
+      let cacheHit = false;
+      if (session_id && plugin.config.features.introspect_expiry > 0) {
+        response = await plugin.get_introspection_cache(session_id);
+        cacheHit = Boolean(response);
+      }
+
+      if (!response) {
+        response = await client.introspect(tokenSet.access_token);
+      }
 
       plugin.server.logger.verbose("token introspect details %j", response);
       if (response.active === false) {
         plugin.server.logger.verbose("token no longer active!!!");
         return false;
+      }
+
+      if (
+        !cacheHit &&
+        session_id &&
+        plugin.config.features.introspect_expiry > 0
+      ) {
+        await plugin.set_introspection_cache(session_id, response);
       }
     }
 

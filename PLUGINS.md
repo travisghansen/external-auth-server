@@ -509,6 +509,13 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         introspect_access_token: false,
 
         /**
+        * if introspect_access_token is true, how long in seconds to cache the result
+        * if not a number greater than 0, the introspection endpoint will be requested *every* verify request
+        * NOTE: the cache is stored on a per-eas-session basis vs a per-token (jti) basis
+        */
+        introspect_expiry: 0,
+
+        /**
         * which token (if any) to send back to the proxy as the Authorization Bearer value
         * note the proxy must allow the token to be passed to the backend if desired
         *
