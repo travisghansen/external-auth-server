@@ -82,7 +82,16 @@
 - only get parentRequestInfo once in server.js and more performance enhancements
 - store `state` server-side in `oauth2`/`oidc` plugins
 
+# 0.9.1
+
+Released 2020-08-17
+
+- ~~fix issue with oidc introspection (see #84)~~
+- ~~dependency updates~~
+
 # 0.9.0
+
+Released 2020-04-16
 
 - ~~update all dependencies~~
 - ~~use the same library for `oauth2`/`oidc` plugins~~
