@@ -3,16 +3,16 @@ entries:
   external-auth-server:
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2020-04-16T21:05:31.360802465Z"
+    created: "2020-08-18T00:32:58.751696242Z"
     dependencies:
     - condition: redis-ha.enabled
       name: redis-ha
       repository: https://kubernetes-charts.storage.googleapis.com/
       version: ~4.4.1
     description: A Helm chart for Kubernetes
-    digest: 479df26d5e495163dde450c7248ffd9d098e15fc2e9807aa96645cf88898dcfa
+    digest: 8d4c4d7dd46388b96c0f5daa6e82fcfb25ddd4fd630720f96959a5a7777e2f8c
     name: external-auth-server
     urls:
     - external-auth-server-0.1.0.tgz
     version: 0.1.0
-generated: "2020-04-16T21:05:31.358160103Z"
+generated: "2020-08-18T00:32:58.748146107Z"
