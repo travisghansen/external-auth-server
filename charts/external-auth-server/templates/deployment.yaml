@@ -26,13 +26,13 @@ spec:
         prometheus.io/port: {{ .Values.metrics.port | quote }}
         {{- end }}
     spec:
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- if .Values.priorityClassName }}
-          priorityClassName: {{ .Values.priorityClassName | quote }}
-          {{- end }}
           {{- if .Values.securityContext.enabled }}
           securityContext:
             runAsUser: {{ .Values.securityContext.runAsUser }}
