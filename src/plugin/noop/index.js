@@ -50,7 +50,8 @@ class NoopPlugin extends BasePlugin {
    * @param {*} res
    */
   async verify(configToken, req, res) {
-    res.statusCode = 200;
+    const plugin = this;
+    res.statusCode = plugin.config.status_code || 200;
     return res;
   }
 }

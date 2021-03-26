@@ -12,6 +12,41 @@ custom.setHttpOptionsDefaults({
   headers: {},
 });
 
+if (process.env.DEBUG_OIDC) {
+  custom.setHttpOptionsDefaults({
+    hooks: {
+      beforeRequest: [
+        (options) => {
+          console.log(
+            "--> %s %s",
+            options.method.toUpperCase(),
+            options.url.href
+          );
+          console.log("--> HEADERS %o", options.headers);
+          if (options.body) {
+            console.log("--> BODY %s", options.body);
+          }
+        },
+      ],
+      afterResponse: [
+        (response) => {
+          console.log(
+            "<-- %i FROM %s %s",
+            response.statusCode,
+            response.request.options.method.toUpperCase(),
+            response.request.options.url.href
+          );
+          console.log("<-- HEADERS %o", response.headers);
+          if (response.body) {
+            console.log("<-- BODY %s", response.body);
+          }
+          return response;
+        },
+      ],
+    },
+  });
+}
+
 const exit_failure = function (message = "", code = 1) {
   if (message) {
     console.log(message);
@@ -50,6 +85,9 @@ let initialized = false;
 function initialize_common_config_options(config) {
   config.custom_authorization_parameters =
     config.custom_authorization_parameters || {};
+
+  config.custom_authorization_code_parameters =
+    config.custom_authorization_code_parameters || {};
 
   if (!config.cookie) {
     config.cookie = {};
@@ -1410,7 +1448,7 @@ class BaseOauthPlugin extends BasePlugin {
     }
   }
 
-  // #################### common client/issue methods ####################
+  // #################### common client/issuer methods ####################
 
   async get_issuer() {
     const plugin = this;
@@ -1533,6 +1571,7 @@ class OauthPlugin extends BaseOauthPlugin {
       authorization_redirect_uri,
       parentReqInfo.parsedQuery,
       {
+        ...plugin.config.custom_authorization_code_parameters,
         state: parentReqInfo.parsedQuery.state,
         nonce: null,
         response_type,
@@ -1736,6 +1775,7 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
       authorization_redirect_uri,
       parentReqInfo.parsedQuery,
       {
+        ...plugin.config.custom_authorization_code_parameters,
         state: parentReqInfo.parsedQuery.state,
         nonce: null,
         response_type,

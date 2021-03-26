@@ -46,9 +46,9 @@ app.use(
     includePath: true,
     promClient: {
       collectDefaultMetrics: {
-        timeout: 2000
-      }
-    }
+        timeout: 2000,
+      },
+    },
   })
 );
 
@@ -93,7 +93,7 @@ verifyHandler = async (req, res, options = {}) => {
     http_method: req.method,
     http_version: req.httpVersion,
     headers: req.headers,
-    body: req.body
+    body: req.body,
   });
 
   externalAuthServer.logger.info("starting verify pipeline");
@@ -116,6 +116,9 @@ verifyHandler = async (req, res, options = {}) => {
   let isServerSideConfigToken = false;
   let serverSideConfigTokenId = null;
   let serverSideConfigTokenStoreId = null;
+  const parentRequestInfo = externalAuthServer.utils.get_parent_request_info(
+    req
+  );
   try {
     if (easVerifyParams.config_token) {
       configToken = externalAuthServer.utils.decrypt(
@@ -161,9 +164,7 @@ verifyHandler = async (req, res, options = {}) => {
         queryData.req.method.httpVersionMajor = req.method.httpVersionMajor;
         queryData.req.method.httpVersionMinor = req.method.httpVersionMinor;
         queryData.req.method.httpVersion = req.method.httpVersion;
-        queryData.parentRequestInfo = externalAuthServer.utils.get_parent_request_info(
-          req
-        );
+        queryData.parentRequestInfo = parentRequestInfo;
       }
 
       // determine token_id
@@ -274,7 +275,7 @@ verifyHandler = async (req, res, options = {}) => {
     let fallbackPluginResponse;
     let lastPluginResponse;
 
-    new Promise(resolve => {
+    new Promise((resolve) => {
       async function processPipeline() {
         for (let i = 0; i < configToken.eas.plugins.length; i++) {
           const pluginConfig = configToken.eas.plugins[i];
@@ -345,7 +346,9 @@ verifyHandler = async (req, res, options = {}) => {
             if (pluginConfig.pcb.skip) {
               const data = {
                 req: {},
-                res: {}
+                res: {},
+                parentReqInfo: parentRequestInfo,
+                configToken,
               };
 
               data.req.headers = JSON.parse(JSON.stringify(req.headers));
@@ -399,7 +402,9 @@ verifyHandler = async (req, res, options = {}) => {
           if (pluginConfig.pcb.stop) {
             const data = {
               req: {},
-              res: {}
+              res: {},
+              parentReqInfo: parentRequestInfo,
+              configToken,
             };
 
             data.req.headers = JSON.parse(JSON.stringify(req.headers));
@@ -441,7 +446,7 @@ verifyHandler = async (req, res, options = {}) => {
       }
 
       processPipeline();
-    }).then(async pluginResponse => {
+    }).then(async (pluginResponse) => {
       if (!pluginResponse) {
         pluginResponse = new PluginVerifyResponse();
         pluginResponse.plugin = {};
@@ -465,9 +470,8 @@ verifyHandler = async (req, res, options = {}) => {
       injectData.req.method.httpVersionMajor = req.method.httpVersionMajor;
       injectData.req.method.httpVersionMinor = req.method.httpVersionMinor;
       injectData.req.method.httpVersion = req.method.httpVersion;
-      injectData.parentRequestInfo = externalAuthServer.utils.get_parent_request_info(
-        req
-      );
+      injectData.parentRequestInfo = parentRequestInfo;
+      injectData.parentReqInfo = parentRequestInfo;
 
       if (pluginResponse.statusCode >= 200 && pluginResponse.statusCode < 300) {
         // set config_token headers
@@ -559,7 +563,7 @@ app.all("/envoy/verify-params-header(/*)?", async (req, res) => {
 app.get("/nginx/auth-signin", (req, res) => {
   externalAuthServer.logger.silly("%j", {
     headers: req.headers,
-    body: req.body
+    body: req.body,
   });
 
   try {
