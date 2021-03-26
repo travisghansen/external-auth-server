@@ -129,6 +129,14 @@ tolerations: []
 
 affinity: {}
 
+# Additional pod labels
+# https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+podLabels: {}
+
+# Priority indicates the importance of a Pod relative to other Pods.
+# https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/
+priorityClassName: ""
+
 securityContext:
   enabled: false
   fsGroup: 1001

@@ -18,6 +18,9 @@ spec:
       labels:
         app.kubernetes.io/name: {{ include "external-auth-server.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
+      {{- if .Values.podLabels }}
+      {{- tpl (toYaml .Values.podLabels) $ | nindent 8 }}
+      {{- end }}
       annotations:
         checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
         checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
@@ -26,6 +29,9 @@ spec:
         prometheus.io/port: {{ .Values.metrics.port | quote }}
         {{- end }}
     spec:
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
