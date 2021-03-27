@@ -102,7 +102,16 @@ class JwtPlugin extends BasePlugin {
     const parentReqInfo = plugin.server.utils.get_parent_request_info(req);
     plugin.server.logger.verbose("parent request info: %j", parentReqInfo);
 
-    let realm = plugin.config.realm ? plugin.config.realm : parentReqInfo.uri;
+    let realm = plugin.config.realm;
+
+    if (!realm && plugin.config.oidc.enabled) {
+      const issuer = await plugin.get_issuer();
+      realm = issuer.token_endpoint;
+    }
+
+    if (!realm) {
+      realm = parentReqInfo.uri;
+    }
 
     let header_name = plugin.config.header_name
       ? plugin.config.header_name
@@ -240,6 +249,24 @@ class JwtPlugin extends BasePlugin {
         return res;
       }
 
+      // introspection
+      if (
+        plugin.config.oidc.enabled &&
+        plugin.config.oidc.features.introspect_access_token
+      ) {
+        const valid = await plugin.introspect_access_token(
+          creds.token,
+          session_id
+        );
+        if (valid !== true) {
+          error = "invalid_token";
+          error_description = "token failed introspection";
+
+          failure_response();
+          return res;
+        }
+      }
+
       // userinfo
       let userinfo;
       if (
@@ -304,17 +331,6 @@ class JwtPlugin extends BasePlugin {
         plugin.config.assertions.id_token
       );
 
-      if (!isValid) {
-        return false;
-      }
-    }
-
-    // introspection
-    if (
-      plugin.config.oidc.enabled &&
-      plugin.config.oidc.features.introspect_access_token
-    ) {
-      isValid = await plugin.introspect_access_token(token, session_id);
       if (!isValid) {
         return false;
       }
