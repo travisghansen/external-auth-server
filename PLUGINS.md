@@ -336,8 +336,16 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
 
     // custom static authorization code URL parameters
     // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
-    // ie: https://stackoverflow.com/questions/50143342/keycloak-backchannel-logout/63517092#63517092
+    // ie:
+    // - https://stackoverflow.com/questions/50143342/keycloak-backchannel-logout/63517092#63517092
+    // - https://keycloak.discourse.group/t/admin-url-not-called-when-user-logs-out/4163/8
     custom_authorization_code_parameters: {},
+
+    // customer static refresh URL parameters
+    custom_refresh_parameters: {},
+
+    // custom static revoke URL parameters
+    custom_revoke_parameters: {},
 
     /**
     * static redirect URI
@@ -423,7 +431,16 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
                 fetch_organizations: true,
                 fetch_emails: true
             }
-        }
+        },
+
+        logout: {
+          /**
+          * Tokens to revoke with the provider on logout
+          * can be id_token, access_token, and refresh_token depending on provider support
+          * https://tools.ietf.org/html/rfc7009
+          */
+          revoke_tokens_on_logout: [],
+        },
     },
     assertions: {
         /**
@@ -524,8 +541,16 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
 
     // custom static authorization code URL parameters
     // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
-    // ie: https://stackoverflow.com/questions/50143342/keycloak-backchannel-logout/63517092#63517092
+    // ie:
+    // - https://stackoverflow.com/questions/50143342/keycloak-backchannel-logout/63517092#63517092
+    // - https://keycloak.discourse.group/t/admin-url-not-called-when-user-logs-out/4163/8
     custom_authorization_code_parameters: {},
+
+    // customer static refresh URL parameters
+    custom_refresh_parameters: {},
+
+    // custom static revoke URL parameters
+    custom_revoke_parameters: {},
 
     /**
     * static redirect URI
@@ -609,7 +634,29 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         *
         * possible values are id_token, access_token, or refresh_token
         */
-        authorization_token: "access_token"
+        authorization_token: "access_token",
+
+        logout: {
+          /**
+          * Tokens to revoke with the provider on logout
+          * can be id_token, access_token, and refresh_token depending on provider support
+          * https://tools.ietf.org/html/rfc7009
+          */
+          revoke_tokens_on_logout: [],
+
+          // details: https://github.com/travisghansen/external-auth-server/blob/master/OAUTH_PLUGINS.md#logout
+          // https://openid.net/specs/openid-connect-rpinitiated-1_0.html
+          "end_provider_session": {
+            "enabled": false,
+            "post_logout_redirect_uri": "https://eas.example.com/oauth/end-session-redirect"
+          },
+
+          // details: https://github.com/travisghansen/external-auth-server/blob/master/OAUTH_PLUGINS.md#logout
+          // https://openid.net/specs/openid-connect-backchannel-1_0.html
+          "backchannel": {
+            "enabled": false
+          },
+        },
     },
     assertions: {
         /**
