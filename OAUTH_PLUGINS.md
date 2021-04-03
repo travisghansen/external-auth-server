@@ -75,3 +75,157 @@ user agent to `eas` directly) including the following `GET` parameters:
 As an example, if you are authenticating the domain `https://svc.example.com`
 with `eas` you could direct the browser to
 `https://svc.example.com?__eas_oauth_handler__=logout&redirect_uri=https%3A%2F%2Fgithub.com`
+
+### Token revocation
+
+Optionally, when invoking the logout URL `eas` can revoke the tokens with the
+provider. This is controlled by the `features.logout.revoke_tokens_on_logout`
+setting in the `config_token` plugin config. It implements
+https://tools.ietf.org/html/rfc7009 and is available for both `oauth2` and
+`oidc`.
+
+- https://tools.ietf.org/html/rfc7009
+- https://identityserver4.readthedocs.io/en/latest/endpoints/endsession.html
+
+### End provider session (`oidc`)
+
+When `features.logout.end_provider_session.enabled` is `true` then upon logout
+`eas` will redirect the user to end the session with the provider.
+
+For the complete process to work you should register `https://eas.example.com/oauth/end-session-redirect`
+as a valid `redirect_uri` with your provider. The endpoint should be directly
+accessing the `eas` service, and accessible to the user agent (ie: browser).
+
+The `redirect_uri` `GET` parameter of the `eas` logout page mentioned above
+will still be the final destination of the brower but a couple detours are made
+to ensure that happens. The series of redirects looks like this:
+
+```
+`eas` logout page requested ->
+session is destroyed (with `eas`) and optionally tokens revoked ->
+brower redirected to provider endpoint to destroy session ->
+session is destroy with provider -> (note, typically this action would result in the provider invoking the backchannel logout (see below) for all relevant client_id's)
+provider forward back to `features.logout.end_provider_session.post_logout_redirect_uri` (which should be `eas` directly exposed `/oauth/end-session-redirect` endpoint) ->
+originally requested `redirect_uri` is parsed from encrypted `state` and finally browser is redirected to final destination
+```
+
+- https://openid.net/specs/openid-connect-rpinitiated-1_0.html
+
+### Backchannel (`oidc`)
+
+`backchannel` logout is a feature where logouts that occur with the provider
+are propogated down immediately any/all oidc `client_id`'s that have been
+configured to support the feature implementing a form of single logout.
+
+#### Considerations
+
+Typically, providers only allow you register a single `backchannel` URI. As
+such (this may seem obvious) proper utilization of the feature is only
+available when a `cliend_id` with your provider maps to a single deployment of
+`eas`. If you share a `client_id` that spans multiple `eas` deployments you
+cannot effectively leverage the `backchannel` logout feature.
+
+Due to the unique approach of `eas` and the various configuration possibilities
+when `backchannel` logouts occur the `tokens` are **NOT** revoked with the
+provider immediately but will be revoked the first time a user tries to access
+a relevant `eas`-secured service. Note that the `eas` session is effectively
+revoked immediately but if the tokens are being used downstream of `eas` to
+access other services, then the tokens will remain unrevoked until the user
+accesses an `eas` backed service which will finalize the `backchannel` logout
+process revoking the `tokens` with the provider.
+
+If your store (ie: redis) does not persist to disk then `backchannel` support
+not be effective in the case of catostrophic failure/restart of the store.
+
+#### Configuration
+
+For `backchannel` logout to work, the `eas` must be directly exposed to the
+provider. The `/oauth/backchannel-logout` endpoint of `eas` will be invoked by
+the provider (ie: `https://eas.example.com/oauth/backchannel-logout?...`).
+
+1. Create a `backchannel_config_token` in a similar fashion as a `config_token`
+   is created. See `bin/generate-backchannel-config-token.js`.
+
+1. Use the `backchannel_config_token` generated above to register the
+   `backchannel` logout URL with your provider. ie:
+   `https://eas.example.com/oauth/backchannel-logout?backchannel_config_token=<generated token>`
+
+1. In your `config_token` ensure the `backchannel` feature has been enabled. If
+   you wish to force this value and/or set defaults you may use the env var
+   `EAS_BACKCHANNEL_LOGOUT_CONFIG`
+
+```
+env EAS_BACKCHANNEL_LOGOUT_CONFIG syntax
+
+default/forced values can be true/false and/or omitted
+
+The value of `forced` **IS** the forced value, not if forcing
+is enabled/disabled. If you do not wish to force a value omit
+the `forced` key in your config.
+
+Precidence is given to issuer specific keys over _fallback if present.
+
+{
+  "enabled": {
+    "_fallback": {
+      "default": true,
+      "forced": true
+    },
+    "issuers": {
+      "some issuer": {
+        "default": true,
+        "forced": true
+      },
+      "https://<keycloak>/auth/realms/<my realm>": {
+        "default": true,
+        "forced": true
+      }
+      ...
+    }
+  },
+  "ttl": {
+    ...same syntax as 'enabled' key, value of default/forced should be # of seconds to retain logout entries in the store
+  }
+}
+
+# example: backchannel support enabled unconditionally
+{
+  "enabled": {
+    "_fallback": {
+      "forced": true
+    }
+  }
+}
+
+# example: backchannel support disabled unconditionally
+{
+  "enabled": {
+    "_fallback": {
+      "forced": false
+    }
+  }
+}
+
+# example: backchannel support enabled unconditionally for specific issuer
+{
+  "enabled": {
+    "issuers": {
+      "myissuer": {
+        "forced": true
+      }
+    }
+  }
+}
+
+# example: backchannel support relagated to `config_token` unless the value is not explicitly set
+# otherwise default to off
+{
+  "enabled": {
+    "_fallback": {
+      "default": false
+    }
+  }
+}
+```
+
+- https://openid.net/specs/openid-connect-backchannel-1_0.html

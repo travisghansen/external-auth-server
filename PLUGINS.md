@@ -341,7 +341,7 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
     // - https://keycloak.discourse.group/t/admin-url-not-called-when-user-logs-out/4163/8
     custom_authorization_code_parameters: {},
 
-    // customer static refresh URL parameters
+    // custom static refresh URL parameters
     custom_refresh_parameters: {},
 
     // custom static revoke URL parameters
@@ -546,7 +546,7 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
     // - https://keycloak.discourse.group/t/admin-url-not-called-when-user-logs-out/4163/8
     custom_authorization_code_parameters: {},
 
-    // customer static refresh URL parameters
+    // custom static refresh URL parameters
     custom_refresh_parameters: {},
 
     // custom static revoke URL parameters

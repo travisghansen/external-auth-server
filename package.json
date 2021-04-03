@@ -17,7 +17,7 @@
   "dependencies": {
     "body-parser": "^1.19.0",
     "bunyan": "^1.8.15",
-    "cache-manager": "^3.4.1",
+    "cache-manager": "^3.4.3",
     "cache-manager-fs": "^1.0.8",
     "cache-manager-fs-hash": "0.0.9",
     "cache-manager-ioredis": "^2.1.0",

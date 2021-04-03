@@ -77,6 +77,7 @@ const STATE_CACHE_PREFIX = "state:oauth:";
 const STATE_CACHE_EXPIRY = "43200"; //12 hours
 
 const BACKCHANNEL_LOGOUT_CACHE_PREFIX = "bachchannel_logout:oauth:";
+const BACKCHANNEL_LOGOUT_DEFAULT_TTL = 2678400; //31 days
 
 let initialized = false;
 
@@ -456,9 +457,11 @@ async function generate_backchannel_logout_key(server, token) {
    * and sub are present as sid already guarenteed to be unique
    */
 
+  // https://openid.net/specs/openid-connect-backchannel-1_0.html#BCActions
   // the ordering here is incredibly important as the *exact* same logic
   // should be used/checked on the other side of the equation
-  let lock_key = { iss: token.iss, aud: token.aud };
+  //let lock_key = { iss: token.iss, aud: token.aud };
+  let lock_key = { iss: token.iss };
   if (token.hasOwnProperty("sid")) {
     // create a sid-based lock
     lock_key.sid = token.sid;
@@ -557,153 +560,234 @@ class BaseOauthPlugin extends BasePlugin {
           body: req.body,
         });
 
-        let backchannel_config_token = server.utils.decrypt(
-          issuer_encrypt_secret,
-          req.query.backchannel_config_token,
-          "hex"
-        );
-        backchannel_config_token = jwt.verify(
-          backchannel_config_token,
-          issuer_sign_secret
-        );
-
-        server.logger.silly(
-          "backchannel_config_token: %j",
-          backchannel_config_token
-        );
-
-        const issuer = await get_oauth_issuer(
-          backchannel_config_token.eas.issuer
-        );
-        let jwt_secret = issuer.jwks_uri;
-
-        function getKey(header, callback) {
-          let client;
-          if (
-            jwt_secret.startsWith("http://") ||
-            jwt_secret.startsWith("https://")
-          ) {
-            client = jwksClient({
-              jwksUri: jwt_secret,
-            });
-
-            client.getSigningKey(header.kid, function (err, key) {
-              if (err) {
-                callback(err, null);
-              } else {
-                const signingKey = key.publicKey || key.rsaPublicKey;
-                callback(null, signingKey);
-              }
-            });
-          } else {
-            callback(null, jwt_secret);
-          }
-        }
-
-        /**
-         * If the logout succeeded, the RP MUST respond with HTTP 200 OK. If
-         * the logout request was invalid, the RP MUST respond with HTTP 400
-         * Bad Request. If the logout failed, the RP MUST respond with 501
-         * Not Implemented. If the local logout succeeded but some downstream
-         * logouts have failed, the RP MUST respond with HTTP 504 Gateway
-         * Timeout.
-         *
-         * The RP's response SHOULD include Cache-Control directives keeping
-         * the response from being cached to prevent cached responses from
-         * interfering with future logout requests. It is RECOMMENDED that
-         * these directives be used:
-         *
-         * Cache-Control: no-cache, no-store
-         * Pragma: no-cache
-         */
         try {
-          /**
-           * Upon receiving a logout request at the back-channel logout URI, the RP MUST validate the Logout Token as follows:
-           * If the Logout Token is encrypted, decrypt it using the keys and algorithms that the Client specified during Registration that the OP was to use to encrypt ID Tokens. If ID Token encryption was negotiated with the OP at Registration time and the Logout Token is not encrypted, the RP SHOULD reject it.
-           * Validate the Logout Token signature in the same way that an ID Token signature is validated, with the following refinements.
-           * Validate the iss, aud, and iat Claims in the same way they are validated in ID Tokens.
-           * Verify that the Logout Token contains a sub Claim, a sid Claim, or both.
-           * Verify that the Logout Token contains an events Claim whose value is JSON object containing the member name http://schemas.openid.net/event/backchannel-logout.
-           * Verify that the Logout Token does not contain a nonce Claim.
-           * Optionally verify that another Logout Token with the same jti value has not been recently received.
-           * Optionally verify that the iss Logout Token Claim matches the iss Claim in an ID Token issued for the current session or a recent session of this RP with the OP.
-           * Optionally verify that any sub Logout Token Claim matches the sub Claim in an ID Token issued for the current session or a recent session of this RP with the OP.
-           * Optionally verify that any sid Logout Token Claim matches the sid Claim in an ID Token issued for the current session or a recent session of this RP with the OP.
-           * If any of the validation steps fails, reject the Logout Token and return an HTTP 400 Bad Request error. Otherwise, proceed to perform the logout actions.
-           */
-          let logout_token = req.body.logout_token;
+          if (!req.query.backchannel_config_token) {
+            throw new Error("missing backchannel_config_token");
+          }
 
-          //logout_token = jwt.decode(logout_token);
-          // validate the logout_token as per spec
-          logout_token = await new Promise((resolve, reject) => {
-            jwt.verify(
-              logout_token,
-              getKey,
-              {
-                audience: backchannel_config_token.eas.client.client_id,
-                issuer: issuer.issuer,
-              },
-              (err, decoded) => {
+          let backchannel_config_token = server.utils.decrypt(
+            server.secrets.config_token_encrypt_secret,
+            req.query.backchannel_config_token
+          );
+          backchannel_config_token = jwt.verify(
+            backchannel_config_token,
+            server.secrets.config_token_sign_secret
+          );
+
+          server.logger.silly(
+            "backchannel revoke using backchannel_config_token: %j",
+            backchannel_config_token
+          );
+
+          const issuer = await get_oauth_issuer(
+            backchannel_config_token.eas.issuer
+          );
+          let jwt_secret = issuer.jwks_uri;
+
+          function getKey(header, callback) {
+            let client;
+            if (
+              jwt_secret.startsWith("http://") ||
+              jwt_secret.startsWith("https://")
+            ) {
+              client = jwksClient({
+                jwksUri: jwt_secret,
+              });
+
+              client.getSigningKey(header.kid, function (err, key) {
                 if (err) {
-                  reject(err);
+                  callback(err, null);
+                } else {
+                  const signingKey = key.publicKey || key.rsaPublicKey;
+                  callback(null, signingKey);
                 }
-                resolve(decoded);
+              });
+            } else {
+              callback(null, jwt_secret);
+            }
+          }
+
+          /**
+           * If the logout succeeded, the RP MUST respond with HTTP 200 OK. If
+           * the logout request was invalid, the RP MUST respond with HTTP 400
+           * Bad Request. If the logout failed, the RP MUST respond with 501
+           * Not Implemented. If the local logout succeeded but some downstream
+           * logouts have failed, the RP MUST respond with HTTP 504 Gateway
+           * Timeout.
+           *
+           * The RP's response SHOULD include Cache-Control directives keeping
+           * the response from being cached to prevent cached responses from
+           * interfering with future logout requests. It is RECOMMENDED that
+           * these directives be used:
+           *
+           * Cache-Control: no-cache, no-store
+           * Pragma: no-cache
+           */
+          try {
+            /**
+             * Upon receiving a logout request at the back-channel logout URI, the RP MUST validate the Logout Token as follows:
+             * If the Logout Token is encrypted, decrypt it using the keys and algorithms that the Client specified during Registration that the OP was to use to encrypt ID Tokens. If ID Token encryption was negotiated with the OP at Registration time and the Logout Token is not encrypted, the RP SHOULD reject it.
+             * Validate the Logout Token signature in the same way that an ID Token signature is validated, with the following refinements.
+             * Validate the iss, aud, and iat Claims in the same way they are validated in ID Tokens.
+             * Verify that the Logout Token contains a sub Claim, a sid Claim, or both.
+             * Verify that the Logout Token contains an events Claim whose value is JSON object containing the member name http://schemas.openid.net/event/backchannel-logout.
+             * Verify that the Logout Token does not contain a nonce Claim.
+             * Optionally verify that another Logout Token with the same jti value has not been recently received.
+             * Optionally verify that the iss Logout Token Claim matches the iss Claim in an ID Token issued for the current session or a recent session of this RP with the OP.
+             * Optionally verify that any sub Logout Token Claim matches the sub Claim in an ID Token issued for the current session or a recent session of this RP with the OP.
+             * Optionally verify that any sid Logout Token Claim matches the sid Claim in an ID Token issued for the current session or a recent session of this RP with the OP.
+             * If any of the validation steps fails, reject the Logout Token and return an HTTP 400 Bad Request error. Otherwise, proceed to perform the logout actions.
+             */
+            let logout_token = req.body.logout_token;
+
+            //logout_token = jwt.decode(logout_token);
+            // validate the logout_token as per spec
+            logout_token = await new Promise((resolve, reject) => {
+              jwt.verify(
+                logout_token,
+                getKey,
+                {
+                  audience: backchannel_config_token.eas.client.client_id,
+                  issuer: issuer.issuer,
+                },
+                (err, decoded) => {
+                  if (err) {
+                    reject(err);
+                  }
+                  resolve(decoded);
+                }
+              );
+            });
+
+            server.logger.info(
+              "backchannel revoke using logout_token: %j",
+              logout_token
+            );
+
+            if (!logout_token.hasOwnProperty("iat")) {
+              throw new Error("logout_token missing iat claim");
+            }
+
+            if (logout_token.iat > Date.now() / 1000) {
+              throw new Error("logout_token issued in the future");
+            }
+
+            if (!logout_token.hasOwnProperty("events")) {
+              throw new Error("logout_token missing events claim");
+            }
+
+            if (
+              !logout_token.events.hasOwnProperty(
+                "http://schemas.openid.net/event/backchannel-logout"
+              )
+            ) {
+              throw new Error(
+                'logout_token events claim missing "http://schemas.openid.net/event/backchannel-logout" property'
+              );
+            }
+
+            if (logout_token.hasOwnProperty("nonce")) {
+              throw new Error("logout_token contains nonce claim");
+            }
+
+            let backchannel_logout_key = await generate_backchannel_logout_key(
+              server,
+              logout_token
+            );
+
+            let ttl;
+            let bc_config;
+            if (process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG) {
+              bc_config = JSON.parse(process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG);
+            }
+
+            // checked forced values
+            if (
+              typeof ttl === "undefined" &&
+              process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG
+            ) {
+              if (
+                bc_config.hasOwnProperty("ttl") &&
+                bc_config.ttl.hasOwnProperty("issuers") &&
+                bc_config.ttl.issuers.hasOwnProperty(`${issuer.issuer}`) &&
+                bc_config.ttl.issuers[issuer.issuer].hasOwnProperty("forced")
+              ) {
+                ttl = bc_config.ttl.issuers[issuer.issuer].forced;
               }
+            }
+
+            if (
+              typeof ttl === "undefined" &&
+              process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG
+            ) {
+              if (
+                bc_config.hasOwnProperty("ttl") &&
+                bc_config.ttl.hasOwnProperty("_fallback") &&
+                bc_config.ttl["_fallback"].hasOwnProperty("forced")
+              ) {
+                ttl = bc_config.ttl["_fallback"].forced;
+              }
+            }
+
+            if (
+              typeof ttl === "undefined" &&
+              backchannel_config_token.eas.hasOwnProperty("ttl")
+            ) {
+              ttl = backchannel_config_token.eas.ttl;
+            }
+
+            // checked default values
+            if (
+              typeof ttl === "undefined" &&
+              process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG
+            ) {
+              if (
+                bc_config.hasOwnProperty("ttl") &&
+                bc_config.ttl.hasOwnProperty("issuers") &&
+                bc_config.ttl.issuers.hasOwnProperty(`${issuer.issuer}`) &&
+                bc_config.ttl.issuers[issuer.issuer].hasOwnProperty("default")
+              ) {
+                ttl = bc_config.ttl.issuers[issuer.issuer].default;
+              }
+
+              if (
+                bc_config.hasOwnProperty("ttl") &&
+                bc_config.ttl.hasOwnProperty("_fallback") &&
+                bc_config.ttl["_fallback"].hasOwnProperty("default")
+              ) {
+                ttl = bc_config.ttl["_fallback"].default;
+              }
+            }
+
+            if (typeof ttl === "undefined") {
+              ttl = BACKCHANNEL_LOGOUT_DEFAULT_TTL;
+            }
+
+            server.logger.debug("backchannel_logout ttl: %s", ttl);
+
+            // create a lock entry in the store
+            await set_backchannel_logout_data(
+              server,
+              backchannel_logout_key,
+              { iat: Date.now() / 1000, ttl, logout_token },
+              ttl
             );
-          });
 
-          server.logger.verbose("logout_token: %j", logout_token);
-
-          if (!logout_token.hasOwnProperty("iat")) {
-            throw new Error("logout_token missing iat claim");
+            res.statusCode = 200;
+            res.setHeader("Cache-Control", "no-cache, no-store");
+            res.setHeader("Pragma", "no-cache");
+            res.end();
+            return;
+          } catch (e) {
+            server.logger.error(e);
+            res.statusCode = 400;
+            res.end();
           }
-
-          if (logout_token.iat > Date.now() / 1000) {
-            throw new Error("logout_token issued in the future");
-          }
-
-          if (!logout_token.hasOwnProperty("events")) {
-            throw new Error("logout_token missing events claim");
-          }
-
-          if (
-            !logout_token.events.hasOwnProperty(
-              "http://schemas.openid.net/event/backchannel-logout"
-            )
-          ) {
-            throw new Error(
-              'logout_token events claim missing "http://schemas.openid.net/event/backchannel-logout" property'
-            );
-          }
-
-          if (logout_token.hasOwnProperty("nonce")) {
-            throw new Error("logout_token contains nonce claim");
-          }
-
-          let backchannel_logout_key = await generate_backchannel_logout_key(
-            server,
-            logout_token
-          );
-
-          let ttl = backchannel_config_token.eas.ttl;
-          // create a lock entry in the store
-          // TODO: determine appropriate ttl
-          await set_backchannel_logout_data(
-            server,
-            backchannel_logout_key,
-            { iat: Date.now() / 1000, ttl, logout_token },
-            ttl
-          );
-
-          res.statusCode = 200;
-          res.setHeader("Cache-Control", "no-cache, no-store");
-          res.setHeader("Pragma", "no-cache");
-          res.end();
-          return;
         } catch (e) {
           server.logger.error(e);
-          res.statusCode = 400;
+          res.statusCode = 503;
           res.end();
+          return;
         }
       });
 
@@ -721,6 +805,7 @@ class BaseOauthPlugin extends BasePlugin {
   async verify(configToken, req, res) {
     const plugin = this;
     const store = plugin.server.store;
+    const issuer = await plugin.get_issuer();
     const client = await plugin.get_client();
     const pluginStrategy =
       plugin.constructor.name == "OpenIdConnectPlugin" ? "oidc" : "oauth2";
@@ -1156,7 +1241,7 @@ class BaseOauthPlugin extends BasePlugin {
        */
       if (
         pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-        plugin.config.features.logout.backchannel.enabled
+        (await plugin.get_backchannel_enabled())
       ) {
         let backchannel_logout_key = await generate_backchannel_logout_key(
           plugin.server,
@@ -1284,7 +1369,7 @@ class BaseOauthPlugin extends BasePlugin {
            */
           if (
             pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-            plugin.config.features.logout.backchannel.enabled
+            (await plugin.get_backchannel_enabled())
           ) {
             /**
              * only id_token is guaranteed to be a jwt
@@ -1532,6 +1617,69 @@ class BaseOauthPlugin extends BasePlugin {
         }
         break;
     }
+  }
+
+  async get_backchannel_enabled() {
+    const plugin = this;
+    const issuer = await plugin.get_issuer();
+
+    /**
+     * https://openid.net/specs/openid-connect-backchannel-1_0.html#BCActions
+     * the above metions the action should be for the iss and not iss/aud
+     * combination, which makes the global config extremely relevant
+     */
+
+    let bc_config;
+    if (process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG) {
+      bc_config = JSON.parse(process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG);
+    }
+
+    // checked forced values
+    if (process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG) {
+      if (
+        bc_config.hasOwnProperty("enabled") &&
+        bc_config.enabled.hasOwnProperty("issuers") &&
+        bc_config.enabled.issuers.hasOwnProperty(`${issuer.issuer}`) &&
+        bc_config.enabled.issuers[issuer.issuer].hasOwnProperty("forced")
+      ) {
+        return Boolean(bc_config.enabled.issuers[issuer.issuer].forced);
+      }
+
+      if (
+        bc_config.hasOwnProperty("enabled") &&
+        bc_config.enabled.hasOwnProperty("_fallback") &&
+        bc_config.enabled["_fallback"].hasOwnProperty("forced")
+      ) {
+        return Boolean(bc_config.enabled["_fallback"].forced);
+      }
+    }
+
+    // use token value if present
+    if (plugin.config.features.logout.backchannel.hasOwnProperty("enabled")) {
+      return Boolean(plugin.config.features.logout.backchannel.enabled);
+    }
+
+    // checked default values
+    if (process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG) {
+      if (
+        bc_config.hasOwnProperty("enabled") &&
+        bc_config.enabled.hasOwnProperty("issuers") &&
+        bc_config.enabled.issuers.hasOwnProperty(`${issuer.issuer}`) &&
+        bc_config.enabled.issuers[issuer.issuer].hasOwnProperty("default")
+      ) {
+        return Boolean(bc_config.enabled.issuers[issuer.issuer].default);
+      }
+
+      if (
+        bc_config.hasOwnProperty("enabled") &&
+        bc_config.enabled.hasOwnProperty("_fallback") &&
+        bc_config.enabled["_fallback"].hasOwnProperty("default")
+      ) {
+        return Boolean(bc_config.enabled["_fallback"].default);
+      }
+    }
+
+    return false;
   }
 
   async get_session_data(session_id) {
@@ -1870,6 +2018,7 @@ class BaseOauthPlugin extends BasePlugin {
 
   async token_set_assertions(tokenSet, session_id = null) {
     const plugin = this;
+    const issuer = await plugin.get_issuer();
     const client = await plugin.get_client();
 
     const pluginStrategy =
@@ -1933,7 +2082,6 @@ class BaseOauthPlugin extends BasePlugin {
       pluginStrategy == PLUGIN_STRATEGY_OIDC &&
       plugin.config.assertions.iss
     ) {
-      const issuer = await plugin.get_issuer();
       if (!tokenset_issuer_match(tokenSet, issuer.issuer)) {
         plugin.server.logger.verbose("tokenSet has a mismatch issuer");
         return false;
@@ -1945,8 +2093,6 @@ class BaseOauthPlugin extends BasePlugin {
       plugin.config.features.introspect_access_token &&
       tokenSet.access_token
     ) {
-      const issuer = await plugin.get_issuer();
-
       if (!issuer.introspection_endpoint) {
         plugin.server.logger.error("issuer does not support introspection");
         throw new Error("issuer does not support introspection");
