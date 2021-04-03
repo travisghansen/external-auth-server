@@ -4,6 +4,7 @@
 - prometheus
 - refactor naming of store/cache/etc
 - force `EAS_ENCRYPT_IV_SECRET` parameter and document (`FLUSHDB` in redis to clear all old sessions)
+- Add `EAS_ONE_POINT_ZERO` env var to ensure users have dealt with deprecated features
 
 # 0.99.0
 
@@ -81,6 +82,21 @@
 - update header injection to use generic query function
 - only get parentRequestInfo once in server.js and more performance enhancements
 - store `state` server-side in `oauth2`/`oidc` plugins
+
+# 0.10.0
+
+Release 2021-04-03
+
+- support `custom_authorization_code_parameters` in `oauth2`/`oidc`
+- support `custom_refresh_parameters` in `oauth2`/`oidc`
+- support `custom_revoke_parameters` in `oauth2`/`oidc`
+- support `oauth2`/`oidc` single logout (SLO)
+  - revoke tokens when logout initiated within `eas`
+  - end the session with the provider when logout initiated within `eas`
+  - `backchannel_logout` support for logouts triggered at the provider
+- use multistage docker build process to shrink image size
+- support `oidc` logic in the `jwt` plugin
+- bump dependencies
 
 # 0.9.1
 

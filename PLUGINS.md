@@ -654,6 +654,8 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
           // details: https://github.com/travisghansen/external-auth-server/blob/master/OAUTH_PLUGINS.md#logout
           // https://openid.net/specs/openid-connect-backchannel-1_0.html
           "backchannel": {
+            // NOTE: this value can be altered instance-wide with the env var EAS_BACKCHANNEL_LOGOUT_CONFIG
+            // see OAUTH_PLUGINS.md doc above for more details
             "enabled": false
           },
         },
