@@ -156,17 +156,91 @@ Verifies a `jwt` token sent as a `Bearer` token in the `Authorization` header.
     header_name: "Authorization", // optional
     scheme: "Bearer", // optional, if using a custom header_name without a scheme leave it blank
     config: {
-        secret: "", // either the secret or full public key PEM data or jwks URL
+        secret: "", // either the secret or full public key PEM data or jwks URL or empty if oidc features are enabled and jwks is available
         options: {
             ...
             see details here: https://www.npmjs.com/package/jsonwebtoken#jwtverifytoken-secretorpublickey-options-callback
         }
+    },
+    oidc: {
+      /**
+      * enable oidc based features
+      * enabling this assumes your oidc provider issues access_tokens as jwts (not required in the spec)
+      * and that you want to leverage introspection and/or userinfo features
+      */
+      enabled: false,
+      issuer: {
+          /**
+          * via discovery (takes preference)
+          */
+          //discover_url: "https://<provider>/.well-known/openid-configuration",
+
+          /**
+          * via manual definition
+          */
+          //issuer: 'https://accounts.google.com',
+          //authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+          //token_endpoint: 'https://www.googleapis.com/oauth2/v4/token',
+          //userinfo_endpoint: 'https://www.googleapis.com/oauth2/v3/userinfo',
+          //jwks_uri: 'https://www.googleapis.com/oauth2/v3/certs',
+      },
+      client: {
+          /**
+          * manually defined (preferred)
+          */
+          client_id: "...",
+          client_secret: "..."
+
+          /**
+          * via client registration
+          */
+          //registration_client_uri: "",
+          //registration_access_token: "",
+      },
+      features: {
+        /**
+        * check token validity with provider during assertion process
+        */
+        introspect_access_token: false,
+
+        /**
+        * if introspect_access_token is true, how long in seconds to cache the result
+        * if not a number greater than 0, the introspection endpoint will be requested *every* verify request
+        */
+        introspect_expiry: 0,
+
+        /**
+        * fetch userinfo and include as X-Userinfo header to backing service
+        */
+        fetch_userinfo: true,
+
+        /**
+        * how frequently to refresh userinfo data
+        * true = expire when the token expires
+        * false = always refresh (ie: do NOT cache)
+        * num seconds = expire after given number of seconds
+        */
+        userinfo_expiry: 30,
+      }
     },
     assertions: {
         /**
         * custom id_token assertions
         */
         id_token: [
+            {
+                ...
+                see ASSERTIONS.md for details
+            },
+            {
+                ...
+            }
+        ],
+
+        /**
+        * custom userinfo assertions (only when oidc is enabled with fetch_userinfo)
+        */
+        userinfo: [
             {
                 ...
                 see ASSERTIONS.md for details
@@ -254,10 +328,25 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         client_secret: "..."
     },
     scopes: [],
+
     // custom static authorization URL parameters
     // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
     // ie: https://developers.google.com/identity/protocols/OpenIDConnect#refresh-tokens
     custom_authorization_parameters: {},
+
+    // custom static authorization code URL parameters
+    // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
+    // ie:
+    // - https://stackoverflow.com/questions/50143342/keycloak-backchannel-logout/63517092#63517092
+    // - https://keycloak.discourse.group/t/admin-url-not-called-when-user-logs-out/4163/8
+    custom_authorization_code_parameters: {},
+
+    // custom static refresh URL parameters
+    custom_refresh_parameters: {},
+
+    // custom static revoke URL parameters
+    custom_revoke_parameters: {},
+
     /**
     * static redirect URI
     * if your oauth provider does not support wildcards place the URL configured in the provider (that will return to this proper service) here
@@ -342,7 +431,16 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
                 fetch_organizations: true,
                 fetch_emails: true
             }
-        }
+        },
+
+        logout: {
+          /**
+          * Tokens to revoke with the provider on logout
+          * can be id_token, access_token, and refresh_token depending on provider support
+          * https://tools.ietf.org/html/rfc7009
+          */
+          revoke_tokens_on_logout: [],
+        },
     },
     assertions: {
         /**
@@ -435,10 +533,25 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //registration_access_token: "",
     },
     scopes: ["openid", "email", "profile"], // must include openid
+
     // custom static authorization URL parameters
     // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
     // ie: https://developers.google.com/identity/protocols/OpenIDConnect#refresh-tokens
     custom_authorization_parameters: {},
+
+    // custom static authorization code URL parameters
+    // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
+    // ie:
+    // - https://stackoverflow.com/questions/50143342/keycloak-backchannel-logout/63517092#63517092
+    // - https://keycloak.discourse.group/t/admin-url-not-called-when-user-logs-out/4163/8
+    custom_authorization_code_parameters: {},
+
+    // custom static refresh URL parameters
+    custom_refresh_parameters: {},
+
+    // custom static revoke URL parameters
+    custom_revoke_parameters: {},
+
     /**
     * static redirect URI
     * if your oauth provider does not support wildcards place the URL configured in the provider (that will return to this proper service) here
@@ -521,7 +634,31 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         *
         * possible values are id_token, access_token, or refresh_token
         */
-        authorization_token: "access_token"
+        authorization_token: "access_token",
+
+        logout: {
+          /**
+          * Tokens to revoke with the provider on logout
+          * can be id_token, access_token, and refresh_token depending on provider support
+          * https://tools.ietf.org/html/rfc7009
+          */
+          revoke_tokens_on_logout: [],
+
+          // details: https://github.com/travisghansen/external-auth-server/blob/master/OAUTH_PLUGINS.md#logout
+          // https://openid.net/specs/openid-connect-rpinitiated-1_0.html
+          "end_provider_session": {
+            "enabled": false,
+            "post_logout_redirect_uri": "https://eas.example.com/oauth/end-session-redirect"
+          },
+
+          // details: https://github.com/travisghansen/external-auth-server/blob/master/OAUTH_PLUGINS.md#logout
+          // https://openid.net/specs/openid-connect-backchannel-1_0.html
+          "backchannel": {
+            // NOTE: this value can be altered instance-wide with the env var EAS_BACKCHANNEL_LOGOUT_CONFIG
+            // see OAUTH_PLUGINS.md doc above for more details
+            "enabled": false
+          },
+        },
     },
     assertions: {
         /**
@@ -708,6 +845,7 @@ inject a static `jwt` to a backing service.
 
 ```
 {
-    type: "noop"
+    type: "noop",
+    status_code: 200 // optional, can be used with pcb, etc to conditionally return failure codes
 }
 ```

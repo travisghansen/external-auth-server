@@ -1,6 +1,7 @@
 const { Assertion } = require("../../assertion");
 const { BasePlugin } = require("../../plugin");
 const { Issuer, custom } = require("openid-client");
+const jwksClient = require("jwks-rsa");
 const jwt = require("jsonwebtoken");
 const queryString = require("query-string");
 const request = require("request");
@@ -11,6 +12,41 @@ custom.setHttpOptionsDefaults({
   timeout: 10000,
   headers: {},
 });
+
+if (process.env.DEBUG_OIDC) {
+  custom.setHttpOptionsDefaults({
+    hooks: {
+      beforeRequest: [
+        (options) => {
+          console.log(
+            "--> %s %s",
+            options.method.toUpperCase(),
+            options.url.href
+          );
+          console.log("--> HEADERS %o", options.headers);
+          if (options.body) {
+            console.log("--> BODY %s", options.body);
+          }
+        },
+      ],
+      afterResponse: [
+        (response) => {
+          console.log(
+            "<-- %i FROM %s %s",
+            response.statusCode,
+            response.request.options.method.toUpperCase(),
+            response.request.options.url.href
+          );
+          console.log("<-- HEADERS %o", response.headers);
+          if (response.body) {
+            console.log("<-- BODY %s", response.body);
+          }
+          return response;
+        },
+      ],
+    },
+  });
+}
 
 const exit_failure = function (message = "", code = 1) {
   if (message) {
@@ -40,6 +76,9 @@ const CLIENT_CACHE_DURATION = 43200 * 1000;
 const STATE_CACHE_PREFIX = "state:oauth:";
 const STATE_CACHE_EXPIRY = "43200"; //12 hours
 
+const BACKCHANNEL_LOGOUT_CACHE_PREFIX = "bachchannel_logout:oauth:";
+const BACKCHANNEL_LOGOUT_DEFAULT_TTL = 2678400; //31 days
+
 let initialized = false;
 
 /**
@@ -50,6 +89,13 @@ let initialized = false;
 function initialize_common_config_options(config) {
   config.custom_authorization_parameters =
     config.custom_authorization_parameters || {};
+
+  config.custom_authorization_code_parameters =
+    config.custom_authorization_code_parameters || {};
+
+  config.custom_refresh_parameters = config.custom_refresh_parameters || {};
+
+  config.custom_revoke_parameters = config.custom_revoke_parameters || {};
 
   if (!config.cookie) {
     config.cookie = {};
@@ -109,6 +155,18 @@ function initialize_common_config_options(config) {
 
   if (!config.features) {
     config.features = {};
+  }
+
+  if (!config.features.logout) {
+    config.features.logout = {};
+  }
+
+  if (!config.features.logout.end_provider_session) {
+    config.features.logout.end_provider_session = {};
+  }
+
+  if (!config.features.logout.backchannel) {
+    config.features.logout.backchannel = {};
   }
 
   if (!config.assertions) {
@@ -225,6 +283,202 @@ function tokenset_refresh_expire_at(tokenSet) {
   return null;
 }
 
+/**
+ * Get issuer instance
+ *
+ * @param {*} options
+ * @returns
+ */
+async function get_oauth_issuer(options) {
+  const discover_url = options.discover_url;
+  let issuer;
+
+  if (discover_url) {
+    issuer = await Issuer.discover(discover_url);
+    return issuer;
+  } else {
+    issuer = new Issuer(options);
+    return issuer;
+  }
+}
+
+/**
+ * Get client instance
+ *
+ * @param {*} options
+ * @param {*} issuer
+ * @returns
+ */
+async function get_oauth_client(options, issuer) {
+  let client;
+
+  if (options.client_id && options.client_secret) {
+    client = new issuer.Client({
+      client_id: options.client_id,
+      client_secret: options.client_secret,
+    });
+    client.CLOCK_TOLERANCE = DEFAULT_CLIENT_CLOCK_TOLERANCE;
+    return client;
+  } else if (
+    options.registration_client_uri &&
+    options.registration_access_token
+  ) {
+    client = await issuer.Client.fromUri(
+      options.registration_client_uri,
+      options.registration_access_token
+    );
+
+    client.CLOCK_TOLERANCE = DEFAULT_CLIENT_CLOCK_TOLERANCE;
+    return client;
+  } else {
+    throw new Error("invalid client configuration");
+  }
+}
+
+/**
+ * Retrieve backchannel_logout_data (if any) from the store
+ *
+ * @param {*} server
+ * @param {*} key
+ * @returns
+ */
+async function get_backchannel_logout_data(server, key) {
+  const store = server.store;
+  server.logger.verbose("retrieving backchannel_logout data: %s", key);
+
+  let data = await store.get(BACKCHANNEL_LOGOUT_CACHE_PREFIX + key);
+
+  server.logger.verbose(
+    "retrieved encrypted backchannel_logout data: %s",
+    data
+  );
+
+  if (!data) {
+    return false;
+  }
+
+  data = server.utils.decrypt(server.secrets.session_encrypt_secret, data);
+
+  if (!data) {
+    server.logger.verbose("failed to decrypt backchannel_logout data");
+    return false;
+  }
+
+  server.logger.debug("backchannel_logout data: %s", data);
+  data = JSON.parse(data);
+
+  return data;
+}
+
+/**
+ * This should only ever get invoked directly by the backchannel endpoint
+ * as updates need to be handled specially to not reset the ttl of the entry in
+ * the store.
+ *
+ * @param {*} server
+ * @param {*} key
+ * @param {*} data
+ * @param {*} ttl
+ */
+async function set_backchannel_logout_data(server, key, data, ttl = null) {
+  data.authenticated_sessions = data.authenticated_sessions || [];
+  await server.store.set(
+    BACKCHANNEL_LOGOUT_CACHE_PREFIX + key,
+    server.utils.encrypt(
+      server.secrets.session_encrypt_secret,
+      JSON.stringify(data)
+    ),
+    ttl
+  );
+}
+
+/**
+ * This function potentially has concurrency issues but the security risk
+ * should be 0. If a 2nd request comes in the last man wins leaving the first
+ * session in the dark needing to re-authenticate. The scope of concurrency
+ * should only ever be per iss/aud/sub||sid so extremely small but possible.
+ *
+ * @param {*} server
+ * @param {*} key
+ * @param {*} session_id
+ * @returns
+ */
+async function add_backchannel_logout_authenticated_session(
+  server,
+  key,
+  session_id
+) {
+  let data = await get_backchannel_logout_data(server, key);
+
+  // if no current logout data available move along
+  if (!data) {
+    return;
+  }
+
+  data.authenticated_sessions = data.authenticated_sessions || [];
+  data.authenticated_sessions.push(session_id);
+
+  let ttl = data.ttl;
+  let iat = data.iat;
+
+  if (ttl) {
+    ttl = ttl - (Date.now() / 1000 - iat);
+    if (ttl < 1) {
+      await delete_backchannel_logout_data(server, key);
+      return;
+    }
+  }
+
+  await set_backchannel_logout_data(server, key, data, ttl);
+}
+
+/**
+ * Unlikely to ever be used as the entry should have a ttl and delete itself.
+ *
+ * @param {*} server
+ * @param {*} key
+ */
+async function delete_backchannel_logout_data(server, key) {
+  if (key) {
+    await server.store.del(BACKCHANNEL_LOGOUT_CACHE_PREFIX + key);
+  }
+}
+
+/**
+ * common method to ensure the same syntax for logout keys
+ *
+ * @param {*} server
+ * @param {*} token
+ * @returns
+ */
+async function generate_backchannel_logout_key(server, token) {
+  /**
+   * purposely not using specific logic for situations where both sid
+   * and sub are present as sid already guarenteed to be unique
+   */
+
+  // https://openid.net/specs/openid-connect-backchannel-1_0.html#BCActions
+  // the ordering here is incredibly important as the *exact* same logic
+  // should be used/checked on the other side of the equation
+  //let lock_key = { iss: token.iss, aud: token.aud };
+  let lock_key = { iss: token.iss };
+  if (token.hasOwnProperty("sid")) {
+    // create a sid-based lock
+    lock_key.sid = token.sid;
+  } else if (token.hasOwnProperty("sub")) {
+    // create a sub-based lock
+    lock_key.sub = token.sub;
+  } else {
+    throw new Error("missing both sid and sub claims");
+  }
+
+  server.logger.verbose("backchannel_logout key object: %j", lock_key);
+  lock_key = server.utils.md5(JSON.stringify(lock_key));
+  server.logger.verbose("backchannel_logout key: %s", lock_key);
+
+  return lock_key;
+}
+
 class BaseOauthPlugin extends BasePlugin {
   static initialize(server) {
     if (!initialized) {
@@ -272,6 +526,271 @@ class BaseOauthPlugin extends BasePlugin {
         }
       });
 
+      server.WebServer.get("/oauth/end-session-redirect", (req, res) => {
+        server.logger.silly("%j", {
+          headers: req.headers,
+          body: req.body,
+        });
+
+        try {
+          let state = server.utils.decrypt(
+            issuer_encrypt_secret,
+            req.query.state,
+            "hex"
+          );
+          state = jwt.verify(state, issuer_sign_secret);
+          const redirect_uri = state.redirect_uri;
+          server.logger.verbose("state redirect uri: %j", redirect_uri);
+
+          res.statusCode = 302;
+          res.setHeader("Location", redirect_uri);
+          res.end();
+          return;
+        } catch (e) {
+          server.logger.error(e);
+          res.statusCode = 503;
+          res.end();
+        }
+      });
+
+      // https://openid.net/specs/openid-connect-backchannel-1_0.html
+      server.WebServer.post("/oauth/backchannel-logout", async (req, res) => {
+        server.logger.silly("%j", {
+          headers: req.headers,
+          body: req.body,
+        });
+
+        try {
+          if (!req.query.backchannel_config_token) {
+            throw new Error("missing backchannel_config_token");
+          }
+
+          let backchannel_config_token = server.utils.decrypt(
+            server.secrets.config_token_encrypt_secret,
+            req.query.backchannel_config_token
+          );
+          backchannel_config_token = jwt.verify(
+            backchannel_config_token,
+            server.secrets.config_token_sign_secret
+          );
+
+          server.logger.silly(
+            "backchannel revoke using backchannel_config_token: %j",
+            backchannel_config_token
+          );
+
+          const issuer = await get_oauth_issuer(
+            backchannel_config_token.eas.issuer
+          );
+          let jwt_secret = issuer.jwks_uri;
+
+          function getKey(header, callback) {
+            let client;
+            if (
+              jwt_secret.startsWith("http://") ||
+              jwt_secret.startsWith("https://")
+            ) {
+              client = jwksClient({
+                jwksUri: jwt_secret,
+              });
+
+              client.getSigningKey(header.kid, function (err, key) {
+                if (err) {
+                  callback(err, null);
+                } else {
+                  const signingKey = key.publicKey || key.rsaPublicKey;
+                  callback(null, signingKey);
+                }
+              });
+            } else {
+              callback(null, jwt_secret);
+            }
+          }
+
+          /**
+           * If the logout succeeded, the RP MUST respond with HTTP 200 OK. If
+           * the logout request was invalid, the RP MUST respond with HTTP 400
+           * Bad Request. If the logout failed, the RP MUST respond with 501
+           * Not Implemented. If the local logout succeeded but some downstream
+           * logouts have failed, the RP MUST respond with HTTP 504 Gateway
+           * Timeout.
+           *
+           * The RP's response SHOULD include Cache-Control directives keeping
+           * the response from being cached to prevent cached responses from
+           * interfering with future logout requests. It is RECOMMENDED that
+           * these directives be used:
+           *
+           * Cache-Control: no-cache, no-store
+           * Pragma: no-cache
+           */
+          try {
+            /**
+             * Upon receiving a logout request at the back-channel logout URI, the RP MUST validate the Logout Token as follows:
+             * If the Logout Token is encrypted, decrypt it using the keys and algorithms that the Client specified during Registration that the OP was to use to encrypt ID Tokens. If ID Token encryption was negotiated with the OP at Registration time and the Logout Token is not encrypted, the RP SHOULD reject it.
+             * Validate the Logout Token signature in the same way that an ID Token signature is validated, with the following refinements.
+             * Validate the iss, aud, and iat Claims in the same way they are validated in ID Tokens.
+             * Verify that the Logout Token contains a sub Claim, a sid Claim, or both.
+             * Verify that the Logout Token contains an events Claim whose value is JSON object containing the member name http://schemas.openid.net/event/backchannel-logout.
+             * Verify that the Logout Token does not contain a nonce Claim.
+             * Optionally verify that another Logout Token with the same jti value has not been recently received.
+             * Optionally verify that the iss Logout Token Claim matches the iss Claim in an ID Token issued for the current session or a recent session of this RP with the OP.
+             * Optionally verify that any sub Logout Token Claim matches the sub Claim in an ID Token issued for the current session or a recent session of this RP with the OP.
+             * Optionally verify that any sid Logout Token Claim matches the sid Claim in an ID Token issued for the current session or a recent session of this RP with the OP.
+             * If any of the validation steps fails, reject the Logout Token and return an HTTP 400 Bad Request error. Otherwise, proceed to perform the logout actions.
+             */
+            let logout_token = req.body.logout_token;
+
+            //logout_token = jwt.decode(logout_token);
+            // validate the logout_token as per spec
+            logout_token = await new Promise((resolve, reject) => {
+              jwt.verify(
+                logout_token,
+                getKey,
+                {
+                  audience: backchannel_config_token.eas.client.client_id,
+                  issuer: issuer.issuer,
+                },
+                (err, decoded) => {
+                  if (err) {
+                    reject(err);
+                  }
+                  resolve(decoded);
+                }
+              );
+            });
+
+            server.logger.info(
+              "backchannel revoke using logout_token: %j",
+              logout_token
+            );
+
+            if (!logout_token.hasOwnProperty("iat")) {
+              throw new Error("logout_token missing iat claim");
+            }
+
+            if (logout_token.iat > Date.now() / 1000) {
+              throw new Error("logout_token issued in the future");
+            }
+
+            if (!logout_token.hasOwnProperty("events")) {
+              throw new Error("logout_token missing events claim");
+            }
+
+            if (
+              !logout_token.events.hasOwnProperty(
+                "http://schemas.openid.net/event/backchannel-logout"
+              )
+            ) {
+              throw new Error(
+                'logout_token events claim missing "http://schemas.openid.net/event/backchannel-logout" property'
+              );
+            }
+
+            if (logout_token.hasOwnProperty("nonce")) {
+              throw new Error("logout_token contains nonce claim");
+            }
+
+            let backchannel_logout_key = await generate_backchannel_logout_key(
+              server,
+              logout_token
+            );
+
+            let ttl;
+            let bc_config;
+            if (process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG) {
+              bc_config = JSON.parse(process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG);
+            }
+
+            // checked forced values
+            if (
+              typeof ttl === "undefined" &&
+              process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG
+            ) {
+              if (
+                bc_config.hasOwnProperty("ttl") &&
+                bc_config.ttl.hasOwnProperty("issuers") &&
+                bc_config.ttl.issuers.hasOwnProperty(`${issuer.issuer}`) &&
+                bc_config.ttl.issuers[issuer.issuer].hasOwnProperty("forced")
+              ) {
+                ttl = bc_config.ttl.issuers[issuer.issuer].forced;
+              }
+            }
+
+            if (
+              typeof ttl === "undefined" &&
+              process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG
+            ) {
+              if (
+                bc_config.hasOwnProperty("ttl") &&
+                bc_config.ttl.hasOwnProperty("_fallback") &&
+                bc_config.ttl["_fallback"].hasOwnProperty("forced")
+              ) {
+                ttl = bc_config.ttl["_fallback"].forced;
+              }
+            }
+
+            if (
+              typeof ttl === "undefined" &&
+              backchannel_config_token.eas.hasOwnProperty("ttl")
+            ) {
+              ttl = backchannel_config_token.eas.ttl;
+            }
+
+            // checked default values
+            if (
+              typeof ttl === "undefined" &&
+              process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG
+            ) {
+              if (
+                bc_config.hasOwnProperty("ttl") &&
+                bc_config.ttl.hasOwnProperty("issuers") &&
+                bc_config.ttl.issuers.hasOwnProperty(`${issuer.issuer}`) &&
+                bc_config.ttl.issuers[issuer.issuer].hasOwnProperty("default")
+              ) {
+                ttl = bc_config.ttl.issuers[issuer.issuer].default;
+              }
+
+              if (
+                bc_config.hasOwnProperty("ttl") &&
+                bc_config.ttl.hasOwnProperty("_fallback") &&
+                bc_config.ttl["_fallback"].hasOwnProperty("default")
+              ) {
+                ttl = bc_config.ttl["_fallback"].default;
+              }
+            }
+
+            if (typeof ttl === "undefined") {
+              ttl = BACKCHANNEL_LOGOUT_DEFAULT_TTL;
+            }
+
+            server.logger.debug("backchannel_logout ttl: %s", ttl);
+
+            // create a lock entry in the store
+            await set_backchannel_logout_data(
+              server,
+              backchannel_logout_key,
+              { iat: Date.now() / 1000, ttl, logout_token },
+              ttl
+            );
+
+            res.statusCode = 200;
+            res.setHeader("Cache-Control", "no-cache, no-store");
+            res.setHeader("Pragma", "no-cache");
+            res.end();
+            return;
+          } catch (e) {
+            server.logger.error(e);
+            res.statusCode = 400;
+            res.end();
+          }
+        } catch (e) {
+          server.logger.error(e);
+          res.statusCode = 503;
+          res.end();
+          return;
+        }
+      });
+
       initialized = true;
     }
   }
@@ -286,6 +805,7 @@ class BaseOauthPlugin extends BasePlugin {
   async verify(configToken, req, res) {
     const plugin = this;
     const store = plugin.server.store;
+    const issuer = await plugin.get_issuer();
     const client = await plugin.get_client();
     const pluginStrategy =
       plugin.constructor.name == "OpenIdConnectPlugin" ? "oidc" : "oauth2";
@@ -425,10 +945,94 @@ class BaseOauthPlugin extends BasePlugin {
       plugin.server.logger.verbose("cookie name: %s", configCookieName);
 
       const session_id = req.signedCookies[configCookieName];
-      const redirect_uri = parentReqInfo.parsedQuery.redirect_uri;
+      let redirect_uri = parentReqInfo.parsedQuery.redirect_uri || "";
       if (session_id) {
+        let sessionPayload = await plugin.get_session_data(session_id);
+
+        if (
+          plugin.config.features.logout.revoke_tokens_on_logout &&
+          plugin.config.features.logout.revoke_tokens_on_logout.length > 0
+        ) {
+          try {
+            if (!sessionPayload) {
+              plugin.server.logger.verbose("failed to retrieve session");
+            } else {
+              plugin.server.logger.info(
+                "attempt to revoke token with authentication service"
+              );
+
+              for (const token_type of plugin.config.features.logout
+                .revoke_tokens_on_logout) {
+                try {
+                  if (!sessionPayload.tokenSet[token_type]) {
+                    return;
+                  }
+
+                  await client.revoke(
+                    sessionPayload.tokenSet[token_type],
+                    token_type,
+                    {
+                      revokeBody: {
+                        ...plugin.config.custom_revoke_parameters,
+                      },
+                    }
+                  );
+                } catch (e) {
+                  plugin.server.logger.debug(
+                    `failed to revoke token ${token_type} with authentication service: ` +
+                      e.message
+                  );
+                }
+              }
+            }
+          } catch (e) {
+            plugin.server.logger.debug(
+              `failed to revoke tokens with authentication service: ` +
+                e.message
+            );
+          }
+        }
+
+        // support oidc end provider session param
+        if (
+          pluginStrategy == PLUGIN_STRATEGY_OIDC &&
+          plugin.config.features.logout.end_provider_session.enabled &&
+          sessionPayload.tokenSet &&
+          sessionPayload.tokenSet.id_token
+        ) {
+          let idToken = jwt.decode(sessionPayload.tokenSet.id_token);
+          // TODO: this check may not be entirely needed/wanted
+          if (idToken.session_state) {
+            const payload = {
+              redirect_uri: redirect_uri,
+              aud: configAudMD5,
+              req: {
+                headers: {
+                  referer: req.headers.referer,
+                },
+              },
+              request_is_xhr,
+            };
+            const stateToken = jwt.sign(payload, issuer_sign_secret);
+            const state = plugin.server.utils.encrypt(
+              issuer_encrypt_secret,
+              stateToken,
+              "hex"
+            );
+
+            redirect_uri = await client.endSessionUrl({
+              id_token_hint: sessionPayload.tokenSet.id_token,
+              post_logout_redirect_uri:
+                plugin.config.features.logout.end_provider_session
+                  .post_logout_redirect_uri,
+              state,
+            });
+          }
+        }
+
         plugin.server.logger.info("deleting session: %s", session_id);
         await plugin.delete_session(session_id);
+
         //res.clearCookie(configCookieName);
       } else {
         plugin.server.logger.verbose("no session to delete, moving on");
@@ -632,6 +1236,24 @@ class BaseOauthPlugin extends BasePlugin {
         plugin.server.logger.verbose("creating new session: %s", session_id);
       }
 
+      /**
+       * backchannel_logout logic
+       */
+      if (
+        pluginStrategy == PLUGIN_STRATEGY_OIDC &&
+        (await plugin.get_backchannel_enabled())
+      ) {
+        let backchannel_logout_key = await generate_backchannel_logout_key(
+          plugin.server,
+          idToken
+        );
+        await add_backchannel_logout_authenticated_session(
+          plugin.server,
+          backchannel_logout_key,
+          session_id
+        );
+      }
+
       let ttl = null;
       if (sessionExpiresAt) {
         sessionPayload.exp = Math.floor(sessionExpiresAt / 1000);
@@ -740,6 +1362,96 @@ class BaseOauthPlugin extends BasePlugin {
           if (sessionPayload.aud != configAudMD5) {
             plugin.server.logger.verbose("non-matching audience");
             return respond_to_failed_authorization();
+          }
+
+          /**
+           * backchannel_logout logic
+           */
+          if (
+            pluginStrategy == PLUGIN_STRATEGY_OIDC &&
+            (await plugin.get_backchannel_enabled())
+          ) {
+            /**
+             * only id_token is guaranteed to be a jwt
+             */
+            const idToken = jwt.decode(tokenSet.id_token);
+
+            let backchannel_logout_key = await generate_backchannel_logout_key(
+              plugin.server,
+              idToken
+            );
+            let backchannel_logout_data = await get_backchannel_logout_data(
+              plugin.server,
+              backchannel_logout_key
+            );
+
+            if (
+              backchannel_logout_data &&
+              !backchannel_logout_data.authenticated_sessions.includes(
+                session_id
+              )
+            ) {
+              /**
+               * revoke keys (dealing with offline_access logic)
+               *
+               * Refresh tokens issued without the offline_access property to a
+               * session being logged out SHOULD be revoked. Refresh tokens
+               * issued with the offline_access property normally SHOULD NOT be
+               * revoked. NOTE: An open issue for the specification is whether
+               * to define an additional optional parameter in the logout
+               * token, probably as a value in the event-specific parameters
+               * JSON object, that explicitly signals that offline_access
+               * refresh tokens are also to be revoked.
+               */
+              for (const token_type of [
+                "access_token",
+                "refresh_token",
+                "id_token",
+              ]) {
+                try {
+                  if (!sessionPayload.tokenSet[token_type]) {
+                    return;
+                  }
+
+                  if (token_type == "refresh_token") {
+                    let introspection = await client.introspect(
+                      tokenSet[token_type],
+                      token_type
+                    );
+
+                    if (
+                      introspection.scope
+                        .split(" ")
+                        .includes("offline_access") ||
+                      introspection.offline_access == true
+                    ) {
+                      continue;
+                    }
+                  }
+
+                  await client.revoke(
+                    sessionPayload.tokenSet[token_type],
+                    token_type,
+                    {
+                      revokeBody: {
+                        ...plugin.config.custom_revoke_parameters,
+                      },
+                    }
+                  );
+                } catch (e) {
+                  plugin.server.logger.debug(
+                    `failed to revoke token ${token_type} with authentication service: ` +
+                      e.message
+                  );
+                }
+              }
+
+              // destroy the session
+              plugin.server.logger.info("deleting session: %s", session_id);
+              await plugin.delete_session(session_id);
+
+              return respond_to_failed_authorization();
+            }
           }
 
           if (
@@ -905,6 +1617,69 @@ class BaseOauthPlugin extends BasePlugin {
         }
         break;
     }
+  }
+
+  async get_backchannel_enabled() {
+    const plugin = this;
+    const issuer = await plugin.get_issuer();
+
+    /**
+     * https://openid.net/specs/openid-connect-backchannel-1_0.html#BCActions
+     * the above metions the action should be for the iss and not iss/aud
+     * combination, which makes the global config extremely relevant
+     */
+
+    let bc_config;
+    if (process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG) {
+      bc_config = JSON.parse(process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG);
+    }
+
+    // checked forced values
+    if (process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG) {
+      if (
+        bc_config.hasOwnProperty("enabled") &&
+        bc_config.enabled.hasOwnProperty("issuers") &&
+        bc_config.enabled.issuers.hasOwnProperty(`${issuer.issuer}`) &&
+        bc_config.enabled.issuers[issuer.issuer].hasOwnProperty("forced")
+      ) {
+        return Boolean(bc_config.enabled.issuers[issuer.issuer].forced);
+      }
+
+      if (
+        bc_config.hasOwnProperty("enabled") &&
+        bc_config.enabled.hasOwnProperty("_fallback") &&
+        bc_config.enabled["_fallback"].hasOwnProperty("forced")
+      ) {
+        return Boolean(bc_config.enabled["_fallback"].forced);
+      }
+    }
+
+    // use token value if present
+    if (plugin.config.features.logout.backchannel.hasOwnProperty("enabled")) {
+      return Boolean(plugin.config.features.logout.backchannel.enabled);
+    }
+
+    // checked default values
+    if (process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG) {
+      if (
+        bc_config.hasOwnProperty("enabled") &&
+        bc_config.enabled.hasOwnProperty("issuers") &&
+        bc_config.enabled.issuers.hasOwnProperty(`${issuer.issuer}`) &&
+        bc_config.enabled.issuers[issuer.issuer].hasOwnProperty("default")
+      ) {
+        return Boolean(bc_config.enabled.issuers[issuer.issuer].default);
+      }
+
+      if (
+        bc_config.hasOwnProperty("enabled") &&
+        bc_config.enabled.hasOwnProperty("_fallback") &&
+        bc_config.enabled["_fallback"].hasOwnProperty("default")
+      ) {
+        return Boolean(bc_config.enabled["_fallback"].default);
+      }
+    }
+
+    return false;
   }
 
   async get_session_data(session_id) {
@@ -1157,6 +1932,7 @@ class BaseOauthPlugin extends BasePlugin {
   }
 
   async prepare_authentication_data(res, sessionData) {
+    sessionData.tokenSet.scope = sessionData.tokenSet.scope.split(" ");
     res.setAuthenticationData({
       userinfo:
         sessionData.userinfo && sessionData.userinfo.data
@@ -1165,6 +1941,7 @@ class BaseOauthPlugin extends BasePlugin {
       id_token: sessionData.tokenSet.id_token,
       access_token: sessionData.tokenSet.access_token,
       refresh_token: sessionData.tokenSet.refresh_token,
+      token_set: sessionData.tokenSet,
     });
   }
 
@@ -1241,6 +2018,7 @@ class BaseOauthPlugin extends BasePlugin {
 
   async token_set_assertions(tokenSet, session_id = null) {
     const plugin = this;
+    const issuer = await plugin.get_issuer();
     const client = await plugin.get_client();
 
     const pluginStrategy =
@@ -1304,7 +2082,6 @@ class BaseOauthPlugin extends BasePlugin {
       pluginStrategy == PLUGIN_STRATEGY_OIDC &&
       plugin.config.assertions.iss
     ) {
-      const issuer = await plugin.get_issuer();
       if (!tokenset_issuer_match(tokenSet, issuer.issuer)) {
         plugin.server.logger.verbose("tokenSet has a mismatch issuer");
         return false;
@@ -1316,8 +2093,6 @@ class BaseOauthPlugin extends BasePlugin {
       plugin.config.features.introspect_access_token &&
       tokenSet.access_token
     ) {
-      const issuer = await plugin.get_issuer();
-
       if (!issuer.introspection_endpoint) {
         plugin.server.logger.error("issuer does not support introspection");
         throw new Error("issuer does not support introspection");
@@ -1410,41 +2185,31 @@ class BaseOauthPlugin extends BasePlugin {
     }
   }
 
-  // #################### common client/issue methods ####################
+  // #################### common client/issuer methods ####################
 
   async get_issuer() {
     const plugin = this;
     const cache = plugin.server.cache;
-    const discover_url = plugin.config.issuer.discover_url;
-    let issuer;
 
+    let issuer;
+    let cache_key;
+
+    const discover_url = plugin.config.issuer.discover_url;
     if (discover_url) {
-      const cache_key = "issuer:" + plugin.server.utils.md5(discover_url);
-      issuer = cache.get(cache_key);
-      if (issuer !== undefined) {
-        return issuer;
-      }
-      issuer = await Issuer.discover(discover_url);
-      cache.set(cache_key, issuer, ISSUER_CACHE_DURATION);
-      return issuer;
+      cache_key = "issuer:" + plugin.server.utils.md5(discover_url);
     } else {
-      const cache_key =
+      cache_key =
         "issuer:" +
         plugin.server.utils.md5(JSON.stringify(plugin.config.issuer));
-      issuer = cache.get(cache_key);
-      if (issuer !== undefined) {
-        return issuer;
-      }
+    }
 
-      issuer = new Issuer(plugin.config.issuer);
-      plugin.server.logger.verbose(
-        "manual issuer %s %O",
-        issuer.issuer,
-        issuer.metadata
-      );
-      cache.set(cache_key, issuer, ISSUER_CACHE_DURATION);
+    issuer = cache.get(cache_key);
+    if (issuer !== undefined) {
       return issuer;
     }
+    issuer = await get_oauth_issuer(plugin.config.issuer);
+    await cache.set(cache_key, issuer, ISSUER_CACHE_DURATION);
+    return issuer;
   }
 
   async get_client() {
@@ -1460,30 +2225,11 @@ class BaseOauthPlugin extends BasePlugin {
       return client;
     }
 
-    if (plugin.config.client.client_id && plugin.config.client.client_secret) {
-      client = new issuer.Client({
-        client_id: plugin.config.client.client_id,
-        client_secret: plugin.config.client.client_secret,
-      });
-      client.CLOCK_TOLERANCE = DEFAULT_CLIENT_CLOCK_TOLERANCE;
+    client = await get_oauth_client(plugin.config.client, issuer);
+    client.CLOCK_TOLERANCE = DEFAULT_CLIENT_CLOCK_TOLERANCE;
 
-      cache.set(cache_key, client, CLIENT_CACHE_DURATION);
-      return client;
-    } else if (
-      plugin.config.client.registration_client_uri &&
-      plugin.config.client.registration_access_token
-    ) {
-      client = await issuer.Client.fromUri(
-        plugin.config.client.registration_client_uri,
-        plugin.config.client.registration_access_token
-      );
-
-      client.CLOCK_TOLERANCE = DEFAULT_CLIENT_CLOCK_TOLERANCE;
-      cache.set(cache_key, client, CLIENT_CACHE_DURATION);
-      return client;
-    } else {
-      throw new Error("invalid client configuration");
-    }
+    await cache.set(cache_key, client, CLIENT_CACHE_DURATION);
+    return client;
   }
 
   async get_authorization_url(authorization_redirect_uri, state) {
@@ -1504,7 +2250,11 @@ class BaseOauthPlugin extends BasePlugin {
     const plugin = this;
     const client = await plugin.get_client();
 
-    return client.refresh(tokenSet.refresh_token);
+    return client.refresh(tokenSet.refresh_token, {
+      exchangeBody: {
+        ...plugin.config.custom_refresh_parameters,
+      },
+    });
   }
 }
 
@@ -1536,6 +2286,11 @@ class OauthPlugin extends BaseOauthPlugin {
         state: parentReqInfo.parsedQuery.state,
         nonce: null,
         response_type,
+      },
+      {
+        exchangeBody: {
+          ...plugin.config.custom_authorization_code_parameters,
+        },
       }
     );
   }
@@ -1739,6 +2494,11 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
         state: parentReqInfo.parsedQuery.state,
         nonce: null,
         response_type,
+      },
+      {
+        exchangeBody: {
+          ...plugin.config.custom_authorization_code_parameters,
+        },
       }
     );
   }
