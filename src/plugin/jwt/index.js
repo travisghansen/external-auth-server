@@ -292,10 +292,21 @@ class JwtPlugin extends BasePlugin {
       }
 
       if (plugin.config.oidc.enabled) {
-        if (plugin.config.oidc.features.fetch_userinfo) {
+        let filtered_service_headers =
+          plugin.config.oidc.features.filtered_service_headers || [];
+        filtered_service_headers = filtered_service_headers.map((value) => {
+          return value.toLowerCase();
+        });
+
+        if (
+          plugin.config.oidc.features.fetch_userinfo &&
+          !filtered_service_headers.includes("x-userinfo")
+        ) {
           res.setHeader("X-Userinfo", JSON.stringify(userinfo));
         }
-        res.setHeader("X-Access-Token", creds.token);
+        if (!filtered_service_headers.includes("x-access-token")) {
+          res.setHeader("X-Access-Token", creds.token);
+        }
       }
 
       res.setAuthenticationData({

@@ -157,6 +157,10 @@ function initialize_common_config_options(config) {
     config.features = {};
   }
 
+  if (!config.features.hasOwnProperty("filtered_service_headers")) {
+    config.features.filtered_service_headers = [];
+  }
+
   if (!config.features.logout) {
     config.features.logout = {};
   }
@@ -1903,16 +1907,31 @@ class BaseOauthPlugin extends BasePlugin {
 
   async prepare_token_headers(res, sessionData) {
     const plugin = this;
+    let filtered_service_headers =
+      plugin.config.features.filtered_service_headers || [];
+    filtered_service_headers = filtered_service_headers.map((value) => {
+      return value.toLowerCase();
+    });
 
-    if (sessionData.tokenSet.id_token) {
+    if (
+      sessionData.tokenSet.id_token &&
+      !filtered_service_headers.includes("x-id-token")
+    ) {
       res.setHeader("X-Id-Token", sessionData.tokenSet.id_token);
     }
 
-    if (sessionData.userinfo && sessionData.userinfo.data) {
+    if (
+      sessionData.userinfo &&
+      sessionData.userinfo.data &&
+      !filtered_service_headers.includes("x-userinfo")
+    ) {
       res.setHeader("X-Userinfo", JSON.stringify(sessionData.userinfo.data));
     }
 
-    if (sessionData.tokenSet.access_token) {
+    if (
+      sessionData.tokenSet.access_token &&
+      !filtered_service_headers.includes("x-access-token")
+    ) {
       res.setHeader("X-Access-Token", sessionData.tokenSet.access_token);
     }
 
