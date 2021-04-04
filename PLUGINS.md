@@ -221,6 +221,13 @@ Verifies a `jwt` token sent as a `Bearer` token in the `Authorization` header.
         * num seconds = expire after given number of seconds
         */
         userinfo_expiry: 30,
+
+        /**
+        * by default, X-Userinfo, and X-Access-Token are
+        * returned to the proxy, you can suppress that behavior by adding
+        * the headers you do **NOT** want here.
+        */
+        filtered_service_headers: [],
       }
     },
     assertions: {
@@ -413,6 +420,13 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         * possible values are access_token, or refresh_token
         */
         authorization_token: "access_token",
+
+        /**
+        * by default, X-Id-Token, X-Userinfo, and X-Access-Token are
+        * returned to the proxy, you can suppress that behavior by adding
+        * the headers you do **NOT** want here.
+        */
+        filtered_service_headers: [],
 
         /**
         * fetch userinfo and include as X-Userinfo header to backing service
@@ -635,6 +649,13 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         * possible values are id_token, access_token, or refresh_token
         */
         authorization_token: "access_token",
+
+        /**
+        * by default, X-Id-Token, X-Userinfo, and X-Access-Token are
+        * returned to the proxy, you can suppress that behavior by adding
+        * the headers you do **NOT** want here.
+        */
+        filtered_service_headers: [],
 
         logout: {
           /**
