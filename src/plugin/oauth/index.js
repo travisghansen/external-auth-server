@@ -1951,7 +1951,6 @@ class BaseOauthPlugin extends BasePlugin {
   }
 
   async prepare_authentication_data(res, sessionData) {
-    sessionData.tokenSet.scope = sessionData.tokenSet.scope.split(" ");
     res.setAuthenticationData({
       userinfo:
         sessionData.userinfo && sessionData.userinfo.data
