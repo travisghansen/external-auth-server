@@ -83,6 +83,10 @@
 - only get parentRequestInfo once in server.js and more performance enhancements
 - store `state` server-side in `oauth2`/`oidc` plugins
 
+# 0.10.1
+
+- support `filtered_service_headers` to remove some hard-coded default response headers
+
 # 0.10.0
 
 Release 2021-04-03
