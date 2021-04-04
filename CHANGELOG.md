@@ -83,13 +83,21 @@
 - only get parentRequestInfo once in server.js and more performance enhancements
 - store `state` server-side in `oauth2`/`oidc` plugins
 
+# 0.10.2
+
+Released 2021-04-04
+
+- fix scenario where `scope` property is not present in `tokenSet` #107
+
 # 0.10.1
+
+Released 2021-04-03
 
 - support `filtered_service_headers` to remove some hard-coded default response headers
 
 # 0.10.0
 
-Release 2021-04-03
+Released 2021-04-03
 
 - support `custom_authorization_code_parameters` in `oauth2`/`oidc`
 - support `custom_refresh_parameters` in `oauth2`/`oidc`
