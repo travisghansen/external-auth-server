@@ -115,7 +115,7 @@ class HeaderInjector {
     if (value === undefined) {
       value = "";
     }
-    logger.debug("injecting header: %s with value: %s", headerName, value);
+    logger.info("injecting header: %s with value: %s", headerName, value);
     res.setHeader(headerName, value);
   }
 }
