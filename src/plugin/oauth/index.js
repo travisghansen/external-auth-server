@@ -87,6 +87,9 @@ let initialized = false;
  * @param {*} config
  */
 function initialize_common_config_options(config) {
+  config.custom_dynamic_authorization_parameters =
+    config.custom_dynamic_authorization_parameters || [];
+
   config.custom_authorization_parameters =
     config.custom_authorization_parameters || {};
 
@@ -874,10 +877,18 @@ class BaseOauthPlugin extends BasePlugin {
         stateToken,
         "hex"
       );
-
+            
+      for (const param of plugin.config.custom_dynamic_authorization_parameters) {
+        if (param in parentReqInfo.parsedQuery) {
+          plugin.server.logger.verbose("add param %s to authorization url: %s", param, parentReqInfo.parsedQuery[param]);
+          plugin.config.custom_authorization_parameters[param] = parentReqInfo.parsedQuery[param];
+        }
+      }
+      
       const url = await plugin.get_authorization_url(
         authorization_redirect_uri,
-        state
+        state,
+        plugin.config.custom_authorization_parameters
       );
 
       plugin.server.logger.verbose("callback redirect_uri: %s", url);
@@ -2250,12 +2261,12 @@ class BaseOauthPlugin extends BasePlugin {
     return client;
   }
 
-  async get_authorization_url(authorization_redirect_uri, state) {
+  async get_authorization_url(authorization_redirect_uri, state, authorization_parameters) {
     const plugin = this;
     const client = await plugin.get_client();
 
     const url = client.authorizationUrl({
-      ...plugin.config.custom_authorization_parameters,
+      ...authorization_parameters,
       redirect_uri: authorization_redirect_uri,
       scope: plugin.config.scopes.join(" "),
       state: state,
