@@ -341,6 +341,11 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
     // ie: https://developers.google.com/identity/protocols/OpenIDConnect#refresh-tokens
     custom_authorization_parameters: {},
 
+    // custom dynamic authorization URL parameters copied from the parentrequest
+    // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
+    // kc_idp_hint https://www.keycloak.org/docs/latest/server_admin/#_client_suggested_idp
+    custom_dynamic_authorization_parameters: [],
+
     // custom static authorization code URL parameters
     // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
     // ie:
