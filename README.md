@@ -117,8 +117,8 @@ travisghansen/external-auth-server
 ### Kubernetes
 
 A `helm` chart is supplied in the repo directly. Reviewing
-[values.yaml](chart/values.yaml) is **highly** recommended as examples are
-provided for common use-cases.
+[values.yaml](charts/external-auth-server/values.yaml) is **highly**
+recommended as examples are provided for common use-cases.
 
 ```
 helm repo add eas https://travisghansen.github.io/external-auth-server
