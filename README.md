@@ -218,12 +218,12 @@ set the `config_token` `redirect_uri` to the `eas` service at the
 ## Additional ENV vars
 
 - `EAS_SSL_CERT` path to ssl cert file to enable https
-- `EAS_SSL_KEY` paht to the ssl key file to enable https
+- `EAS_SSL_KEY` path to ssl key file to enable https
 - `EAS_GRPC_ADDRESS` the address to start the grpc server on (default is
   `0.0.0.0`)
 - `EAS_GRPC_PORT` port the grpc server is bound to (default is `50051`)
 - `EAS_GRPC_SSL_CERT` path to ssl cert file to enable https
-- `EAS_GRPC_SSL_KEY` paht to the ssl key file to enable https
+- `EAS_GRPC_SSL_KEY` path to ssl key file to enable https
 
 ## redis
 

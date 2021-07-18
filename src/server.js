@@ -707,17 +707,20 @@ grpcServer.addService(
           call.request.attributes.context_extensions["x-eas-verify-params"];
         let destination_port = "";
         let scheme;
-        switch (call.request.attributes.request.http.scheme) {
-          case "http":
-          case "https":
-            scheme = call.request.attributes.request.http.scheme;
-            break;
-          default:
-            //x-forwarded-proto
-            if (req.headers["x-forwarded-proto"]) {
-              scheme = req.headers["x-forwarded-proto"];
-            }
-            break;
+
+        // prefer x-forwarded-proto if available
+        if (req.headers["x-forwarded-proto"]) {
+          scheme = req.headers["x-forwarded-proto"];
+        }
+
+        // fallback to scheme of the envoy request directly
+        if (!scheme) {
+          switch (call.request.attributes.request.http.scheme) {
+            case "http":
+            case "https":
+              scheme = call.request.attributes.request.http.scheme;
+              break;
+          }
         }
 
         if (!scheme) {
