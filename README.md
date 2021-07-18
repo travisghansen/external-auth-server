@@ -37,7 +37,7 @@ indexed) parameter on the authentication URL.
 # Features
 
 - works with any proxy server (traefik, nginx, ambassador, istio, envoy, etc)
-that supports forward/external auth
+  that supports forward/external auth
 - works with any `OpenID Connect`/`oauth2` provider (tested predominantly with
   `keycloak` but it should be agnostic)
 - only requires 1 installation to service any number of
@@ -117,7 +117,7 @@ travisghansen/external-auth-server
 ### Kubernetes
 
 A `helm` chart is supplied in the repo directly. Reviewing
-(values.yaml)[chart/values.yaml] is **highly** recommended as examples are
+[values.yaml](chart/values.yaml) is **highly** recommended as examples are
 provided for common use-cases.
 
 ```
@@ -214,6 +214,16 @@ endpoint. The URL supports the following query params:
 If your provider does not support wildcards you may expose `eas` directly and
 set the `config_token` `redirect_uri` to the `eas` service at the
 `/oauth/callback` path.
+
+## Additional ENV vars
+
+- `EAS_SSL_CERT` path to ssl cert file to enable https
+- `EAS_SSL_KEY` paht to the ssl key file to enable https
+- `EAS_GRPC_ADDRESS` the address to start the grpc server on (default is
+  `0.0.0.0`)
+- `EAS_GRPC_PORT` port the grpc server is bound to (default is `50051`)
+- `EAS_GRPC_SSL_CERT` path to ssl cert file to enable https
+- `EAS_GRPC_SSL_KEY` paht to the ssl key file to enable https
 
 ## redis
 

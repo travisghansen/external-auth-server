@@ -336,22 +336,26 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
     },
     scopes: [],
 
-    // custom static authorization URL parameters
+    // custom authorization URL parameters
+    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
     // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
     // ie: https://developers.google.com/identity/protocols/OpenIDConnect#refresh-tokens
     custom_authorization_parameters: {},
 
-    // custom static authorization code URL parameters
+    // custom authorization code URL parameters
+    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
     // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
     // ie:
     // - https://stackoverflow.com/questions/50143342/keycloak-backchannel-logout/63517092#63517092
     // - https://keycloak.discourse.group/t/admin-url-not-called-when-user-logs-out/4163/8
     custom_authorization_code_parameters: {},
 
-    // custom static refresh URL parameters
+    // custom refresh URL parameters
+    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
     custom_refresh_parameters: {},
 
-    // custom static revoke URL parameters
+    // custom revoke URL parameters
+    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
     custom_revoke_parameters: {},
 
     /**
@@ -548,22 +552,26 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
     },
     scopes: ["openid", "email", "profile"], // must include openid
 
-    // custom static authorization URL parameters
+    // custom authorization URL parameters
+    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
     // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
     // ie: https://developers.google.com/identity/protocols/OpenIDConnect#refresh-tokens
     custom_authorization_parameters: {},
 
-    // custom static authorization code URL parameters
+    // custom authorization code URL parameters
+    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
     // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
     // ie:
     // - https://stackoverflow.com/questions/50143342/keycloak-backchannel-logout/63517092#63517092
     // - https://keycloak.discourse.group/t/admin-url-not-called-when-user-logs-out/4163/8
     custom_authorization_code_parameters: {},
 
-    // custom static refresh URL parameters
+    // custom refresh URL parameters
+    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
     custom_refresh_parameters: {},
 
-    // custom static revoke URL parameters
+    // custom revoke URL parameters
+    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
     custom_revoke_parameters: {},
 
     /**

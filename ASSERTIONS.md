@@ -12,6 +12,7 @@ The basic idea is to select a value from the dataset using a `query` with
 
 You pick the `query` syntax by setting the `query_engine` parameter:
 
+- `handlebars` uses handlebars syntax
 - `jp` for jsonpath (highest performance)
 - `jq` for jq (highly flexible, slowest performance)
 - `jsonata` for jsonata (highly flexible, high performance)
@@ -167,6 +168,15 @@ in logs or request headers to backing services (if properly enabled).
 An example of each engine all yielding the same result:
 
 ```
+{
+  "query_engine": "handlebars",
+  "query": "{{ login }}",
+  "rule": {
+    "method": "eq",
+    "value": "travisghansen"
+  }
+}
+
 {
   "query_engine": "jp",
   "query": "$.login",

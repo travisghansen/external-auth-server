@@ -1,5 +1,6 @@
 const { Assertion } = require("../../assertion");
 const { BasePlugin } = require("../../plugin");
+const Handlebars = require("handlebars");
 const { Issuer, custom } = require("openid-client");
 const jwksClient = require("jwks-rsa");
 const jwt = require("jsonwebtoken");
@@ -483,6 +484,18 @@ async function generate_backchannel_logout_key(server, token) {
   return lock_key;
 }
 
+function handlebars_template_properties(src, data) {
+  const ret = {};
+  for (let property in src) {
+    let value = src[property];
+    const template = Handlebars.compile(value);
+
+    ret[property] = template(data);
+  }
+
+  return ret;
+}
+
 class BaseOauthPlugin extends BasePlugin {
   static initialize(server) {
     if (!initialized) {
@@ -876,6 +889,7 @@ class BaseOauthPlugin extends BasePlugin {
       );
 
       const url = await plugin.get_authorization_url(
+        parentReqInfo,
         authorization_redirect_uri,
         state
       );
@@ -977,7 +991,10 @@ class BaseOauthPlugin extends BasePlugin {
                     token_type,
                     {
                       revokeBody: {
-                        ...plugin.config.custom_revoke_parameters,
+                        ...handlebars_template_properties(
+                          plugin.config.custom_revoke_parameters,
+                          { parentReqInfo }
+                        ),
                       },
                     }
                   );
@@ -1438,7 +1455,10 @@ class BaseOauthPlugin extends BasePlugin {
                     token_type,
                     {
                       revokeBody: {
-                        ...plugin.config.custom_revoke_parameters,
+                        ...handlebars_template_properties(
+                          plugin.config.custom_revoke_parameters,
+                          { parentReqInfo }
+                        ),
                       },
                     }
                   );
@@ -1491,7 +1511,7 @@ class BaseOauthPlugin extends BasePlugin {
             try {
               plugin.server.logger.verbose("refreshing tokenSet");
               const originalTokenSet = tokenSet;
-              tokenSet = await plugin.refresh_token(tokenSet);
+              tokenSet = await plugin.refresh_token(parentReqInfo, tokenSet);
               // If the refreshed tokenset doesn't contain a new refresh token then assume the
               // original one can still be used.
               if (tokenSet.refresh_token === undefined) {
@@ -2250,12 +2270,19 @@ class BaseOauthPlugin extends BasePlugin {
     return client;
   }
 
-  async get_authorization_url(authorization_redirect_uri, state) {
+  async get_authorization_url(
+    parentReqInfo,
+    authorization_redirect_uri,
+    state
+  ) {
     const plugin = this;
     const client = await plugin.get_client();
 
     const url = client.authorizationUrl({
-      ...plugin.config.custom_authorization_parameters,
+      ...handlebars_template_properties(
+        plugin.config.custom_authorization_parameters,
+        { parentReqInfo }
+      ),
       redirect_uri: authorization_redirect_uri,
       scope: plugin.config.scopes.join(" "),
       state: state,
@@ -2264,13 +2291,16 @@ class BaseOauthPlugin extends BasePlugin {
     return url;
   }
 
-  async refresh_token(tokenSet) {
+  async refresh_token(parentReqInfo, tokenSet) {
     const plugin = this;
     const client = await plugin.get_client();
 
     return client.refresh(tokenSet.refresh_token, {
       exchangeBody: {
-        ...plugin.config.custom_refresh_parameters,
+        ...handlebars_template_properties(
+          plugin.config.custom_refresh_parameters,
+          { parentReqInfo }
+        ),
       },
     });
   }
@@ -2307,7 +2337,10 @@ class OauthPlugin extends BaseOauthPlugin {
       },
       {
         exchangeBody: {
-          ...plugin.config.custom_authorization_code_parameters,
+          ...handlebars_template_properties(
+            plugin.config.custom_authorization_code_parameters,
+            { parentReqInfo }
+          ),
         },
       }
     );
@@ -2515,7 +2548,10 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
       },
       {
         exchangeBody: {
-          ...plugin.config.custom_authorization_code_parameters,
+          ...handlebars_template_properties(
+            plugin.config.custom_authorization_code_parameters,
+            { parentReqInfo }
+          ),
         },
       }
     );
