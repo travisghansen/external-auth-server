@@ -160,12 +160,14 @@ verifyHandler = async (req, res, options = {}) => {
       ) {
         queryData.req.headers = req.headers;
         queryData.req.cookies = req.cookies;
+        queryData.req.signedCookies = req.signedCookies;
         queryData.req.query = req.query;
         queryData.req.method = req.method;
         queryData.req.httpVersionMajor = req.httpVersionMajor;
         queryData.req.httpVersionMinor = req.httpVersionMinor;
         queryData.req.httpVersion = req.httpVersion;
         queryData.parentRequestInfo = parentRequestInfo;
+        queryData.parentReqInfo = parentRequestInfo;
       }
 
       // determine token_id
@@ -466,6 +468,7 @@ verifyHandler = async (req, res, options = {}) => {
       injectData.req = {};
       injectData.req.headers = req.headers;
       injectData.req.cookies = req.cookies;
+      injectData.req.signedCookies = req.signedCookies;
       injectData.req.query = req.query;
       injectData.req.method = req.method;
       injectData.req.httpVersionMajor = req.httpVersionMajor;

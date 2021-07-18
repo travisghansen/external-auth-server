@@ -889,6 +889,7 @@ class BaseOauthPlugin extends BasePlugin {
       );
 
       const url = await plugin.get_authorization_url(
+        req,
         parentReqInfo,
         authorization_redirect_uri,
         state
@@ -993,7 +994,7 @@ class BaseOauthPlugin extends BasePlugin {
                       revokeBody: {
                         ...handlebars_template_properties(
                           plugin.config.custom_revoke_parameters,
-                          { parentReqInfo }
+                          { parentReqInfo, req }
                         ),
                       },
                     }
@@ -1145,6 +1146,7 @@ class BaseOauthPlugin extends BasePlugin {
       let tokenSet;
       try {
         tokenSet = await plugin.authorization_code_callback(
+          req,
           parentReqInfo,
           compare_redirect_uri
         );
@@ -1457,7 +1459,7 @@ class BaseOauthPlugin extends BasePlugin {
                       revokeBody: {
                         ...handlebars_template_properties(
                           plugin.config.custom_revoke_parameters,
-                          { parentReqInfo }
+                          { parentReqInfo, req }
                         ),
                       },
                     }
@@ -1511,7 +1513,11 @@ class BaseOauthPlugin extends BasePlugin {
             try {
               plugin.server.logger.verbose("refreshing tokenSet");
               const originalTokenSet = tokenSet;
-              tokenSet = await plugin.refresh_token(parentReqInfo, tokenSet);
+              tokenSet = await plugin.refresh_token(
+                req,
+                parentReqInfo,
+                tokenSet
+              );
               // If the refreshed tokenset doesn't contain a new refresh token then assume the
               // original one can still be used.
               if (tokenSet.refresh_token === undefined) {
@@ -2271,6 +2277,7 @@ class BaseOauthPlugin extends BasePlugin {
   }
 
   async get_authorization_url(
+    req,
     parentReqInfo,
     authorization_redirect_uri,
     state
@@ -2281,7 +2288,7 @@ class BaseOauthPlugin extends BasePlugin {
     const url = client.authorizationUrl({
       ...handlebars_template_properties(
         plugin.config.custom_authorization_parameters,
-        { parentReqInfo }
+        { parentReqInfo, req }
       ),
       redirect_uri: authorization_redirect_uri,
       scope: plugin.config.scopes.join(" "),
@@ -2291,7 +2298,7 @@ class BaseOauthPlugin extends BasePlugin {
     return url;
   }
 
-  async refresh_token(parentReqInfo, tokenSet) {
+  async refresh_token(req, parentReqInfo, tokenSet) {
     const plugin = this;
     const client = await plugin.get_client();
 
@@ -2299,7 +2306,7 @@ class BaseOauthPlugin extends BasePlugin {
       exchangeBody: {
         ...handlebars_template_properties(
           plugin.config.custom_refresh_parameters,
-          { parentReqInfo }
+          { parentReqInfo, req }
         ),
       },
     });
@@ -2322,7 +2329,7 @@ class OauthPlugin extends BaseOauthPlugin {
     super(...arguments);
   }
 
-  async authorization_code_callback(parentReqInfo, authorization_redirect_uri) {
+  async authorization_code_callback(req, parentReqInfo, authorization_redirect_uri) {
     const plugin = this;
     const client = await plugin.get_client();
     const response_type = "code";
@@ -2339,7 +2346,7 @@ class OauthPlugin extends BaseOauthPlugin {
         exchangeBody: {
           ...handlebars_template_properties(
             plugin.config.custom_authorization_code_parameters,
-            { parentReqInfo }
+            { parentReqInfo, req }
           ),
         },
       }
@@ -2533,7 +2540,7 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
     super(...arguments);
   }
 
-  async authorization_code_callback(parentReqInfo, authorization_redirect_uri) {
+  async authorization_code_callback(req, parentReqInfo, authorization_redirect_uri) {
     const plugin = this;
     const client = await plugin.get_client();
     const response_type = "code";
@@ -2550,7 +2557,7 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
         exchangeBody: {
           ...handlebars_template_properties(
             plugin.config.custom_authorization_code_parameters,
-            { parentReqInfo }
+            { parentReqInfo, req }
           ),
         },
       }

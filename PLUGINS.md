@@ -337,13 +337,13 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
     scopes: [],
 
     // custom authorization URL parameters
-    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
+    // values can be handlebars syntax with access to `req` and `parentReqInfo` objects (see examples/parent_request_info.json)
     // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
     // ie: https://developers.google.com/identity/protocols/OpenIDConnect#refresh-tokens
     custom_authorization_parameters: {},
 
     // custom authorization code URL parameters
-    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
+    // values can be handlebars syntax with access to `req` and `parentReqInfo` objects (see examples/parent_request_info.json)
     // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
     // ie:
     // - https://stackoverflow.com/questions/50143342/keycloak-backchannel-logout/63517092#63517092
@@ -351,11 +351,11 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
     custom_authorization_code_parameters: {},
 
     // custom refresh URL parameters
-    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
+    // values can be handlebars syntax with access to `req` and `parentReqInfo` objects (see examples/parent_request_info.json)
     custom_refresh_parameters: {},
 
     // custom revoke URL parameters
-    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
+    // values can be handlebars syntax with access to `req` and `parentReqInfo` objects (see examples/parent_request_info.json)
     custom_revoke_parameters: {},
 
     /**
@@ -553,13 +553,13 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
     scopes: ["openid", "email", "profile"], // must include openid
 
     // custom authorization URL parameters
-    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
+    // values can be handlebars syntax with access to `req` and `parentReqInfo` objects (see examples/parent_request_info.json)
     // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
     // ie: https://developers.google.com/identity/protocols/OpenIDConnect#refresh-tokens
     custom_authorization_parameters: {},
 
     // custom authorization code URL parameters
-    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
+    // values can be handlebars syntax with access to `req` and `parentReqInfo` objects (see examples/parent_request_info.json)
     // NOTE: all critical fields are managed automatically, this should only be used in advanced scenarios
     // ie:
     // - https://stackoverflow.com/questions/50143342/keycloak-backchannel-logout/63517092#63517092
@@ -567,11 +567,11 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
     custom_authorization_code_parameters: {},
 
     // custom refresh URL parameters
-    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
+    // values can be handlebars syntax with access to `req` and `parentReqInfo` objects (see examples/parent_request_info.json)
     custom_refresh_parameters: {},
 
     // custom revoke URL parameters
-    // values can be handlebars syntax with access to `parentReqInfo` object (see examples/parent_request_info.json)
+    // values can be handlebars syntax with access to `req` and `parentReqInfo` objects (see examples/parent_request_info.json)
     custom_revoke_parameters: {},
 
     /**
