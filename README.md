@@ -198,6 +198,12 @@ ingress.kubernetes.io/auth-response-headers: X-Userinfo, X-Id-Token, X-Access-To
 
 # istio (see file in examples directory)
 
+# haproxy-ingress (see file in examples directory)
+
+# contour (see file in examples directory)
+
+# envoy (see file in examples directory)
+
 ```
 
 ## Endpoints

@@ -101,7 +101,10 @@ verifyHandler = async (req, res, options = {}) => {
   externalAuthServer.logger.info("starting verify pipeline");
 
   let easVerifyParams;
-  if (req.headers["x-eas-verify-params"]) {
+  if (
+    req.headers["x-eas-verify-params"] &&
+    options.trust_verify_params_header
+  ) {
     easVerifyParams = JSON.parse(req.headers["x-eas-verify-params"]);
   } else if (req.params["verify_params"]) {
     easVerifyParams = JSON.parse(req.params["verify_params"]);
@@ -565,7 +568,7 @@ app.all("/envoy/verify-params-header(/*)?", async (req, res) => {
     externalAuthServer.utils.get_envoy_forwarded_uri(req, 3);
   req.headers["x-forwarded-method"] = req.method;
 
-  verifyHandler(req, res);
+  verifyHandler(req, res, { trust_verify_params_header: true });
 });
 
 // ingress-nginx
@@ -705,6 +708,7 @@ grpcServer.addService(
         //req.query.redirect_http_code? really only exists to workaround nginx shortcomings, likely not needed here
         req.headers["x-eas-verify-params"] =
           call.request.attributes.context_extensions["x-eas-verify-params"];
+
         let destination_port = "";
         let scheme;
 
@@ -727,27 +731,31 @@ grpcServer.addService(
           throw new Error("unknown request scheme");
         }
 
-        switch (scheme) {
-          case "http":
-            if (
-              call.request.attributes.destination.address.socket_address
-                .port_value !== 80
-            ) {
-              destination_port = `:${call.request.attributes.destination.address.socket_address.port_value}`;
-            }
-            break;
-          case "https":
-            if (
-              call.request.attributes.destination.address.socket_address
-                .port_value !== 443
-            ) {
-              destination_port = `:${call.request.attributes.destination.address.socket_address.port_value}`;
-            }
-            break;
-          default:
-            throw new Error("unknown request scheme");
-            break;
+        // only detect port if not present in the host
+        if (!call.request.attributes.request.http.host.includes(":")) {
+          switch (scheme) {
+            case "http":
+              if (
+                call.request.attributes.destination.address.socket_address
+                  .port_value !== 80
+              ) {
+                destination_port = `:${call.request.attributes.destination.address.socket_address.port_value}`;
+              }
+              break;
+            case "https":
+              if (
+                call.request.attributes.destination.address.socket_address
+                  .port_value !== 443
+              ) {
+                destination_port = `:${call.request.attributes.destination.address.socket_address.port_value}`;
+              }
+              break;
+            default:
+              throw new Error("unknown request scheme");
+              break;
+          }
         }
+
         req.headers[
           "x-eas-request-uri"
         ] = `${scheme}://${call.request.attributes.request.http.host}${destination_port}${call.request.attributes.request.http.path}`;
@@ -769,11 +777,10 @@ grpcServer.addService(
         let pluginResponse = await verifyHandler(
           req,
           {},
-          { return_response: true }
+          { return_response: true, trust_verify_params_header: true }
         );
 
         //console.log("pluginResponse", pluginResponse);
-
         let grpcHeaders = [];
 
         // deal with cookies

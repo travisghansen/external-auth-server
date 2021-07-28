@@ -18,6 +18,10 @@ spec:
       targetPort: http
       protocol: TCP
       name: http
+    - port: {{ .Values.service.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
   selector:
     app.kubernetes.io/name: {{ include "external-auth-server.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
