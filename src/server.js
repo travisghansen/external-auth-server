@@ -1,9 +1,11 @@
 const { Assertion } = require("./assertion");
-const express = require("express");
 const bodyParser = require("body-parser");
 const ConfigToken = require("./config_token");
 const cookieParser = require("cookie-parser");
+const express = require("express");
+const fs = require("fs");
 const jwt = require("jsonwebtoken");
+const https = require("https");
 const { HeaderInjector } = require("./header");
 const { PluginVerifyResponse } = require("./plugin");
 const { ExternalAuthServer } = require("./");
@@ -99,7 +101,10 @@ verifyHandler = async (req, res, options = {}) => {
   externalAuthServer.logger.info("starting verify pipeline");
 
   let easVerifyParams;
-  if (req.headers["x-eas-verify-params"]) {
+  if (
+    req.headers["x-eas-verify-params"] &&
+    options.trust_verify_params_header
+  ) {
     easVerifyParams = JSON.parse(req.headers["x-eas-verify-params"]);
   } else if (req.params["verify_params"]) {
     easVerifyParams = JSON.parse(req.params["verify_params"]);
@@ -116,9 +121,8 @@ verifyHandler = async (req, res, options = {}) => {
   let isServerSideConfigToken = false;
   let serverSideConfigTokenId = null;
   let serverSideConfigTokenStoreId = null;
-  const parentRequestInfo = externalAuthServer.utils.get_parent_request_info(
-    req
-  );
+  const parentRequestInfo =
+    externalAuthServer.utils.get_parent_request_info(req);
   try {
     if (easVerifyParams.config_token) {
       configToken = externalAuthServer.utils.decrypt(
@@ -159,12 +163,14 @@ verifyHandler = async (req, res, options = {}) => {
       ) {
         queryData.req.headers = req.headers;
         queryData.req.cookies = req.cookies;
+        queryData.req.signedCookies = req.signedCookies;
         queryData.req.query = req.query;
         queryData.req.method = req.method;
-        queryData.req.method.httpVersionMajor = req.method.httpVersionMajor;
-        queryData.req.method.httpVersionMinor = req.method.httpVersionMinor;
-        queryData.req.method.httpVersion = req.method.httpVersion;
+        queryData.req.httpVersionMajor = req.httpVersionMajor;
+        queryData.req.httpVersionMinor = req.httpVersionMinor;
+        queryData.req.httpVersion = req.httpVersion;
         queryData.parentRequestInfo = parentRequestInfo;
+        queryData.parentReqInfo = parentRequestInfo;
       }
 
       // determine token_id
@@ -275,7 +281,7 @@ verifyHandler = async (req, res, options = {}) => {
     let fallbackPluginResponse;
     let lastPluginResponse;
 
-    new Promise((resolve) => {
+    return new Promise((resolve) => {
       async function processPipeline() {
         for (let i = 0; i < configToken.eas.plugins.length; i++) {
           const pluginConfig = configToken.eas.plugins[i];
@@ -465,11 +471,12 @@ verifyHandler = async (req, res, options = {}) => {
       injectData.req = {};
       injectData.req.headers = req.headers;
       injectData.req.cookies = req.cookies;
+      injectData.req.signedCookies = req.signedCookies;
       injectData.req.query = req.query;
       injectData.req.method = req.method;
-      injectData.req.method.httpVersionMajor = req.method.httpVersionMajor;
-      injectData.req.method.httpVersionMinor = req.method.httpVersionMinor;
-      injectData.req.method.httpVersion = req.method.httpVersion;
+      injectData.req.httpVersionMajor = req.httpVersionMajor;
+      injectData.req.httpVersionMinor = req.httpVersionMinor;
+      injectData.req.httpVersion = req.httpVersion;
       injectData.parentRequestInfo = parentRequestInfo;
       injectData.parentReqInfo = parentRequestInfo;
 
@@ -511,13 +518,21 @@ verifyHandler = async (req, res, options = {}) => {
         }
       }
 
-      ExternalAuthServer.setResponse(res, pluginResponse);
+      if (options.return_response) {
+        return pluginResponse;
+      } else {
+        ExternalAuthServer.setResponse(res, pluginResponse);
+      }
     });
   } catch (e) {
     externalAuthServer.logger.error(e);
-    res.statusCode = 503;
-    res.end();
-    return;
+    if (options.return_response) {
+      throw e;
+    } else {
+      res.statusCode = 503;
+      res.end();
+      return;
+    }
   }
 };
 
@@ -533,30 +548,27 @@ app.all("/ambassador/verify-params-url/:verify_params/*", async (req, res) => {
     "/ambassador endpoints have been deprecated in favor of /envoy variants"
   );
 
-  req.headers[
-    "x-forwarded-uri"
-  ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
+  req.headers["x-forwarded-uri"] =
+    externalAuthServer.utils.get_envoy_forwarded_uri(req);
   req.headers["x-forwarded-method"] = req.method;
 
   verifyHandler(req, res);
 });
 
 app.all("/envoy/verify-params-url/:verify_params/*", async (req, res) => {
-  req.headers[
-    "x-forwarded-uri"
-  ] = externalAuthServer.utils.get_envoy_forwarded_uri(req);
+  req.headers["x-forwarded-uri"] =
+    externalAuthServer.utils.get_envoy_forwarded_uri(req);
   req.headers["x-forwarded-method"] = req.method;
 
   verifyHandler(req, res);
 });
 
 app.all("/envoy/verify-params-header(/*)?", async (req, res) => {
-  req.headers[
-    "x-forwarded-uri"
-  ] = externalAuthServer.utils.get_envoy_forwarded_uri(req, 3);
+  req.headers["x-forwarded-uri"] =
+    externalAuthServer.utils.get_envoy_forwarded_uri(req, 3);
   req.headers["x-forwarded-method"] = req.method;
 
-  verifyHandler(req, res);
+  verifyHandler(req, res, { trust_verify_params_header: true });
 });
 
 // ingress-nginx
@@ -613,5 +625,334 @@ app.get("/nginx/auth-signin", (req, res) => {
 });
 
 const port = process.env.EAS_PORT || 8080;
-externalAuthServer.logger.info("starting server on port %s", port);
-app.listen(port);
+externalAuthServer.logger.info("starting http(s) server on port %s", port);
+
+if (process.env.EAS_SSL_CERT) {
+  https
+    .createServer(
+      {
+        key: fs.readFileSync(process.env.EAS_SSL_KEY, "utf8"),
+        cert: fs.readFileSync(process.env.EAS_SSL_CERT, "utf8"),
+        ca: process.env.EAS_SSL_CA
+          ? fs.readFileSync(process.env.EAS_SSL_CA, "utf8")
+          : undefined,
+      },
+      app
+    )
+    .listen(port);
+} else {
+  app.listen(port);
+}
+
+// grpc
+
+/**
+ * ::: ipv6
+ * 0.0.0.0 ipv4
+ */
+const grpcAddress = process.env.EAS_GRPC_ADDRESS || "0.0.0.0";
+const grpcPort = process.env.EAS_GRPC_PORT || 50051;
+
+/**
+ * grpc (c-based implementation)
+ * @grpc/grpc-js (pure js implementation)
+ */
+const grpcImplementation = process.env.EAS_GRPC_IMPLEMENTATION || "grpc";
+const grpc = require(grpcImplementation);
+const protoLoader = require("@grpc/proto-loader");
+
+const sign = require("cookie-signature").sign;
+const cookie = require("cookie");
+const merge = require("utils-merge");
+
+const PROTO_PATH =
+  __dirname + "/../grpc/envoy/service/auth/v3/external_auth.proto";
+const googleProtos = require("google-proto-files");
+
+const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+  keepCase: true,
+  longs: String,
+  enums: String,
+  defaults: true,
+  oneofs: true,
+  includeDirs: [__dirname + "/../grpc", googleProtos.getProtoPath() + "/../"],
+});
+
+const protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
+const grpcServer = new grpc.Server();
+
+grpcServer.addService(
+  protoDescriptor.envoy.service.auth.v3.Authorization.service,
+  {
+    async Check(call, callback) {
+      let grpcRes;
+
+      try {
+        let cleansedCall = JSON.parse(JSON.stringify(call));
+        externalAuthServer.logger.debug(
+          "new grpc request - Check call: %j",
+          cleansedCall
+        );
+
+        /**
+         * create mock req object
+         */
+        const req = {};
+        req.url = ""; // URL used to invoke eas itself, empty when using grpc
+        req.params = {}; // URL params when invoking eas itself, empty when using grpc
+        req.query = {}; // URL query params when invoking eas itself, empty when using grpc
+        req.http_method = ""; // method used to invoke eas itself, empty when using grpc
+        req.http_version = ""; // version used to invoke eas itself, empty when using grpc
+        req.headers = call.request.attributes.request.http.headers; // headers from parent
+        req.body = call.request.attributes.request.http.body; // body from parent
+        //req.query.redirect_http_code? really only exists to workaround nginx shortcomings, likely not needed here
+        req.headers["x-eas-verify-params"] =
+          call.request.attributes.context_extensions["x-eas-verify-params"];
+
+        let destination_port = "";
+        let scheme;
+
+        // prefer x-forwarded-proto if available
+        if (req.headers["x-forwarded-proto"]) {
+          scheme = req.headers["x-forwarded-proto"];
+        }
+
+        // fallback to scheme of the envoy request directly
+        if (!scheme) {
+          switch (call.request.attributes.request.http.scheme) {
+            case "http":
+            case "https":
+              scheme = call.request.attributes.request.http.scheme;
+              break;
+          }
+        }
+
+        if (!scheme) {
+          throw new Error("unknown request scheme");
+        }
+
+        // only detect port if not present in the host
+        if (!call.request.attributes.request.http.host.includes(":")) {
+          switch (scheme) {
+            case "http":
+              if (
+                call.request.attributes.destination.address.socket_address
+                  .port_value !== 80
+              ) {
+                destination_port = `:${call.request.attributes.destination.address.socket_address.port_value}`;
+              }
+              break;
+            case "https":
+              if (
+                call.request.attributes.destination.address.socket_address
+                  .port_value !== 443
+              ) {
+                destination_port = `:${call.request.attributes.destination.address.socket_address.port_value}`;
+              }
+              break;
+            default:
+              throw new Error("unknown request scheme");
+              break;
+          }
+        }
+
+        req.headers[
+          "x-eas-request-uri"
+        ] = `${scheme}://${call.request.attributes.request.http.host}${destination_port}${call.request.attributes.request.http.path}`;
+        req.headers["x-forwarded-method"] =
+          call.request.attributes.request.http.method;
+
+        // parse cookies into req object
+        cookieParser(externalAuthServer.secrets.cookie_sign_secret)(
+          req,
+          {},
+          () => {}
+        );
+
+        //console.log(req);
+
+        /**
+         * tell verify function to return to us directly the pluginResponse
+         */
+        let pluginResponse = await verifyHandler(
+          req,
+          {},
+          { return_response: true, trust_verify_params_header: true }
+        );
+
+        //console.log("pluginResponse", pluginResponse);
+        let grpcHeaders = [];
+
+        // deal with cookies
+        let setCookieHeaders = [];
+        const clearCookie = function clearCookie(name, options) {
+          var opts = merge({ expires: new Date(1), path: "/" }, options);
+
+          return setCookie(name, "", opts);
+        };
+
+        const setCookie = function (name, value, options) {
+          var opts = merge({}, options);
+          var secret = externalAuthServer.secrets.cookie_sign_secret;
+          var signed = opts.signed;
+
+          if (signed && !secret) {
+            throw new Error(
+              'cookieParser("secret") required for signed cookies'
+            );
+          }
+
+          var val =
+            typeof value === "object"
+              ? "j:" + JSON.stringify(value)
+              : String(value);
+
+          if (signed) {
+            val = "s:" + sign(val, secret);
+          }
+
+          if ("maxAge" in opts) {
+            opts.expires = new Date(Date.now() + opts.maxAge);
+            opts.maxAge /= 1000;
+          }
+
+          if (opts.path == null) {
+            opts.path = "/";
+          }
+
+          return cookie.serialize(name, String(val), opts);
+        };
+
+        pluginResponse.cookies.forEach((cookie) => {
+          setCookieHeaders.push(setCookie(...cookie));
+        });
+
+        pluginResponse.clearCookies.forEach((cookie) => {
+          setCookieHeaders.push(clearCookie(...cookie));
+        });
+
+        for (let header of setCookieHeaders) {
+          grpcHeaders.push({
+            header: {
+              key: "Set-Cookie",
+              value: header,
+            },
+            append: {
+              value: false,
+            },
+          });
+        }
+
+        // deal with headers
+        for (let header in pluginResponse.headers) {
+          grpcHeaders.push({
+            header: {
+              key: header,
+              value: pluginResponse.headers[header],
+            },
+            append: {
+              value: false,
+            },
+          });
+        }
+
+        /**
+         * translate the pluginResponse to the appropriate grpc response
+         * https://cloud.google.com/natural-language/docs/reference/rpc/google.rpc#status
+         */
+        if (
+          pluginResponse.statusCode >= 200 &&
+          pluginResponse.statusCode < 300
+        ) {
+          grpcRes = {
+            status: {
+              code: grpc.status.OK,
+              message: "OK",
+            },
+            //denied_response: {},
+            ok_response: {
+              // headers to add before upstream service
+              headers: grpcHeaders,
+              // headers to remove before upstream service
+              headers_to_remove: [],
+              // headers to send to downstream client (after upstream has handled request)
+              response_headers_to_add: [],
+              // key value pairs for upstream filters
+              dynamic_metadata: {},
+            },
+          };
+        } else {
+          grpcRes = {
+            status: {
+              code: grpc.status.PERMISSION_DENIED,
+              message: pluginResponse.statusMessage,
+            },
+            denied_response: {
+              status: {
+                code: pluginResponse.statusCode,
+              },
+              headers: grpcHeaders,
+              body: pluginResponse.body,
+            },
+          };
+        }
+
+        externalAuthServer.logger.debug(
+          "new grpc response - Check call: %j",
+          grpcRes
+        );
+        callback(null, grpcRes);
+      } catch (e) {
+        externalAuthServer.logger.error(e);
+        grpcRes = {
+          status: {
+            code: grpc.status.UNAVAILABLE,
+            message: "",
+          },
+          denied_response: {
+            status: {
+              code: 503,
+            },
+            //headers: grpcHeaders,
+            //body: pluginResponse.body,
+          },
+        };
+
+        externalAuthServer.logger.debug(
+          "new grpc response - Check call: %j",
+          grpcRes
+        );
+        callback(null, grpcRes);
+      }
+    },
+  }
+);
+
+// https://grpc.github.io/grpc/node/grpc.ServerCredentials.html
+let grpcCredentials;
+if (process.env.EAS_GRPC_SSL_CERT) {
+  // <static> createSsl(rootCerts, keyCertPairs [, checkClientCertificate])
+  grpcCredentials = grpc.ServerCredentials.createSsl(
+    null,
+    [
+      {
+        private_key: Buffer.from(
+          fs.readFileSync(process.env.EAS_GRPC_SSL_KEY, "utf8")
+        ),
+        cert_chain: Buffer.from(
+          fs.readFileSync(process.env.EAS_GRPC_SSL_CERT, "utf8")
+        ),
+      },
+    ],
+    false
+  );
+} else {
+  grpcCredentials = grpc.ServerCredentials.createInsecure();
+}
+
+externalAuthServer.logger.info("starting grpc server on port %s", grpcPort);
+
+// https://grpc.github.io/grpc/node/grpc.Server.html
+grpcServer.bindAsync(`${grpcAddress}:${grpcPort}`, grpcCredentials, () => {
+  grpcServer.start();
+});

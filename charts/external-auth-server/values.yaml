@@ -62,15 +62,23 @@ nameOverride: ""
 fullnameOverride: ""
 
 # NODE_OPTIONS=--max-http-header-size=61440
+# EAS_SSL_KEY="/path/to/ssl/key"
+# EAS_SSL_CERT="/path/to/ssl/cert"
+# EAS_GRPC_SSL_KEY="/path/to/ssl/key"
+# EAS_GRPC_SSL_CERT="/path/to/ssl/cert"
 env: {}
 #  FOO:
 #    value: "bar"
 #  BAR:
 #    value: "baz"
 
+extraVolumes: []
+extraVolumeMounts: []
+
 service:
   type: ClusterIP
   port: 80
+  grpcPort: 50051
   annotations:
     {}
 

@@ -56,6 +56,7 @@ class Assertion {
       case "jp":
         value = await this.jsonpath_query();
         break;
+      case "handlebars":
       case "jsonata":
       case "js":
       case "jq":

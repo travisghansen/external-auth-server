@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const Handlebars = require("handlebars");
 const jsonata = require("jsonata");
 const jp = require("jsonpath");
 const jq = require("node-jq");
@@ -338,6 +339,10 @@ async function json_query(query_engine, query, data) {
       break;
     case "jq":
       value = await jq_query(query, data);
+      break;
+    case "handlebars":
+      const template = Handlebars.compile(query);
+      value = template(data);
       break;
     default:
       throw new Error("invalid query engine: " + query_engine);
