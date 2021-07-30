@@ -83,6 +83,17 @@
 - only get parentRequestInfo once in server.js and more performance enhancements
 - store `state` server-side in `oauth2`/`oidc` plugins
 
+# 0.11.0
+
+Released 2021-07-29
+
+- support for `envoy` (contour, etc) grpc external auth
+- support for running the http and grpc servers with native ssl
+- support `handlebars` syntax for the various `custom_foo_parameters` in `oauth2`/`oidc`
+- support `handlebars` as a new `query_engine`
+- bump various deps
+- minor bug fixes
+
 # 0.10.2
 
 Released 2021-04-04
