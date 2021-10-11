@@ -1,0 +1,40 @@
+# this example assumes eas is deployed in the projectcontour-auth ns, adjust as appropriate
+---
+apiVersion: projectcontour.io/v1
+kind: HTTPProxy
+metadata:
+  name: basic
+spec:
+  virtualhost:
+    fqdn: foo-basic.bar.com
+    # tls is required by contour for the auth service to be invoked
+    tls:
+      secretName: sample-tls-secret
+    authorization:
+      responseTimeout: 5s
+      authPolicy:
+        context:
+          #"x-eas-verify-params": '{"config_token":"..."}'
+          #"x-eas-verify-params": '{"config_token_store_id":"dep_a","config_token_id":"keycloak"}'
+      extensionRef:
+        name: eas
+        namespace: projectcontour-auth
+  routes:
+    - conditions:
+      - prefix: /
+      #permitInsecure: true
+      services:
+        - name: whoami
+          port: 80
+
+---
+apiVersion: projectcontour.io/v1alpha1
+kind: ExtensionService
+metadata:
+  name: eas
+  namespace: projectcontour-auth
+spec:
+  protocol: h2c
+  services:
+  - name: eas
+    port: 50051

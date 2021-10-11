@@ -1,0 +1,169 @@
+admin:
+  access_log_path: /dev/stdout
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 10444
+layered_runtime:
+  layers:
+  - name: static_layer_0
+    static_layer:
+      envoy:
+        resource_limits:
+          listener:
+            listener_proxy:
+              connection_limit: 100
+      overload:
+        global_downstream_max_connections: 500
+static_resources:
+
+  listeners:
+  - address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 8000
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          access_log:
+          - name: envoy.access_loggers.file
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+              path: /dev/stdout
+          codec_type: AUTO
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: backend
+              domains:
+              - "*"
+              routes:
+              - match:
+                  prefix: "/"
+                route:
+                  cluster: httpbin
+                typed_per_filter_config:
+                  envoy.filters.http.ext_authz:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                    #disabled: true
+                    # this is only valid for the grpc service
+                    check_settings:
+                      context_extensions:
+                        # x-eas-verify-params: '{"config_token":"..."}'
+                        x-eas-verify-params: '{"config_token_store_id":"dep_a", "config_token_id":"keycloak"}'
+          http_filters:
+          # both http and grpc filters are here for demonstration purposes only
+          # use only 1 or the other, not both
+          - name: envoy.filters.http.ext_authz-http
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+              stat_prefix: ext_authz_eas
+              transport_api_version: V3
+              filter_enabled:
+                default_value:
+                  # 0 effectively disables the filter
+                  numerator: 0
+                  denominator: HUNDRED
+              http_service:
+                authorizationRequest:
+                  allowedHeaders:
+                    patterns:
+                      - exact: cookie
+                      - exact: X-Forwarded-Host
+                      - exact: X-Forwarded-Method
+                      - exact: x-forwarded-proto
+                      - exact: X-Forwarded-Uri
+                  headers_to_add:
+                    - key: "x-eas-verify-params"
+                      # value: '{"config_token":"..."}'
+                      value: '{"config_token_store_id":"dep_a", "config_token_id":"keycloak"}'
+                authorizationResponse:
+                  allowedUpstreamHeaders:
+                    patterns:
+                      - exact: x-access-token
+                      - exact: authorization
+                      - exact: x-userinfo
+                      - exact: x-id-token
+                pathPrefix: /envoy/verify-params-header
+                serverUri:
+                  cluster: eas-http
+                  timeout: 5.00s
+                  uri: http://localhost:8080
+          # grpc is less strict about what headers are allowed/trusted
+          # be sure x-eas-verify-params is cleansed/trusted before the grpc filter
+          # x-forwarded-proto should also be trustworthy
+          - name: envoy.filters.http.ext_authz-grpc
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+              stat_prefix: ext_authz_eas
+              transport_api_version: V3
+              filter_enabled:
+                default_value:
+                  # 0 effectively disables the filter
+                  numerator: 100
+                  denominator: HUNDRED
+              grpc_service:
+                initial_metadata:
+                - key: foobar
+                  value: baz
+                envoy_grpc:
+                  cluster_name: eas-grpc
+                timeout: 5.00s
+          - name: envoy.filters.http.router
+
+  clusters:
+  - name: eas-http
+    connect_timeout: 5.00s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: eas-http
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: localhost
+                port_value: 8080
+  - name: eas-grpc
+    connect_timeout: 5.00s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    http2_protocol_options: {}
+    load_assignment:
+      cluster_name: eas-grpc
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: localhost
+                port_value: 50051
+  - name: httpbin
+    connect_timeout: 5.00s
+    type: LOGICAL_DNS
+    dns_lookup_family: V4_ONLY
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: httpbin
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: httpbin.org
+                port_value: 443
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+        sni: httpbin.org
+        common_tls_context: 
+          validation_context:
+            match_subject_alt_names:
+            - exact: "*.httpbin.org"
+            trusted_ca:
+              filename: /etc/ssl/certs/ca-certificates.crt

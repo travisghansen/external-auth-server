@@ -45,6 +45,8 @@ spec:
               value: "production"
             - name: EAS_PORT
               value: "8080"
+            - name: EAS_GRPC_PORT
+              value: "50051"
             {{- if .Values.logLevel }}
             - name: EAS_LOG_LEVEL
               value: "{{ .Values.logLevel }}"
@@ -131,9 +133,16 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+            - name: grpc
+              containerPort: 50051
+              protocol: TCP
           volumeMounts:
             - name: node-extra-ca-certs
               mountPath: /tmp/certs
+{{- if .Values.extraVolumeMounts }}
+{{ toYaml .Values.extraVolumeMounts | indent 12 }}
+{{- end }}
+
           livenessProbe:
             httpGet:
               path: /ping
@@ -163,6 +172,9 @@ spec:
           items:
             - key: node-extra-ca-certs
               path: node-extra-ca-certs.crt
+{{- if .Values.extraVolumes }}
+{{ toYaml .Values.extraVolumes | indent 6 }}
+{{- end }}
       {{- if .Values.securityContext.enabled }}
       securityContext:
         fsGroup: {{ .Values.securityContext.fsGroup }}
