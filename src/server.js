@@ -706,8 +706,11 @@ grpcServer.addService(
         req.headers = call.request.attributes.request.http.headers; // headers from parent
         req.body = call.request.attributes.request.http.body; // body from parent
         //req.query.redirect_http_code? really only exists to workaround nginx shortcomings, likely not needed here
-        req.headers["x-eas-verify-params"] =
+        // prefer x-eas-verify-params header from context_extensions if available
+        if (call.request.attributes.context_extensions["x-eas-verify-params"]) {
+          req.headers["x-eas-verify-params"] =
           call.request.attributes.context_extensions["x-eas-verify-params"];
+        }
 
         let destination_port = "";
         let scheme;
@@ -735,7 +738,10 @@ grpcServer.addService(
         if (!call.request.attributes.request.http.host.includes(":")) {
           switch (scheme) {
             case "http":
-              if (
+              // prefer x-forwarded-port if available
+              if (req.headers["x-forwarded-port"] && req.headers["x-forwarded-port"] !== 80) {
+                destination_port = `:${req.headers["x-forwarded-port"]}`;
+              } else if (
                 call.request.attributes.destination.address.socket_address
                   .port_value !== 80
               ) {
@@ -743,7 +749,9 @@ grpcServer.addService(
               }
               break;
             case "https":
-              if (
+              if (req.headers["x-forwarded-port"] && req.headers["x-forwarded-port"] !== 443) {
+                destination_port = `:${req.headers["x-forwarded-port"]}`;
+              } else if (
                 call.request.attributes.destination.address.socket_address
                   .port_value !== 443
               ) {
