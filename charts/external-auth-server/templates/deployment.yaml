@@ -3,30 +3,24 @@ kind: Deployment
 metadata:
   name: {{ include "external-auth-server.fullname" . }}
   labels:
-    app.kubernetes.io/name: {{ include "external-auth-server.name" . }}
-    helm.sh/chart: {{ include "external-auth-server.chart" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    {{- include "external-auth-server.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "external-auth-server.name" . }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
+      {{- include "external-auth-server.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      labels:
-        app.kubernetes.io/name: {{ include "external-auth-server.name" . }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
-      {{- if .Values.podLabels }}
-      {{- tpl (toYaml .Values.podLabels) $ | nindent 8 }}
-      {{- end }}
       annotations:
+        {{- if .Values.podAnnotations }}
+        {{- tpl (toYaml .Values.podAnnotations) $ | nindent 8 }}
+        {{- end }}
         checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
         checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        {{- if .Values.metrics.enabled }}
-        prometheus.io/scrape: "true"
-        prometheus.io/port: {{ .Values.metrics.port | quote }}
+      labels:
+        {{- include "external-auth-server.selectorLabels" . | nindent 8 }}
+        {{- if .Values.podLabels }}
+        {{- tpl (toYaml .Values.podLabels) $ | nindent 8 }}
         {{- end }}
     spec:
       {{- if .Values.priorityClassName }}
@@ -179,4 +173,3 @@ spec:
       securityContext:
         fsGroup: {{ .Values.securityContext.fsGroup }}
       {{- end }}
-
