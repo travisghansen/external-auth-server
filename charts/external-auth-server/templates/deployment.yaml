@@ -11,12 +11,17 @@ spec:
       {{- include "external-auth-server.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
       annotations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- if .Values.podAnnotations }}
+        {{- tpl (toYaml .Values.podAnnotations) $ | nindent 8 }}
+        {{- end }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+        checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         {{- include "external-auth-server.selectorLabels" . | nindent 8 }}
+        {{- if .Values.podLabels }}
+        {{- tpl (toYaml .Values.podLabels) $ | nindent 8 }}
+        {{- end }}
     spec:
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName | quote }}
@@ -168,4 +173,3 @@ spec:
       securityContext:
         fsGroup: {{ .Values.securityContext.fsGroup }}
       {{- end }}
-

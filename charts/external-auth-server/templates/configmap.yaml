@@ -7,4 +7,3 @@ metadata:
 data:
   node-extra-ca-certs: {{ default "" .Values.nodeExtraCaCerts | quote }}
   rovoked-jtis: {{ .Values.revokedJtis | toJson | quote }}
-s
