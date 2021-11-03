@@ -188,7 +188,7 @@ function get_parent_request_uri(req) {
     originalRequestURI = originalRequestURI.replace(/^(.+?)\/*?$/, "$1"); // remove all trailing slashes
     originalRequestURI += req.headers["x-forwarded-uri"];
   } else {
-    originalRequestURI += req.headers["x-forwarded-uri"];
+    originalRequestURI += req.headers["x-forwarded-uri"] || '';
   }
 
   //x-forwarded-port
