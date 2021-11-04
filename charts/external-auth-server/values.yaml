@@ -4,6 +4,7 @@
 
 configTokenSignSecret:
 configTokenEncryptSecret:
+encryptIvSecret:
 issuerSignSecret:
 issuerEncryptSecret:
 cookieSignSecret:
