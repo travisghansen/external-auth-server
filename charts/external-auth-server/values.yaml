@@ -69,6 +69,11 @@ image:
   tag: latest
   #pullPolicy: IfNotPresent
 
+# When it is not possible to access public container registry and it is required to be deployed from private
+# container registry. When kubernetes.io/dockerconfigjson secret is present it can be used to pull a private image.
+# Usage: -- set imagePullSecrets[0].name=private-container-credentials-secret-name
+imagePullSecrets: []
+
 nameOverride: ""
 fullnameOverride: ""
 
