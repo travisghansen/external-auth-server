@@ -1,9 +1,11 @@
 ######################
 # build image
 ######################
-FROM node:12 AS build
+FROM node:16-bullseye AS build
 
 ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y python
 
 RUN mkdir -p /tmp/app
 WORKDIR /tmp/app
@@ -15,7 +17,7 @@ COPY . .
 ######################
 # actual image
 ######################
-FROM node:12-buster-slim
+FROM node:16-bullseye-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 

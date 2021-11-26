@@ -5,6 +5,7 @@ const cookieParser = require("cookie-parser");
 const express = require("express");
 const fs = require("fs");
 const jwt = require("jsonwebtoken");
+const _ = require("lodash");
 const https = require("https");
 const { HeaderInjector } = require("./header");
 const { PluginVerifyResponse } = require("./plugin");
@@ -706,8 +707,46 @@ grpcServer.addService(
         req.headers = call.request.attributes.request.http.headers; // headers from parent
         req.body = call.request.attributes.request.http.body; // body from parent
         //req.query.redirect_http_code? really only exists to workaround nginx shortcomings, likely not needed here
-        req.headers["x-eas-verify-params"] =
-          call.request.attributes.context_extensions["x-eas-verify-params"];
+
+        let metadata = _.get(call, "metadata._internal_repr");
+        let filter_metadata = _.get(
+          call,
+          "request.attributes.metadata_context.filter_metadata.eas.fields.eas.structValue.fields"
+        );
+
+        // function to prroperly retrieve value from filter_metadata
+        const getFilterMetadataValue = function (filter_metadata, key) {
+          const field = _.get(filter_metadata, key);
+          if (field) {
+            return field[field["kind"]];
+          }
+        };
+
+        let verify_params;
+
+        // header
+        // not safe
+
+        // filter_metadata
+        if (!verify_params) {
+          verify_params = getFilterMetadataValue(
+            filter_metadata,
+            "x-eas-verify-params"
+          );
+        }
+
+        // initial_metadata
+        if (!verify_params) {
+          verify_params = _.last(_.get(metadata, "x-eas-verify-params"));
+        }
+
+        // context
+        if (!verify_params) {
+          verify_params =
+            call.request.attributes.context_extensions["x-eas-verify-params"];
+        }
+
+        req.headers["x-eas-verify-params"] = verify_params;
 
         let scheme;
         let host = call.request.attributes.request.http.host;
@@ -717,17 +756,25 @@ grpcServer.addService(
         // header
         // this head can be trusted as being set by envoy
         if (!scheme) {
-          if (req.headers["x-forwarded-proto"]) {
-            scheme = req.headers["x-forwarded-proto"];
-          }
+          scheme = _.get(req.headers, "x-forwarded-proto");
+        }
+
+        // filter_metadata
+        if (!scheme) {
+          scheme = getFilterMetadataValue(filter_metadata, "x-forwarded-proto");
+        }
+
+        // initial_metadata
+        if (!scheme) {
+          scheme = _.last(_.get(metadata, "x-forwarded-proto"));
         }
 
         // context
         if (!scheme) {
-          if (call.request.attributes.context_extensions["x-forwarded-proto"]) {
-            scheme =
-              call.request.attributes.context_extensions["x-forwarded-proto"];
-          }
+          scheme = _.get(
+            call.request.attributes.context_extensions,
+            "x-forwarded-proto"
+          );
         }
 
         // fallback to scheme of the envoy request directly
@@ -750,18 +797,26 @@ grpcServer.addService(
 
         // header
         // by default this CANNOT be trusted
+        //if (!port) {
+        //  port = _.get(req.headers, "x-forwarded-port");
+        //}
+
+        // filter_metadata
         if (!port) {
-          if (req.headers["x-forwarded-port"]) {
-            port = req.headers["x-forwarded-port"];
-          }
+          port = getFilterMetadataValue(filter_metadata, "x-forwarded-port");
+        }
+
+        // initial_metadata
+        if (!port) {
+          port = _.last(_.get(metadata, "x-forwarded-port"));
         }
 
         // context
         if (!port) {
-          if (call.request.attributes.context_extensions["x-forwarded-port"]) {
-            port =
-              call.request.attributes.context_extensions["x-forwarded-port"];
-          }
+          port = _.get(
+            call.request.attributes.context_extensions,
+            "x-forwarded-port"
+          );
         }
 
         // request host
