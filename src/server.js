@@ -709,12 +709,25 @@ grpcServer.addService(
         req.headers["x-eas-verify-params"] =
           call.request.attributes.context_extensions["x-eas-verify-params"];
 
-        let destination_port = "";
         let scheme;
+        let host = call.request.attributes.request.http.host;
+        let port;
+        let destination_port = "";
 
-        // prefer x-forwarded-proto if available
-        if (req.headers["x-forwarded-proto"]) {
-          scheme = req.headers["x-forwarded-proto"];
+        // header
+        // this head can be trusted as being set by envoy
+        if (!scheme) {
+          if (req.headers["x-forwarded-proto"]) {
+            scheme = req.headers["x-forwarded-proto"];
+          }
+        }
+
+        // context
+        if (!scheme) {
+          if (call.request.attributes.context_extensions["x-forwarded-proto"]) {
+            scheme =
+              call.request.attributes.context_extensions["x-forwarded-proto"];
+          }
         }
 
         // fallback to scheme of the envoy request directly
@@ -731,34 +744,64 @@ grpcServer.addService(
           throw new Error("unknown request scheme");
         }
 
-        // only detect port if not present in the host
-        if (!call.request.attributes.request.http.host.includes(":")) {
-          switch (scheme) {
-            case "http":
-              if (
-                call.request.attributes.destination.address.socket_address
-                  .port_value !== 80
-              ) {
-                destination_port = `:${call.request.attributes.destination.address.socket_address.port_value}`;
-              }
-              break;
-            case "https":
-              if (
-                call.request.attributes.destination.address.socket_address
-                  .port_value !== 443
-              ) {
-                destination_port = `:${call.request.attributes.destination.address.socket_address.port_value}`;
-              }
-              break;
-            default:
-              throw new Error("unknown request scheme");
-              break;
+        if (host.includes(":")) {
+          host = host.split(":", 1)[0];
+        }
+
+        // header
+        // by default this CANNOT be trusted
+        if (!port) {
+          if (req.headers["x-forwarded-port"]) {
+            port = req.headers["x-forwarded-port"];
           }
+        }
+
+        // context
+        if (!port) {
+          if (call.request.attributes.context_extensions["x-forwarded-port"]) {
+            port =
+              call.request.attributes.context_extensions["x-forwarded-port"];
+          }
+        }
+
+        // request host
+        if (!port) {
+          if (call.request.attributes.request.http.host.includes(":")) {
+            port = call.request.attributes.request.http.host.split(":", 2)[1];
+          }
+        }
+
+        // fallback to port of the envoy request directly
+        if (!port) {
+          port =
+            call.request.attributes.destination.address.socket_address
+              .port_value;
+        }
+
+        if (!port) {
+          throw new Error("unknown request port");
+        }
+
+        // only set port if non-standard to the scheme
+        switch (scheme) {
+          case "http":
+            if (port !== 80) {
+              destination_port = `:${port}`;
+            }
+            break;
+          case "https":
+            if (port !== 443) {
+              destination_port = `:${port}`;
+            }
+            break;
+          default:
+            throw new Error("unknown request scheme");
+            break;
         }
 
         req.headers[
           "x-eas-request-uri"
-        ] = `${scheme}://${call.request.attributes.request.http.host}${destination_port}${call.request.attributes.request.http.path}`;
+        ] = `${scheme}://${host}${destination_port}${call.request.attributes.request.http.path}`;
         req.headers["x-forwarded-method"] =
           call.request.attributes.request.http.method;
 
