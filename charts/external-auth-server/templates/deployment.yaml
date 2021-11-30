@@ -87,7 +87,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "external-auth-server.fullname" . }}
-                  key: encrypt-iv-secret
+                  key: config-token-encrypt-iv-secret
             - name: EAS_ISSUER_SIGN_SECRET
               valueFrom:
                 secretKeyRef:
