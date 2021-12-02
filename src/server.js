@@ -722,6 +722,9 @@ grpcServer.addService(
           }
         };
 
+        // for explanation on order of preference of the data below see the following
+        // https://github.com/travisghansen/external-auth-server/pull/126#issuecomment-980094773
+
         let verify_params;
 
         // header

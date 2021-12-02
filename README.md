@@ -166,6 +166,11 @@ eas eas/external-auth-server
 EAS_CONFIG_TOKEN_SIGN_SECRET="foo" \
 EAS_CONFIG_TOKEN_ENCRYPT_SECRET="bar" \
 node bin/generate-config-token.js
+
+# alternatively you may use the following to create tokens
+# files can be either json or yaml
+cat config-token.json | docker run --rm -i -e EAS_CONFIG_TOKEN_SIGN_SECRET=foo -e EAS_CONFIG_TOKEN_ENCRYPT_SECRET=bar travisghansen/external-auth-server generate-config-token
+cat config-token.json | EAS_CONFIG_TOKEN_SIGN_SECRET=foo EAS_CONFIG_TOKEN_ENCRYPT_SECRET=bar npm run generate-config-token
 ```
 
 ## Configure your reverse proxy
