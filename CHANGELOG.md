@@ -85,7 +85,7 @@
 
 # 0.12.0
 
-Released 2021-12-2
+Released 2022-01-11
 
 - more robust control of `envoy` `grpc` behavior (setting
   config_token/ports/proto via trusted metadata)
