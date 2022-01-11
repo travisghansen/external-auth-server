@@ -5,6 +5,7 @@ const cookieParser = require("cookie-parser");
 const express = require("express");
 const fs = require("fs");
 const jwt = require("jsonwebtoken");
+const _ = require("lodash");
 const https = require("https");
 const { HeaderInjector } = require("./header");
 const { PluginVerifyResponse } = require("./plugin");
@@ -706,15 +707,77 @@ grpcServer.addService(
         req.headers = call.request.attributes.request.http.headers; // headers from parent
         req.body = call.request.attributes.request.http.body; // body from parent
         //req.query.redirect_http_code? really only exists to workaround nginx shortcomings, likely not needed here
-        req.headers["x-eas-verify-params"] =
-          call.request.attributes.context_extensions["x-eas-verify-params"];
 
-        let destination_port = "";
+        let metadata = _.get(call, "metadata._internal_repr");
+        let filter_metadata = _.get(
+          call,
+          "request.attributes.metadata_context.filter_metadata.eas.fields.eas.structValue.fields"
+        );
+
+        // function to prroperly retrieve value from filter_metadata
+        const getFilterMetadataValue = function (filter_metadata, key) {
+          const field = _.get(filter_metadata, key);
+          if (field) {
+            return field[field["kind"]];
+          }
+        };
+
+        // for explanation on order of preference of the data below see the following
+        // https://github.com/travisghansen/external-auth-server/pull/126#issuecomment-980094773
+
+        let verify_params;
+
+        // header
+        // not safe
+
+        // filter_metadata
+        if (!verify_params) {
+          verify_params = getFilterMetadataValue(
+            filter_metadata,
+            "x-eas-verify-params"
+          );
+        }
+
+        // initial_metadata
+        if (!verify_params) {
+          verify_params = _.last(_.get(metadata, "x-eas-verify-params"));
+        }
+
+        // context
+        if (!verify_params) {
+          verify_params =
+            call.request.attributes.context_extensions["x-eas-verify-params"];
+        }
+
+        req.headers["x-eas-verify-params"] = verify_params;
+
         let scheme;
+        let host = call.request.attributes.request.http.host;
+        let port;
+        let destination_port = "";
 
-        // prefer x-forwarded-proto if available
-        if (req.headers["x-forwarded-proto"]) {
-          scheme = req.headers["x-forwarded-proto"];
+        // header
+        // this head can be trusted as being set by envoy
+        if (!scheme) {
+          scheme = _.get(req.headers, "x-forwarded-proto");
+        }
+
+        // filter_metadata
+        if (!scheme) {
+          scheme = getFilterMetadataValue(filter_metadata, "x-forwarded-proto");
+        }
+
+        // initial_metadata
+        if (!scheme) {
+          scheme = _.last(_.get(metadata, "x-forwarded-proto"));
+        }
+
+        // context
+        if (!scheme) {
+          scheme = _.get(
+            call.request.attributes.context_extensions,
+            "x-forwarded-proto"
+          );
         }
 
         // fallback to scheme of the envoy request directly
@@ -731,34 +794,72 @@ grpcServer.addService(
           throw new Error("unknown request scheme");
         }
 
-        // only detect port if not present in the host
-        if (!call.request.attributes.request.http.host.includes(":")) {
-          switch (scheme) {
-            case "http":
-              if (
-                call.request.attributes.destination.address.socket_address
-                  .port_value !== 80
-              ) {
-                destination_port = `:${call.request.attributes.destination.address.socket_address.port_value}`;
-              }
-              break;
-            case "https":
-              if (
-                call.request.attributes.destination.address.socket_address
-                  .port_value !== 443
-              ) {
-                destination_port = `:${call.request.attributes.destination.address.socket_address.port_value}`;
-              }
-              break;
-            default:
-              throw new Error("unknown request scheme");
-              break;
+        if (host.includes(":")) {
+          host = host.split(":", 1)[0];
+        }
+
+        // header
+        // by default this CANNOT be trusted
+        //if (!port) {
+        //  port = _.get(req.headers, "x-forwarded-port");
+        //}
+
+        // filter_metadata
+        if (!port) {
+          port = getFilterMetadataValue(filter_metadata, "x-forwarded-port");
+        }
+
+        // initial_metadata
+        if (!port) {
+          port = _.last(_.get(metadata, "x-forwarded-port"));
+        }
+
+        // context
+        if (!port) {
+          port = _.get(
+            call.request.attributes.context_extensions,
+            "x-forwarded-port"
+          );
+        }
+
+        // request host
+        if (!port) {
+          if (call.request.attributes.request.http.host.includes(":")) {
+            port = call.request.attributes.request.http.host.split(":", 2)[1];
           }
+        }
+
+        // fallback to port of the envoy request directly
+        if (!port) {
+          port =
+            call.request.attributes.destination.address.socket_address
+              .port_value;
+        }
+
+        if (!port) {
+          throw new Error("unknown request port");
+        }
+
+        // only set port if non-standard to the scheme
+        switch (scheme) {
+          case "http":
+            if (port !== 80) {
+              destination_port = `:${port}`;
+            }
+            break;
+          case "https":
+            if (port !== 443) {
+              destination_port = `:${port}`;
+            }
+            break;
+          default:
+            throw new Error("unknown request scheme");
+            break;
         }
 
         req.headers[
           "x-eas-request-uri"
-        ] = `${scheme}://${call.request.attributes.request.http.host}${destination_port}${call.request.attributes.request.http.path}`;
+        ] = `${scheme}://${host}${destination_port}${call.request.attributes.request.http.path}`;
         req.headers["x-forwarded-method"] =
           call.request.attributes.request.http.method;
 

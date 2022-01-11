@@ -83,6 +83,14 @@
 - only get parentRequestInfo once in server.js and more performance enhancements
 - store `state` server-side in `oauth2`/`oidc` plugins
 
+# 0.12.0
+
+Released 2022-01-11
+
+- more robust control of `envoy` `grpc` behavior (setting
+  config_token/ports/proto via trusted metadata)
+- bump node version to `v16` (from `v12`)
+
 # 0.11.0
 
 Released 2021-07-29

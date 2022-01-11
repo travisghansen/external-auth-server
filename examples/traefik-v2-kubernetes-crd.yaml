@@ -1,0 +1,36 @@
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: my-middleware-name
+  namespace: mynamespace
+spec:
+  forwardAuth:
+    address: "https://myurl-to-eas.com/verify?config_token_store_id=default&config_token_id=whatever"
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-Forwarded-User
+      - X-Id-Token
+      - X-Userinfo
+      - X-Access-Token
+      - Authorization
+
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: my-route
+  namespace: mynamespace
+spec:
+  entryPoints:
+    - https
+  tls: {} # just use the wildcard certificate matching per domain
+  routes:
+  - match: Host(`my.host.com`) # Hostname to match
+    kind: Rule
+    middlewares:
+      - name: my-middleware-name
+        namespace: mynamespace
+    services:
+    - name: myservice
+      port: 80
