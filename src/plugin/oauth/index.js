@@ -2078,11 +2078,11 @@ class BaseOauthPlugin extends BasePlugin {
       plugin.config.assertions.aud
     ) {
       if (idToken.aud != plugin.config.client.client_id) {
-        plugin.server.logger.verbose("aud does not match client_id");
+        plugin.server.logger.debug("aud does not match client_id");
         return false;
       }
     } else {
-      plugin.server.logger.verbose("Assertions: SKIPPED aud")
+      plugin.server.logger.debug("Assertions: SKIPPED aud")
     }
 
     /**
@@ -2092,45 +2092,45 @@ class BaseOauthPlugin extends BasePlugin {
       const is_expired = tokenset_is_expired(tokenSet)
 
       if (is_expired) {
-        plugin.server.logger.verbose("tokenSet is expired");
+        plugin.server.logger.debug("tokenSet is expired");
 
         if (!plugin.config.features.refresh_access_token) {
-          plugin.server.logger.verbose("refresh tokens disabled");
+          plugin.server.logger.debug("refresh tokens disabled");
           return false
         }
 
         if (!tokenset_can_refresh(tokenSet)) {
-          plugin.server.logger.verbose("refresh no longer available");
+          plugin.server.logger.debug("refresh no longer available");
           return false
         }
         
-        plugin.server.logger.verbose("refresh token available");
+        plugin.server.logger.debug("refresh token available");
       }
-      plugin.server.logger.verbose("Assertions: PASSED exp");
+      plugin.server.logger.debug("Assertions: PASSED exp");
     } else {
-      plugin.server.logger.verbose("Assertions: SKIPPED exp")
+      plugin.server.logger.debug("Assertions: SKIPPED exp")
     }
 
 
     if (plugin.config.assertions.nbf) {
       if (tokenset_is_premature(tokenSet)) {
-        plugin.server.logger.verbose("tokenSet is premature");
+        plugin.server.logger.debug("tokenSet is premature");
         return false
       }
-      plugin.server.logger.verbose("Assertions: PASSED nbf")
+      plugin.server.logger.debug("Assertions: PASSED nbf")
     } else {
-      plugin.server.logger.verbose("Assertions: SKIPPED nbf")
+      plugin.server.logger.debug("Assertions: SKIPPED nbf")
     }
 
 
     if (plugin.config.assertions.iss) {
       if (!tokenset_issuer_match(tokenSet, issuer.issuer)) {
-        plugin.server.logger.verbose("tokenSet has a mismatch issuer");
+        plugin.server.logger.debug("tokenSet has a mismatch issuer");
         return false;
       }
-      plugin.server.logger.verbose("Assertions: PASSED iss")
+      plugin.server.logger.debug("Assertions: PASSED iss")
     } else {
-      plugin.server.logger.verbose("Assertions: SKIPPED iss")
+      plugin.server.logger.debug("Assertions: SKIPPED iss")
     }
 
     if (
@@ -2154,9 +2154,9 @@ class BaseOauthPlugin extends BasePlugin {
         response = await client.introspect(tokenSet.access_token);
       }
 
-      plugin.server.logger.verbose("token introspect details %j", response);
+      plugin.server.logger.debug("token introspect details %j", response);
       if (response.active === false) {
-        plugin.server.logger.verbose("token no longer active!!!");
+        plugin.server.logger.debug("token no longer active!!!");
         return false;
       }
 
@@ -2167,48 +2167,48 @@ class BaseOauthPlugin extends BasePlugin {
       ) {
         await plugin.set_introspection_cache(session_id, response);
       }
-      plugin.server.logger.verbose("Assertions: PASSED introspect_access_token")
+      plugin.server.logger.debug("Assertions: PASSED introspect_access_token")
     } else {
-      plugin.server.logger.verbose("Assertions: SKIPPED introspect_access_token")
+      plugin.server.logger.debug("Assertions: SKIPPED introspect_access_token")
     }
 
 
     if (plugin.config.assertions.id_token) {
       if (!tokenSet.id_token) {
-        plugin.server.logger.verbose("Missing id_token")
+        plugin.server.logger.debug("Missing id_token")
         return false
       }
 
       const idToken = jwt.decode(tokenSet.id_token);
       const idTokenValid = await plugin.id_token_assertions(idToken);
       if (!idTokenValid) {
-        plugin.server.logger.verbose("Invalid id_token")
+        plugin.server.logger.debug("Invalid id_token")
         return false;
       }
-      plugin.server.logger.verbose("Assertions: PASSED id_token")
+      plugin.server.logger.debug("Assertions: PASSED id_token")
     } else {
-      plugin.server.logger.verbose("Assertions: SKIPPED id_token")
+      plugin.server.logger.debug("Assertions: SKIPPED id_token")
     }
 
 
     if (plugin.config.assertions.access_token) {
       if (!tokenSet.access_token) {
-        plugin.server.logger.verbose("Missing access_token")
+        plugin.server.logger.debug("Missing access_token")
         return false
       }
 
       const accessToken = jwt.decode(tokenSet.access_token);
       const accessTokenValid = await plugin.access_token_assertions(accessToken);
       if (!accessTokenValid) {
-        plugin.server.logger.verbose("Invalid access_token")
+        plugin.server.logger.debug("Invalid access_token")
         return false;
       }
-      plugin.server.logger.verbose("Assertions: PASSED access_token")
+      plugin.server.logger.debug("Assertions: PASSED access_token")
     } else {
-      plugin.server.logger.verbose("Assertions: SKIPPED access_token")
+      plugin.server.logger.debug("Assertions: SKIPPED access_token")
     }
 
-    plugin.server.logger.verbose("Assertions: PASSED")
+    plugin.server.logger.debug("Assertions: PASSED")
     return true;
   }
 
