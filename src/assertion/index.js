@@ -167,7 +167,8 @@ class Assertion {
     }
 
     if (test === false) {
-      logger.warn("failed assertion: %j against value: %j", this.config, value);
+      logger.warn("failed assertion: %j", this.config);
+      logger.debug("failed assertion: %j against value: %j", this.config, value);
     } else {
       logger.debug(
         "passed assertion: %j against value: %j",
