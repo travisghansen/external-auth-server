@@ -227,9 +227,9 @@ class JwtPlugin extends BasePlugin {
     }
 
     try {
-      plugin.server.logger.debug("JwtPlugin: Validating token");
+      plugin.server.logger.debug("JwtPlugin: Validating token using jwt options: %j", jwtConfig.options);
       const token = await new Promise((resolve, reject) => {
-        jwt.verify(creds.token, getKey, jwtConfig, (err, decoded) => {
+        jwt.verify(creds.token, getKey, jwtConfig.options, (err, decoded) => {
           if (err) {
             plugin.server.logger.debug("JwtPlugin: Validating token FAIL", err);
             reject(err);
