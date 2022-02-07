@@ -367,6 +367,22 @@ class JwtPlugin extends BasePlugin {
       plugin.server.logger.debug("JwtPlugin: id_token assertions SKIPPED")
     }
 
+    // Run access_token assertions
+    if (plugin.config.assertions && plugin.config.assertions.access_token) {
+      isValid = await Assertion.assertSet(
+        token_decoded,
+        plugin.config.assertions.access_token
+      );
+
+      if (!isValid) {
+        plugin.server.logger.debug("JwtPlugin: access_token assertions FAILED")
+        return false;
+      }
+      plugin.server.logger.debug("JwtPlugin: access_token assertions PASSED")
+    } else {
+      plugin.server.logger.debug("JwtPlugin: access_token assertions SKIPPED")
+    }
+
     return true;
   }
 
