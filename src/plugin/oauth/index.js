@@ -2351,7 +2351,7 @@ class OauthPlugin extends BaseOauthPlugin {
     const client = await plugin.get_client();
     const response_type = "code";
 
-    return client.oauthCallback(
+    return client.callback(
       authorization_redirect_uri,
       parentReqInfo.parsedQuery,
       {
