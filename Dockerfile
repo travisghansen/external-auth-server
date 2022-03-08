@@ -28,6 +28,14 @@ RUN useradd --create-home eas \
 
 COPY --from=build --chown=eas:eas /tmp/app /home/eas/app
 
+# Remove obsolete files
+RUN rm -rf /home/eas/app/examples \
+        && rm -rf  /home/eas/app/.git* \
+        && rm -rf /home/eas/app/.travis* \
+        && rm -rf /home/eas/app/contrib \
+        && rm -rf /home/eas/app/charts \
+        && rm /home/eas/app/*.md
+
 WORKDIR /home/eas/app
 USER eas
 
