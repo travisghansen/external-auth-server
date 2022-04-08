@@ -83,6 +83,16 @@
 - only get parentRequestInfo once in server.js and more performance enhancements
 - store `state` server-side in `oauth2`/`oidc` plugins
 
+# 0.12.1
+
+Released 2022-04-08
+
+- update deps
+- use exclusively the native `@grpc/grpc-js` grpc implementation
+- do not install dev dependencies in container images
+- add `s390x` and `ppc64le` to container architectures
+- do not include uncecessary files in container images
+
 # 0.12.0
 
 Released 2022-01-11

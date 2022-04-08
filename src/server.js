@@ -658,7 +658,7 @@ const grpcPort = process.env.EAS_GRPC_PORT || 50051;
  * grpc (c-based implementation)
  * @grpc/grpc-js (pure js implementation)
  */
-const grpcImplementation = process.env.EAS_GRPC_IMPLEMENTATION || "grpc";
+const grpcImplementation = process.env.EAS_GRPC_IMPLEMENTATION || " @grpc/grpc-js";
 const grpc = require(grpcImplementation);
 const protoLoader = require("@grpc/proto-loader");
 
@@ -689,7 +689,7 @@ grpcServer.addService(
       let grpcRes;
 
       try {
-        let cleansedCall = JSON.parse(JSON.stringify(call));
+        let cleansedCall = JSON.parse(externalAuthServer.utils.stringify(call));
         externalAuthServer.logger.debug(
           "new grpc request - Check call: %j",
           cleansedCall
@@ -708,7 +708,15 @@ grpcServer.addService(
         req.body = call.request.attributes.request.http.body; // body from parent
         //req.query.redirect_http_code? really only exists to workaround nginx shortcomings, likely not needed here
 
+        // c-based grpc metadata is present at this attribute
         let metadata = _.get(call, "metadata._internal_repr");
+
+        // c-based grpc not in use
+        if (!metadata) {
+          // get metadata object and convert to basic json object
+          metadata = _.get(call, "metadata", {});
+          metadata = JSON.parse(JSON.stringify(metadata));
+        }
         let filter_metadata = _.get(
           call,
           "request.attributes.metadata_context.filter_metadata.eas.fields.eas.structValue.fields"
