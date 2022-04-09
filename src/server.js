@@ -658,7 +658,7 @@ const grpcPort = process.env.EAS_GRPC_PORT || 50051;
  * grpc (c-based implementation)
  * @grpc/grpc-js (pure js implementation)
  */
-const grpcImplementation = process.env.EAS_GRPC_IMPLEMENTATION || " @grpc/grpc-js";
+const grpcImplementation = process.env.EAS_GRPC_IMPLEMENTATION || "@grpc/grpc-js";
 const grpc = require(grpcImplementation);
 const protoLoader = require("@grpc/proto-loader");
 
