@@ -3,21 +3,21 @@ entries:
   external-auth-server:
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2022-03-04T02:18:53.832347906Z"
+    created: "2022-04-09T00:40:19.212903556Z"
     dependencies:
     - condition: redis-ha.enabled
       name: redis-ha
       repository: https://charts.helm.sh/stable/
       version: ~4.4.1
     description: A Helm chart for Kubernetes
-    digest: 8996719ef4db05aa8970a7258d81b1a5fff45c718524eaac4f1986b43876e15d
+    digest: b652088c30d22e343478af66255a97d7b4bb71c22c6d1fda702a068764033d4d
     name: external-auth-server
     urls:
     - external-auth-server-0.2.1.tgz
     version: 0.2.1
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2022-03-04T02:18:53.830526782Z"
+    created: "2022-04-09T00:40:19.211009822Z"
     dependencies:
     - condition: redis-ha.enabled
       name: redis-ha
@@ -31,7 +31,7 @@ entries:
     version: 0.2.0
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2022-03-04T02:18:53.828689556Z"
+    created: "2022-04-09T00:40:19.209178093Z"
     dependencies:
     - condition: redis-ha.enabled
       name: redis-ha
@@ -45,7 +45,7 @@ entries:
     version: 0.1.6
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2022-03-04T02:18:53.826856531Z"
+    created: "2022-04-09T00:40:19.207385166Z"
     dependencies:
     - condition: redis-ha.enabled
       name: redis-ha
@@ -59,7 +59,7 @@ entries:
     version: 0.1.5
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2022-03-04T02:18:53.825020006Z"
+    created: "2022-04-09T00:40:19.204586868Z"
     dependencies:
     - condition: redis-ha.enabled
       name: redis-ha
@@ -73,7 +73,7 @@ entries:
     version: 0.1.4
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2022-03-04T02:18:53.821763962Z"
+    created: "2022-04-09T00:40:19.202279305Z"
     dependencies:
     - condition: redis-ha.enabled
       name: redis-ha
@@ -87,7 +87,7 @@ entries:
     version: 0.1.3
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2022-03-04T02:18:53.819997938Z"
+    created: "2022-04-09T00:40:19.200505779Z"
     dependencies:
     - condition: redis-ha.enabled
       name: redis-ha
@@ -101,7 +101,7 @@ entries:
     version: 0.1.2
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2022-03-04T02:18:53.818194413Z"
+    created: "2022-04-09T00:40:19.198722153Z"
     dependencies:
     - condition: redis-ha.enabled
       name: redis-ha
@@ -115,7 +115,7 @@ entries:
     version: 0.1.1
   - apiVersion: v1
     appVersion: "1.0"
-    created: "2022-03-04T02:18:53.816344788Z"
+    created: "2022-04-09T00:40:19.196883623Z"
     dependencies:
     - condition: redis-ha.enabled
       name: redis-ha
@@ -127,4 +127,4 @@ entries:
     urls:
     - external-auth-server-0.1.0.tgz
     version: 0.1.0
-generated: "2022-03-04T02:18:53.81358515Z"
+generated: "2022-04-09T00:40:19.194020721Z"
