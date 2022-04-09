@@ -33,7 +33,6 @@
     "express": "^4.17.1",
     "express-prom-bundle": "^6.3.4",
     "google-proto-files": "^2.4.0",
-    "grpc": "^1.24.11",
     "handlebars": "^4.7.7",
     "htpasswd-js": "^1.0.2",
     "jq.node": "^2.4.0",
@@ -60,6 +59,6 @@
     "utils-merge": "^1.0.1",
     "uuid": "^8.3.2",
     "winston": "^3.3.3",
-    "yaml": "^1.10.2"
+    "yaml": "^2.0.0"
   }
 }
