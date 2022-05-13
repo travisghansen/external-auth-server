@@ -138,6 +138,16 @@ redis-ha:
 #  - host: eas-redis-ha-announce-2
 #    port: 26379
 
+livenessProbe:
+  httpGet:
+    path: /ping
+    port: http
+
+readinessProbe:
+  httpGet:
+    path: /ping
+    port: http
+
 resources:
   {}
   # We usually recommend not to specify default resources and to leave this as a conscious
