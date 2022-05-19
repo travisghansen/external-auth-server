@@ -36,6 +36,7 @@ if (env == "production") {
 const logger = winston.createLogger({
   level: level,
   format: winston.format.combine(
+    winston.format.timestamp(),
     winston.format.errors({ stack: true }),
     winston.format.splat(),
     ...formatters
