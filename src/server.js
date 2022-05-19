@@ -89,6 +89,14 @@ app.get("/ping", (req, res) => {
 });
 
 verifyHandler = async (req, res, options = {}) => {
+  try {
+    await _verifyHandler(req, res, options)
+  } catch (error) {
+    externalAuthServer.logger.error(error)
+  }
+}
+
+_verifyHandler = async (req, res, options = {}) => {
   externalAuthServer.logger.silly("verify request details: %j", {
     url: req.url,
     params: req.params,

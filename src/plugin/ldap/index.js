@@ -107,7 +107,14 @@ class LdapPlugin extends BasePlugin {
         ":" +
         plugin.server.utils.md5(req.headers.authorization);
 
-      const userinfo = await store.get(store_key);
+      const userinfo = await store.get(store_key).then(userinfo => {
+        if (userinfo) {
+          return JSON.parse(plugin.server.utils.decrypt(
+            plugin.server.secrets.session_encrypt_secret,
+            userinfo
+          ))
+        }
+      })
 
       if (userinfo != null) {
         plugin.server.logger.verbose("ldap userinfo: %s", userinfo);
