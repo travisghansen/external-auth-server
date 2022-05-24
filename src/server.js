@@ -90,7 +90,8 @@ app.get("/ping", (req, res) => {
 
 verifyHandler = async (req, res, options = {}) => {
   try {
-    await _verifyHandler(req, res, options)
+    let result = _verifyHandler(req, res, options)
+    while (result instanceof Promise) result = await result
   } catch (error) {
     externalAuthServer.logger.error(error)
   }
