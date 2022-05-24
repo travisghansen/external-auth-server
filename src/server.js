@@ -460,7 +460,7 @@ _verifyHandler = async (req, res, options = {}) => {
         resolve();
       }
 
-      processPipeline();
+      await processPipeline();
     }).then(async (pluginResponse) => {
       if (!pluginResponse) {
         pluginResponse = new PluginVerifyResponse();
