@@ -6,4 +6,4 @@ metadata:
     {{- include "external-auth-server.labels" . | nindent 4 }}
 data:
   node-extra-ca-certs: {{ default "" .Values.nodeExtraCaCerts | quote }}
-  rovoked-jtis: {{ .Values.revokedJtis | toJson | quote }}
+  revoked-jtis: {{ .Values.revokedJtis | toJson | quote }}
