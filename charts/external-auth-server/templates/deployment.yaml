@@ -54,7 +54,7 @@ spec:
               valueFrom:
                 configMapKeyRef:
                   name: {{ include "external-auth-server.fullname" . }}
-                  key: rovoked-jtis
+                  key: revoked-jtis
             {{- end }}
             {{- if .Values.storeOpts }}
             - name: EAS_STORE_OPTS

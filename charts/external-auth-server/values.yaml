@@ -9,13 +9,19 @@ issuerEncryptSecret:
 cookieSignSecret:
 cookieEncryptSecret:
 sessionEncryptSecret:
+
+# If set to true, secrets above are not used and you need to create a secret
+# with the same name as the chart release in the service namespace. See
+# templates/secrets.yaml for the required values.
+useExistingSecret: false
+
 storeOpts: {}
 configTokenStores: {}
 configTokens: {}
 revokedJtis: []
 backchannelLogoutConfig: {}
 
-# exmaple config_token store (server-side config_tokens) setup using env variable backing
+# example config_token store (server-side config_tokens) setup using env variable backing
 # in the example below the `config_token_id` would be "1", "2", etc
 # and the `config_token_store_id` would be "primary" for the `config_token` created for the
 # reverse proxy
