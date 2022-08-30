@@ -90,11 +90,11 @@ app.get("/ping", (req, res) => {
 
 verifyHandler = async (req, res, options = {}) => {
   try {
-    await _verifyHandler(req, res, options)
+    return await _verifyHandler(req, res, options);
   } catch (error) {
-    externalAuthServer.logger.error(error)
+    externalAuthServer.logger.error(error);
   }
-}
+};
 
 _verifyHandler = async (req, res, options = {}) => {
   externalAuthServer.logger.silly("verify request details: %j", {
@@ -666,7 +666,8 @@ const grpcPort = process.env.EAS_GRPC_PORT || 50051;
  * grpc (c-based implementation)
  * @grpc/grpc-js (pure js implementation)
  */
-const grpcImplementation = process.env.EAS_GRPC_IMPLEMENTATION || "@grpc/grpc-js";
+const grpcImplementation =
+  process.env.EAS_GRPC_IMPLEMENTATION || "@grpc/grpc-js";
 const grpc = require(grpcImplementation);
 const protoLoader = require("@grpc/proto-loader");
 
