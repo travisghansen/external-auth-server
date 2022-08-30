@@ -138,7 +138,11 @@ class FirebaseJwtPlugin extends BasePlugin {
       });
 
       if (cache_ttl) {
-        await store.set(FIREBASE_JWT_KEYS_CACHE_KEY, publicKeys);
+        await store.set(
+          FIREBASE_JWT_KEYS_CACHE_KEY,
+          publicKeys,
+          cache_ttl,
+        );
       }
     } else {
       plugin.server.logger.verbose(
