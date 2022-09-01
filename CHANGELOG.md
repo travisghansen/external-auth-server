@@ -1,3 +1,11 @@
+# 0.12.4
+
+Released 2022-09-01
+
+- firebase jwks cache fix
+- minor fixes
+- bump deps
+
 # 0.12.3
 
 Released 2022-05-18
