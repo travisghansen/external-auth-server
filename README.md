@@ -37,7 +37,7 @@ indexed) parameter on the authentication URL.
 # Features
 
 - works with any proxy server (traefik, nginx, ambassador, istio, envoy, etc)
-that supports forward/external auth
+  that supports forward/external auth
 - works with any `OpenID Connect`/`oauth2` provider (tested predominantly with
   `keycloak` but it should be agnostic)
 - only requires 1 installation to service any number of
@@ -117,8 +117,8 @@ travisghansen/external-auth-server
 ### Kubernetes
 
 A `helm` chart is supplied in the repo directly. Reviewing
-(values.yaml)[chart/values.yaml] is **highly** recommended as examples are
-provided for common use-cases.
+[values.yaml](charts/external-auth-server/values.yaml) is **highly**
+recommended as examples are provided for common use-cases.
 
 ```
 helm repo add eas https://travisghansen.github.io/external-auth-server
@@ -166,6 +166,11 @@ eas eas/external-auth-server
 EAS_CONFIG_TOKEN_SIGN_SECRET="foo" \
 EAS_CONFIG_TOKEN_ENCRYPT_SECRET="bar" \
 node bin/generate-config-token.js
+
+# alternatively you may use the following to create tokens
+# files can be either json or yaml
+cat config-token.json | docker run --rm -i -e EAS_CONFIG_TOKEN_SIGN_SECRET=foo -e EAS_CONFIG_TOKEN_ENCRYPT_SECRET=bar travisghansen/external-auth-server generate-config-token
+cat config-token.json | EAS_CONFIG_TOKEN_SIGN_SECRET=foo EAS_CONFIG_TOKEN_ENCRYPT_SECRET=bar npm run generate-config-token
 ```
 
 ## Configure your reverse proxy
@@ -198,6 +203,12 @@ ingress.kubernetes.io/auth-response-headers: X-Userinfo, X-Id-Token, X-Access-To
 
 # istio (see file in examples directory)
 
+# haproxy-ingress (see file in examples directory)
+
+# contour (see file in examples directory)
+
+# envoy (see file in examples directory)
+
 ```
 
 ## Endpoints
@@ -214,6 +225,16 @@ endpoint. The URL supports the following query params:
 If your provider does not support wildcards you may expose `eas` directly and
 set the `config_token` `redirect_uri` to the `eas` service at the
 `/oauth/callback` path.
+
+## Additional ENV vars
+
+- `EAS_SSL_CERT` path to ssl cert file to enable https
+- `EAS_SSL_KEY` path to ssl key file to enable https
+- `EAS_GRPC_ADDRESS` the address to start the grpc server on (default is
+  `0.0.0.0`)
+- `EAS_GRPC_PORT` port the grpc server is bound to (default is `50051`)
+- `EAS_GRPC_SSL_CERT` path to ssl cert file to enable https
+- `EAS_GRPC_SSL_KEY` path to ssl key file to enable https
 
 ## redis
 

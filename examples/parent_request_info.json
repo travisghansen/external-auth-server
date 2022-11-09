@@ -1,0 +1,15 @@
+{
+  "uri":"https://foo-basic.bar.com/some/path?foo=bar&bar=baz",
+  "parsedUri":{
+     "scheme":"https",
+     "host":"foo-basic.bar.com",
+     "path":"/some/path",
+     "query":"foo=bar&bar=baz",
+     "reference":"absolute"
+  },
+  "parsedQuery":{
+     "bar":"baz",
+     "foo":"bar"
+  },
+  "method":"HEAD"
+}

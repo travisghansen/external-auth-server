@@ -58,7 +58,7 @@ class FirebaseJwtPlugin extends BasePlugin {
     scheme = scheme.toLowerCase();
 
     let error, error_description;
-    const failure_response = function(code = 401) {
+    const failure_response = function (code = 401) {
       res.statusCode = code || 401;
 
       if (scheme == "bearer") {
@@ -115,9 +115,9 @@ class FirebaseJwtPlugin extends BasePlugin {
       publicKeys = await new Promise((resolve, reject) => {
         const options = {
           method: "GET",
-          url: FIREBASE_JWT_KEYS_URI
+          url: FIREBASE_JWT_KEYS_URI,
         };
-        request(options, function(error, res, body) {
+        request(options, function (error, res, body) {
           if (error) {
             reject(error);
           }
@@ -125,7 +125,7 @@ class FirebaseJwtPlugin extends BasePlugin {
           if (res.headers.hasOwnProperty("cache-control")) {
             const cacheControlHeader = res.headers["cache-control"];
             const parts = cacheControlHeader.split(",");
-            parts.forEach(part => {
+            parts.forEach((part) => {
               const subParts = part.trim().split("=");
               if (subParts[0] === "max-age") {
                 const maxAge = +subParts[1];
@@ -138,11 +138,13 @@ class FirebaseJwtPlugin extends BasePlugin {
       });
 
       if (cache_ttl) {
-        await store.set(FIREBASE_JWT_KEYS_CACHE_KEY, publicKeys);
+        await store.set(FIREBASE_JWT_KEYS_CACHE_KEY, publicKeys, cache_ttl);
       }
     } else {
       plugin.server.logger.verbose(
-        "firebase-jwt: using cached public signing keys"
+        `firebase-jwt: using cached public signing keys: ${JSON.stringify(
+          publicKeys
+        )}`
       );
     }
 
@@ -156,6 +158,11 @@ class FirebaseJwtPlugin extends BasePlugin {
     config.options.audience = config.project_id;
 
     function getKey(header, callback) {
+      plugin.server.logger.verbose(
+        `firebase-jwt: looking for kid: ${
+          header.kid
+        }, publicKeys: ${JSON.stringify(publicKeys)}`
+      );
       const key = publicKeys[header.kid];
       callback(null, key);
     }
@@ -211,7 +218,7 @@ class FirebaseJwtPlugin extends BasePlugin {
 
         res.setAuthenticationData({
           id_token: creds.token,
-          userinfo: userinfo
+          userinfo: userinfo,
         });
         res.statusCode = 200;
         return res;
@@ -251,14 +258,14 @@ class FirebaseJwtPlugin extends BasePlugin {
           method: "POST",
           url: FIREBASE_USERINFO_URI + "?key=" + plugin.config.config.api_key,
           headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
           },
           json: true,
           body: {
-            idToken: id_token
-          }
+            idToken: id_token,
+          },
         };
-        request(options, function(error, res, body) {
+        request(options, function (error, res, body) {
           if (error) {
             reject(error);
           }
@@ -278,7 +285,7 @@ class FirebaseJwtPlugin extends BasePlugin {
 
       plugin.server.logger.verbose("userdata: %j", userdata);
 
-      userinfo = userdata.users.find(function(element) {
+      userinfo = userdata.users.find(function (element) {
         return element.localId == decoded_id_token.sub;
       });
 
@@ -332,5 +339,5 @@ class FirebaseJwtPlugin extends BasePlugin {
 }
 
 module.exports = {
-  FirebaseJwtPlugin
+  FirebaseJwtPlugin,
 };

@@ -5,3 +5,4 @@ npm-debug.log
 dev
 tests
 docker-compose.yml
+/charts/external-auth-server/values-test.yaml

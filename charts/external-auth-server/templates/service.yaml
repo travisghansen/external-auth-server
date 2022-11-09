@@ -3,10 +3,7 @@ kind: Service
 metadata:
   name: {{ include "external-auth-server.fullname" . }}
   labels:
-    app.kubernetes.io/name: {{ include "external-auth-server.name" . }}
-    helm.sh/chart: {{ include "external-auth-server.chart" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    {{- include "external-auth-server.labels" . | nindent 4 }}
   {{- with .Values.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -18,6 +15,9 @@ spec:
       targetPort: http
       protocol: TCP
       name: http
+    - port: {{ .Values.service.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
   selector:
-    app.kubernetes.io/name: {{ include "external-auth-server.name" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    {{- include "external-auth-server.selectorLabels" . | nindent 4 }}

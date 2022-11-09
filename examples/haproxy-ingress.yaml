@@ -1,0 +1,12 @@
+# works with 0.13.0+
+# https://github.com/jcmoraisjr/haproxy-ingress/issues/413
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    ingress.kubernetes.io/auth-url: http://eas-external-auth-server.external-auth-server/verify?config_token=...
+    ingress.kubernetes.io/headers: |
+      x-forwarded-host: %[req.hdr(Host)]
+      x-forwarded-uri: %[pathq]
+      x-forwarded-method: %[method]

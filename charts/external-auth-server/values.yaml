@@ -9,13 +9,19 @@ issuerEncryptSecret:
 cookieSignSecret:
 cookieEncryptSecret:
 sessionEncryptSecret:
+
+# If set to true, secrets above are not used and you need to create a secret
+# with the same name as the chart release in the service namespace. See
+# templates/secrets.yaml for the required values.
+useExistingSecret: false
+
 storeOpts: {}
 configTokenStores: {}
 configTokens: {}
 revokedJtis: []
 backchannelLogoutConfig: {}
 
-# exmaple config_token store (server-side config_tokens) setup using env variable backing
+# example config_token store (server-side config_tokens) setup using env variable backing
 # in the example below the `config_token_id` would be "1", "2", etc
 # and the `config_token_store_id` would be "primary" for the `config_token` created for the
 # reverse proxy
@@ -49,40 +55,66 @@ nodeExtraCaCerts:
 
 replicaCount: 1
 
-metrics:
+## Add support for Prometheus
+monitoring:
   enabled: true
-  port: 8080
+  serviceMonitor:
+    # When set true and if Prometheus Operator is installed then use a ServiceMonitor to configure scraping
+    enabled: true
+    # Set the namespace the ServiceMonitor should be deployed
+    # namespace: monitoring
+    # Set how frequently Prometheus should scrape
+    # interval: 30s
+    # Set path to beats-exporter telemtery-path
+    # telemetryPath: /metrics
+    # Set labels for the ServiceMonitor, use this to define your scrape label for Prometheus Operator
+    # labels:
 
 image:
   repository: travisghansen/external-auth-server
   tag: latest
   #pullPolicy: IfNotPresent
 
+# When it is not possible to access public container registry and it is required to be deployed from private
+# container registry. When kubernetes.io/dockerconfigjson secret is present it can be used to pull a private image.
+# Usage: -- set imagePullSecrets[0].name=private-container-credentials-secret-name
+imagePullSecrets: []
+
 nameOverride: ""
 fullnameOverride: ""
 
 # NODE_OPTIONS=--max-http-header-size=61440
+# EAS_SSL_KEY="/path/to/ssl/key"
+# EAS_SSL_CERT="/path/to/ssl/cert"
+# EAS_GRPC_SSL_KEY="/path/to/ssl/key"
+# EAS_GRPC_SSL_CERT="/path/to/ssl/cert"
 env: {}
 #  FOO:
 #    value: "bar"
 #  BAR:
 #    value: "baz"
 
+extraVolumes: []
+extraVolumeMounts: []
+
 service:
   type: ClusterIP
   port: 80
+  grpcPort: 50051
   annotations:
     {}
 
 ingress:
   enabled: false
-  annotations:
-    {}
+  className: ""
+  annotations: {}
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
-  paths: []
   hosts:
-    - chart-example.local
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
   tls: []
   #  - secretName: chart-example-tls
   #    hosts:
@@ -112,6 +144,16 @@ redis-ha:
 #  - host: eas-redis-ha-announce-2
 #    port: 26379
 
+livenessProbe:
+  httpGet:
+    path: /ping
+    port: http
+
+readinessProbe:
+  httpGet:
+    path: /ping
+    port: http
+
 resources:
   {}
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -134,6 +176,10 @@ affinity: {}
 # Additional pod labels
 # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
 podLabels: {}
+
+# Additional pod annotations
+# https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+podAnnotations: {}
 
 # Priority indicates the importance of a Pod relative to other Pods.
 # https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/

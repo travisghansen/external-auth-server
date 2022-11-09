@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const Handlebars = require("handlebars");
 const jsonata = require("jsonata");
 const jp = require("jsonpath");
 const jq = require("node-jq");
@@ -6,10 +7,34 @@ const queryString = require("query-string");
 const URI = require("uri-js");
 const { v4: uuidv4 } = require("uuid");
 
+// https://crypto.stackexchange.com/questions/2310/what-is-the-difference-between-cbc-and-gcm-mode
 const CRYPTO_ALGORITHM = "aes-256-cbc";
 const CRYPTO_IV_LENGTH = 16;
 const CRYPTO_KEY_LENGTH = 32;
 
+/**
+ * Typicially iv is not really a secret, and really is not here either. The
+ * purpose of iv is to prevent attacks where attackers have 2+ of the same
+ * input data where the ciphertext is the equal. However, the nature of the
+ * encrypted data as used by eas is such that, generally speaking, a time
+ * componenet is part of the input (ie: jwts, etc, etc), making the chance of
+ * producing exact same encrypted data almost nil. For example, if you use
+ * the same `config_token` input data twice to create/update the jwt, you will,
+ * with near certainty, have 2 completely different ciphertexts.
+ *
+ * Best practice callls for using unique iv per-encryption process and then
+ * storing the iv along with the ciphertext. With the generally stateless
+ * nature of eas the challenges associated with storing the iv combined with:
+ *
+ * 1. encrypted data generally is never the same (due to iat, nbr, etc, etc)
+ * 2. very little data is stored centrally (although some may be if using server-side tokens)
+ * 3. the ephemeral nature of the remaining use-cases (`state` for callbacks, etc)
+ *
+ * we currently just set this statically. If the values changes any data using
+ * the iv will be effectively negated including sessions, jwts, etc.
+ *
+ * https://stackoverflow.com/questions/39412760/what-is-an-openssl-iv-and-why-do-i-need-a-key-and-an-iv
+ */
 const ivSecret = process.env.EAS_ENCRYPT_IV_SECRET;
 let iv;
 if (ivSecret) {
@@ -28,10 +53,7 @@ function exit_failure(message = "", code = 1) {
 }
 
 function md5(text) {
-  return crypto
-    .createHash("md5")
-    .update(text)
-    .digest("hex");
+  return crypto.createHash("md5").update(text).digest("hex");
 }
 
 function generate_crypto_key(salt) {
@@ -54,7 +76,7 @@ function encrypt(salt, text, encoding = "base64") {
 
     const encrypted = Buffer.concat([
       cipher.update(Buffer.from(text, "utf8")),
-      cipher.final()
+      cipher.final(),
     ]);
 
     return encrypted.toString(encoding);
@@ -75,7 +97,7 @@ function decrypt(salt, text, encoding = "base64") {
 
     const decrypted = Buffer.concat([
       decipher.update(Buffer.from(text, encoding)),
-      decipher.final()
+      decipher.final(),
     ]);
     return decrypted.toString("utf8");
   } catch (exception) {
@@ -252,10 +274,7 @@ function parse_basic_authorization_header(value) {
 
   parts = base64_decode(parts[1]);
   creds.username = parts.split(":")[0];
-  creds.password = parts
-    .split(":")
-    .slice(1)
-    .join(":");
+  creds.password = parts.split(":").slice(1).join(":");
 
   return creds;
 }
@@ -281,7 +300,7 @@ function authorization_scheme_is(value, scheme) {
 }
 
 function array_unique(a) {
-  return a.filter(function(e, i, c) {
+  return a.filter(function (e, i, c) {
     return c.indexOf(e) === i;
   });
 }
@@ -289,7 +308,7 @@ function array_unique(a) {
 function array_intersect(a, b) {
   let t;
   if (b.length > a.length) (t = b), (b = a), (a = t); // indexOf to loop over shorter
-  return a.filter(function(e) {
+  return a.filter(function (e) {
     return b.indexOf(e) > -1;
   });
 }
@@ -310,7 +329,7 @@ async function jsonpath_query(query, data) {
 async function jq_query(query, data) {
   const options = {
     input: "json",
-    output: "json"
+    output: "json",
   };
 
   const values = await jq.run(query, data, options);
@@ -339,6 +358,10 @@ async function json_query(query_engine, query, data) {
     case "jq":
       value = await jq_query(query, data);
       break;
+    case "handlebars":
+      const template = Handlebars.compile(query);
+      value = template(data);
+      break;
     default:
       throw new Error("invalid query engine: " + query_engine);
   }
@@ -361,6 +384,23 @@ function lower_case_keys(obj) {
   }
 
   return newobj;
+}
+
+function stringify(value) {
+  const getCircularReplacer = () => {
+    const seen = new WeakSet();
+    return (key, value) => {
+      if (typeof value === "object" && value !== null) {
+        if (seen.has(value)) {
+          return;
+        }
+        seen.add(value);
+      }
+      return value;
+    };
+  };
+
+  return JSON.stringify(value, getCircularReplacer());
 }
 
 function validateConfigToken(configToken) {}
@@ -387,5 +427,6 @@ module.exports = {
   array_unique,
   array_intersect,
   lower_case_keys,
-  json_query
+  json_query,
+  stringify,
 };

@@ -1,87 +1,51 @@
-# 1.0.0
+# 0.12.4
 
-- align/generic all features/documentation
-- prometheus
-- refactor naming of store/cache/etc
-- force `EAS_ENCRYPT_IV_SECRET` parameter and document (`FLUSHDB` in redis to clear all old sessions)
-- Add `EAS_ONE_POINT_ZERO` env var to ensure users have dealt with deprecated features
+Released 2022-09-01
 
-# 0.99.0
+- firebase jwks cache fix
+- minor fixes
+- bump deps
 
-- helm repo analogy for server-side config tokens store IDs
+# 0.12.3
 
-- explore client-side `config_token` encryption (ie: pki encryption of `config_tokens`)
-- look into support multiple `config_token` keys (ie: run external server as a service style setup)
-- look into 'proper' `config_token` jwt encryption
+Released 2022-05-18
 
-- explore setting required scopes on a per-endpoint/verb basis (outside the
-  backing service) and allowing the auth service to conditionally assert based on
-  scopes in the jwt token
+- minor fixes and chart updates
+# 0.12.2
 
-* support better logic for original URI detection `Forwarded` header and `X-Forwarded-For`, etc
-* ensure sessions (guid) does not already exist however unlikely
-* implement logout (both local and with provider)
+Released 2022-04-08
 
-* allow for run-time (ie: URL params) assertions
-* configuration for turning on/off redirects (probably a query param like `redirect_http_code`) (this may simply be a verify_strategy)
-* nonce?
+- update deps
+- use exclusively the native `@grpc/grpc-js` grpc implementation
+- do not install dev dependencies in container images
+- add `s390x` and `ppc64le` to container architectures
+- do not include uncecessary files in container images
 
-* document proper annotations for common ingress controllers (traefik, nginx, ambassador, etc)
+# 0.12.1
 
-* support for encyprted cookie
-* cookie as struct {id: foo, storage_type: cookie|backend}?
-* update to 3.x `openid-client`
-* replace `jsonwebtoken` with `@panva/jose`
+Released 2022-03-03
 
-* ensure empty body in responses
+- update deps
+- force rebuild to update base container image
 
-* email link plugin
-* email code plugin
+# 0.12.0
 
-* support for POST callback providers (can accept post requests on the `/oauth/callback` route and translate to `GET` params)
-* oauth2 providers
+Released 2022-01-11
 
-  - Google default
-  - Azure
-  - Facebook
-  - ~~GitHub~~
-  - GitLab
-  - LinkedIn
+- more robust control of `envoy` `grpc` behavior (setting
+  config_token/ports/proto via trusted metadata)
+- bump node version to `v16` (from `v12`)
 
-* required plugins (ie: support multi-success pipepline)
+# 0.11.0
 
-* update docker hub description/details/homepage/etc
-* note about contributing to the project
-* link to examples (config store/auth plugin) with simple explanation about requirements
+Released 2021-07-29
 
-* redis config_token store
-* try/catch in invalid responseCode getting sent by a plugin
-
-* introduce options for csrf handling in `oauth2`/`oidc` plugins? currently disabling csrf deletion due to bad nginx/envoy behavior
-
-* endpoint where config data can be sent and the backend will sign/encrypt and respond with newly minted `config_token` (need to consider security implications etc of this)
-
-* give a nice overview of architecture with a pretty graphic to give newcomers a easier overview
-
-* allow specifying a redirect URL for error response codes (ie: 404 -> some self hosted location, 503 -> some location with a pretty space etc)
-
-* https://www.npmjs.com/package/jq.node (new query engine for better performance than jq)
-
-* generic structure for various things
-* request data
-* auth data
-* config data
-
-* opa plugin
-* opa assertions
-
-* NODE_JQ_SKIP_INSTALL_BINARY=true
-* pass previous response to subsequent plugins' verify method
-
-- further data available to header injection (`req` and `parentRequestInfo`)
-- update header injection to use generic query function
-- only get parentRequestInfo once in server.js and more performance enhancements
-- store `state` server-side in `oauth2`/`oidc` plugins
+- support for `envoy` (contour, etc) grpc external auth
+- support for running the http and grpc servers with native ssl
+- support `handlebars` syntax for the various `custom_foo_parameters` in `oauth2`/`oidc`
+- support `handlebars` as a new `query_engine`
+- bump various deps
+- minor bug fixes
 
 # 0.10.2
 

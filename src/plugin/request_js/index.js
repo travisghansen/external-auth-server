@@ -1,5 +1,6 @@
 const { BasePlugin } = require("..");
 
+const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
 class RequestJsPlugin extends BasePlugin {
   static initialize(server) {}
 
@@ -24,8 +25,10 @@ class RequestJsPlugin extends BasePlugin {
   async verify(configToken, req, res) {
     const plugin = this;
     const parentReqInfo = plugin.server.utils.get_parent_request_info(req);
-    const func = new Function('req', 'res', 'configToken', 'plugin', 'parentReqInfo', plugin.config.snippet);
-    func(req, res, configToken, plugin, parentReqInfo);
+    // https://www.codegrepper.com/code-examples/javascript/how+to+create+a+dynamic+function+in+javascript
+    const func = new AsyncFunction('req', 'res', 'configToken', 'plugin', 'parentReqInfo', plugin.config.snippet);
+    //const func = new Function('req', 'res', 'configToken', 'plugin', 'parentReqInfo', plugin.config.snippet);
+    await func(req, res, configToken, plugin, parentReqInfo);
 
     return res;
   }
