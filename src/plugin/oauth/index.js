@@ -903,7 +903,7 @@ class BaseOauthPlugin extends BasePlugin {
             "WWW-Authenticate",
             'Bearer realm="' +
               url +
-              ', scope="' +
+              '", scope="' +
               plugin.config.scopes.join(" ") +
               '"'
           );
