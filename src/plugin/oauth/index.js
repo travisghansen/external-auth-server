@@ -2075,61 +2075,62 @@ class BaseOauthPlugin extends BasePlugin {
      */
     if (
       pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-      plugin.config.assertions.aud &&
-      idToken.aud != plugin.config.client.client_id
+      plugin.config.assertions.aud
     ) {
-      return false;
+      if (idToken.aud != plugin.config.client.client_id) {
+        plugin.server.logger.verbose("aud does not match client_id");
+        return false;
+      }
+    } else {
+      plugin.server.logger.verbose("Assertions: SKIPPED aud")
     }
 
     /**
      * access token is expired and refresh tokens are disabled
      */
-    if (
-      plugin.config.assertions.exp &&
-      tokenset_is_expired(tokenSet) &&
-      !(
-        plugin.config.features.refresh_access_token &&
-        tokenset_can_refresh(tokenSet)
-      )
-    ) {
-      plugin.server.logger.verbose(
-        "tokenSet is expired and refresh tokens disabled"
-      );
-      return false;
+    if (plugin.config.assertions.exp) {
+      const is_expired = tokenset_is_expired(tokenSet)
+
+      if (is_expired) {
+        plugin.server.logger.verbose("tokenSet is expired");
+
+        if (!plugin.config.features.refresh_access_token) {
+          plugin.server.logger.verbose("refresh tokens disabled");
+          return false
+        }
+
+        if (!tokenset_can_refresh(tokenSet)) {
+          plugin.server.logger.verbose("refresh no longer available");
+          return false
+        }
+        
+        plugin.server.logger.verbose("refresh token available");
+      }
+      plugin.server.logger.verbose("Assertions: PASSED exp");
+    } else {
+      plugin.server.logger.verbose("Assertions: SKIPPED exp")
     }
 
-    /**
-     * both access and refresh tokens are expired and refresh is enabled
-     */
-    if (
-      plugin.config.assertions.exp &&
-      tokenset_is_expired(tokenSet) &&
-      plugin.config.features.refresh_access_token &&
-      !tokenset_can_refresh(tokenSet)
-    ) {
-      plugin.server.logger.verbose(
-        "tokenSet expired and refresh no longer available"
-      );
-      return false;
+
+    if (plugin.config.assertions.nbf) {
+      if (tokenset_is_premature(tokenSet)) {
+        plugin.server.logger.verbose("tokenSet is premature");
+        return false
+      }
+      plugin.server.logger.verbose("Assertions: PASSED nbf")
+    } else {
+      plugin.server.logger.verbose("Assertions: SKIPPED nbf")
     }
 
-    if (
-      pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-      plugin.config.assertions.nbf &&
-      tokenset_is_premature(tokenSet)
-    ) {
-      plugin.server.logger.verbose("tokenSet is premature");
-      return false;
-    }
 
-    if (
-      pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-      plugin.config.assertions.iss
-    ) {
+    if (plugin.config.assertions.iss) {
       if (!tokenset_issuer_match(tokenSet, issuer.issuer)) {
         plugin.server.logger.verbose("tokenSet has a mismatch issuer");
         return false;
       }
+      plugin.server.logger.verbose("Assertions: PASSED iss")
+    } else {
+      plugin.server.logger.verbose("Assertions: SKIPPED iss")
     }
 
     if (
@@ -2166,32 +2167,48 @@ class BaseOauthPlugin extends BasePlugin {
       ) {
         await plugin.set_introspection_cache(session_id, response);
       }
+      plugin.server.logger.verbose("Assertions: PASSED introspect_access_token")
+    } else {
+      plugin.server.logger.verbose("Assertions: SKIPPED introspect_access_token")
     }
 
-    if (
-      pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-      plugin.config.assertions.id_token
-    ) {
-      let idToken;
-      idToken = jwt.decode(tokenSet.id_token);
-      let idTokenValid = await plugin.id_token_assertions(idToken);
+
+    if (plugin.config.assertions.id_token) {
+      if (!tokenSet.id_token) {
+        plugin.server.logger.verbose("Missing id_token")
+        return false
+      }
+
+      const idToken = jwt.decode(tokenSet.id_token);
+      const idTokenValid = await plugin.id_token_assertions(idToken);
       if (!idTokenValid) {
+        plugin.server.logger.verbose("Invalid id_token")
         return false;
       }
+      plugin.server.logger.verbose("Assertions: PASSED id_token")
+    } else {
+      plugin.server.logger.verbose("Assertions: SKIPPED id_token")
     }
 
-    if (
-      pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-      plugin.config.assertions.access_token
-    ) {
-      let accessToken;
-      accessToken = jwt.decode(tokenSet.access_token);
-      let accessTokenValid = await plugin.access_token_assertions(accessToken);
+
+    if (plugin.config.assertions.access_token) {
+      if (!tokenSet.access_token) {
+        plugin.server.logger.verbose("Missing access_token")
+        return false
+      }
+
+      const accessToken = jwt.decode(tokenSet.access_token);
+      const accessTokenValid = await plugin.access_token_assertions(accessToken);
       if (!accessTokenValid) {
+        plugin.server.logger.verbose("Invalid access_token")
         return false;
       }
+      plugin.server.logger.verbose("Assertions: PASSED access_token")
+    } else {
+      plugin.server.logger.verbose("Assertions: SKIPPED access_token")
     }
 
+    plugin.server.logger.verbose("Assertions: PASSED")
     return true;
   }
 
