@@ -26,7 +26,7 @@
     "cache-manager-ioredis": "^2.1.0",
     "cache-manager-memcached-store": "^4.0.0",
     "cache-manager-mongodb": "^0.3.0",
-    "cache-manager-redis-store": "^2.0.0",
+    "cache-manager-redis-store": "^3.0.1",
     "cookie": "^0.5.0",
     "cookie-parser": "^1.4.5",
     "cookie-signature": "^1.0.6",
@@ -38,7 +38,7 @@
     "jq.node": "^2.4.0",
     "jsonata": "^1.8.4",
     "jsonpath": "^1.1.0",
-    "jsonwebtoken": "^8.5.1",
+    "jsonwebtoken": "^9.0.0",
     "jwks-rsa": "^2.0.2",
     "knex": "^2.2.0",
     "ldapauth-fork": "^5.0.1",
@@ -57,7 +57,7 @@
     "sqlite3": "^5.0.2",
     "uri-js": "^4.4.1",
     "utils-merge": "^1.0.1",
-    "uuid": "^8.3.2",
+    "uuid": "^9.0.0",
     "winston": "^3.3.3",
     "yaml": "^2.0.0"
   }

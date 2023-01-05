@@ -1,3 +1,9 @@
+# 0.12.5
+
+Released 2023-01-04
+
+- bump deps (#163 CVE-2022-23529)
+
 # 0.12.4
 
 Released 2022-09-01
@@ -11,6 +17,7 @@ Released 2022-09-01
 Released 2022-05-18
 
 - minor fixes and chart updates
+
 # 0.12.2
 
 Released 2022-04-08
