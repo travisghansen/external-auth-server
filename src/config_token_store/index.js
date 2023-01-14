@@ -3,12 +3,13 @@ const { EnvConfigTokenStoreAdapter } = require("./adapter/env");
 const { FileConfigTokenStoreAdapter } = require("./adapter/file");
 const { FileDevConfigTokenStoreAdapter } = require("./adapter/file_dev");
 const { SqlConfigTokenStoreAdapter } = require("./adapter/sql");
+const YAML = require("yaml");
 
 const TOKEN_CACHE_PREFIX = "token_store:";
 let config_token_stores = process.env["EAS_CONFIG_TOKEN_STORES"];
 
 if (config_token_stores) {
-  config_token_stores = JSON.parse(config_token_stores);
+  config_token_stores = YAML.parse(config_token_stores);
 } else {
   config_token_stores = {};
 }
@@ -33,12 +34,6 @@ class ConfigTokenStoreManager {
         break;
       case "file":
         configTokenStoreAdapter = new FileConfigTokenStoreAdapter(
-          manager.server,
-          configTokenStoreConfig
-        );
-        break;
-      case "file-dev":
-        configTokenStoreAdapter = new FileDevConfigTokenStoreAdapter(
           manager.server,
           configTokenStoreConfig
         );

@@ -3,7 +3,9 @@ const Handlebars = require("handlebars");
 const jsonata = require("jsonata");
 const jp = require("jsonpath");
 const jq = require("node-jq");
+const jwksClient = require("jwks-rsa");
 const queryString = require("query-string");
+const { retrieveSigningKeys } = require("jwks-rsa/src/utils");
 const URI = require("uri-js");
 const { v4: uuidv4 } = require("uuid");
 
@@ -126,6 +128,37 @@ function is_jwt(jwtString) {
     /^[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$/
   );
   return re.test(jwtString);
+}
+
+function is_json_like(str) {
+  if (typeof str !== "string") {
+    return false;
+  }
+
+  const JSON_START = /^\[|^\{(?!\{)/;
+  const JSON_ENDS = {
+    "[": /]$/,
+    "{": /}$/,
+  };
+
+  const jsonStart = str.match(JSON_START);
+  if (!jsonStart) {
+    return false;
+  }
+
+  return JSON_ENDS[jsonStart[0]].test(str);
+}
+
+function is_yaml_like(str) {
+  if (typeof str !== "string") {
+    return false;
+  }
+
+  if (str.startsWith("---")) {
+    return true;
+  }
+  // TODO: fix this logic to be sane
+  return true;
 }
 
 /**
@@ -405,6 +438,53 @@ function stringify(value) {
 
 function validateConfigToken(configToken) {}
 
+async function get_jwt_sign_secret(secret, kid) {
+  // jwks uri
+  if (
+    typeof secret === "string" &&
+    (secret.startsWith("http://") || secret.startsWith("https://"))
+  ) {
+    const client = jwksClient({
+      jwksUri: secret,
+    });
+
+    const key = await client.getSigningKey(kid);
+    if (key) {
+      return key.getPublicKey();
+    }
+  } else {
+    // jwks result
+    if (typeof secret === "object" || Array.isArray(secret)) {
+      if (!Array.isArray(secret)) {
+        secret = secret.keys;
+      }
+      const keys = await retrieveSigningKeys(secret);
+      function getSigningKey() {
+        const kidDefined = kid !== undefined && kid !== null;
+        if (!kidDefined && keys.length > 1) {
+          throw new Error(
+            "No KID specified and JWKS endpoint returned more than 1 key"
+          );
+        }
+
+        const key = keys.find((k) => !kidDefined || k.kid === kid);
+        if (key) {
+          return key;
+        } else {
+          throw new Error(`Unable to find a signing key that matches '${kid}'`);
+        }
+      }
+      const key = getSigningKey();
+      if (key) {
+        return key.getPublicKey();
+      }
+    }
+
+    // shared secret
+    return secret;
+  }
+}
+
 module.exports = {
   exit_failure,
   encrypt,
@@ -414,6 +494,8 @@ module.exports = {
   base64_decode,
   generate_session_id,
   generate_csrf_id,
+  is_json_like,
+  is_yaml_like,
   is_jwt,
   get_parent_request_uri,
   get_parent_request_info,
@@ -429,4 +511,5 @@ module.exports = {
   lower_case_keys,
   json_query,
   stringify,
+  get_jwt_sign_secret,
 };

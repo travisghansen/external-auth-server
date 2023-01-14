@@ -46,16 +46,17 @@ class SqlConfigTokenStoreAdapter extends BaseConfigTokenStoreAdapter {
 
     try {
       const resp = await client.raw(adapter.config.options.query, [id]);
-      
+
       let row;
 
       switch (adapter.config.options.config.client) {
         case "pg":
-          row = resp.rows[0]; break;
+          row = resp.rows[0];
+          break;
         default:
           row = resp[0][0];
       }
-      
+
       return row.token;
     } catch (e) {
       throw e;
@@ -64,5 +65,5 @@ class SqlConfigTokenStoreAdapter extends BaseConfigTokenStoreAdapter {
 }
 
 module.exports = {
-  SqlConfigTokenStoreAdapter
+  SqlConfigTokenStoreAdapter,
 };
