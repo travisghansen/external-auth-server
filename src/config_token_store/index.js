@@ -1,7 +1,6 @@
 // config token store adapters
 const { EnvConfigTokenStoreAdapter } = require("./adapter/env");
 const { FileConfigTokenStoreAdapter } = require("./adapter/file");
-const { FileDevConfigTokenStoreAdapter } = require("./adapter/file_dev");
 const { SqlConfigTokenStoreAdapter } = require("./adapter/sql");
 const YAML = require("yaml");
 
