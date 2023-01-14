@@ -725,24 +725,24 @@ class BaseOauthPlugin extends BasePlugin {
   params = {};
   Object.assign(params, paramsToObject(parsedHash.entries()), paramsToObject(parsedSearch.entries()));
   
-  log(parsedHash.entries());
-  log(parsedSearch);
-  log(params);
+  log("hash params", parsedHash.entries());
+  log("query params", parsedSearch);
+  log("normalized params", params);
 
   current_base_url = window.location.href.split(/[?#]/)[0];
-  get_token_endpoint_url = current_base_url.replace('/oauth/callback-ua-client-code', '/oauth/client-token-url');
+  get_client_endpoints_url = current_base_url.replace('/oauth/callback-ua-client-code', '/oauth/client-issuer-endpoints');
   callback_url = current_base_url.replace('/oauth/callback-ua-client-code', '/oauth/callback');
   callback_url += '?state=' + params.state;
   post_tokenset_endpoint_url = current_base_url.replace('/oauth/callback-ua-client-code', '/oauth/client-tokenset');
   post_tokenset_endpoint_url += '?state=' + params.state;
 
-  log(get_token_endpoint_url);
-  log(callback_url);
-  log(post_tokenset_endpoint_url);
+  log({get_client_endpoints_url, callback_url, post_tokenset_endpoint_url});
   
   let res;
+  let endpoints;
   let tokenSet;
-  res = await fetch(get_token_endpoint_url, {
+  let userinfo;
+  res = await fetch(get_client_endpoints_url, {
     //method: 'get'
     method: 'post',
     body: JSON.stringify(params),
@@ -752,20 +752,33 @@ class BaseOauthPlugin extends BasePlugin {
     }
   });
 
-  res = await res.json();
-  log(res);
+  endpoints = await res.json();
+  log("endpoints", endpoints);
 
-  res = await fetch(res.url, {
+  log("fetching tokenSet from op");
+  res = await fetch(endpoints.decorated_token_endpoint, {
     method: 'post',
   });
-  res = await res.json();
-  log(res);
-  tokenSet = res;
+  tokenSet = await res.json();
+  log("tokenSet", tokenSet);
 
+  if (endpoints.features && endpoints.features.fetch_userinfo) {
+    log("fetching userinfo from op with tokenSet");
+    res = await fetch(endpoints.userinfo_endpoint, {
+      method: 'get',
+      headers: {
+        'Authorization': tokenSet.token_type + ' ' + tokenSet.access_token
+      }
+    });
+    userinfo = await res.json();
+    log("userinfo", userinfo);
+  }
+
+  log("sending data to eas");
   res = await fetch(post_tokenset_endpoint_url, {
     //method: 'get'
     method: 'post',
-    body: JSON.stringify(tokenSet),
+    body: JSON.stringify({tokenSet, userinfo}),
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/json'
@@ -785,56 +798,70 @@ class BaseOauthPlugin extends BasePlugin {
 
       /**
        * submit encrypted state and get the issuer token url in return
+       * only to be used internally by eas
        *
        */
-      server.WebServer.post("/oauth/client-token-url", async (req, res) => {
-        server.logger.silly("%j", {
-          headers: req.headers,
-          body: req.body,
-        });
+      server.WebServer.post(
+        "/oauth/client-issuer-endpoints",
+        async (req, res) => {
+          server.logger.silly("%j", {
+            headers: req.headers,
+            body: req.body,
+          });
 
-        try {
-          let state = server.utils.decrypt(
-            issuer_encrypt_secret,
-            req.body.state,
-            "hex"
-          );
-          state = jwt.verify(state, issuer_sign_secret);
-          state = await STORE_HELPER.get(
-            "state",
-            STATE_CACHE_PREFIX + state.state_id
-          );
+          try {
+            let state = server.utils.decrypt(
+              issuer_encrypt_secret,
+              req.body.state,
+              "hex"
+            );
+            state = jwt.verify(state, issuer_sign_secret);
+            state = await STORE_HELPER.get(
+              "state",
+              STATE_CACHE_PREFIX + state.state_id
+            );
 
-          const params = req.body;
-          params["grant_type"] = "authorization_code";
-          params["client_id"] = state.client.client_id;
-          params["redirect_uri"] = state.authorization_redirect_uri;
-          if (state.nonce) {
-            params["nonce"] = state.nonce;
+            const params = req.body;
+            params["grant_type"] = "authorization_code";
+            params["client_id"] = state.client.client_id;
+            params["redirect_uri"] = state.authorization_redirect_uri;
+            if (state.nonce) {
+              params["nonce"] = state.nonce;
+            }
+
+            if (state.code_verifier) {
+              params["code_verifier"] = state.code_verifier;
+            }
+
+            const queryString = Object.keys(params)
+              .map((key) => {
+                return (
+                  encodeURIComponent(key) +
+                  "=" +
+                  encodeURIComponent(params[key])
+                );
+              })
+              .join("&");
+
+            res.json({
+              decorated_token_endpoint:
+                state.issuer.token_endpoint + "?" + queryString,
+              token_endpoint: state.issuer.token_endpoint,
+              userinfo_endpoint: state.issuer.userinfo_endpoint,
+              jwks_uri: state.issuer.jwks_uri,
+              features: state.features,
+            });
+          } catch (e) {
+            res.statusCode = 401;
+            res.end();
           }
-
-          if (state.code_verifier) {
-            params["code_verifier"] = state.code_verifier;
-          }
-
-          const queryString = Object.keys(params)
-            .map((key) => {
-              return (
-                encodeURIComponent(key) + "=" + encodeURIComponent(params[key])
-              );
-            })
-            .join("&");
-
-          res.json({ url: state.issuer.token_endpoint + "?" + queryString });
-        } catch (e) {
-          res.statusCode = 401;
-          res.end();
         }
-      });
+      );
 
       /**
        * used to submit a tokenSet associated with a particlar nonce temporarily
        * until it can be validated and a session created
+       * only to be used internally by eas
        */
       server.WebServer.post("/oauth/client-tokenset", async (req, res) => {
         server.logger.silly("%j", {
@@ -868,7 +895,8 @@ class BaseOauthPlugin extends BasePlugin {
           return;
         }
 
-        nonceData.tokenSet = req.body;
+        nonceData.tokenSet = req.body.tokenSet;
+        nonceData.userinfo = req.body.userinfo;
         await STORE_HELPER.save(
           "nonce",
           NONCE_CACHE_PREFIX + state.nonce,
@@ -1252,9 +1280,19 @@ class BaseOauthPlugin extends BasePlugin {
         request_is_xhr,
         nonce,
         nonce_ttl: _.get(plugin.config, "nonce.ttl", DEFAULT_NONCE_TTL),
+        features: {
+          fetch_userinfo: _.get(
+            plugin.config,
+            "features.fetch_userinfo",
+            false
+          ),
+        },
         code_verifier,
         issuer: {
-          token_endpoint: issuer.token_endpoint, // add this in case of client-side token retrieval
+          // add this in case of client-side flows
+          token_endpoint: issuer.token_endpoint,
+          userinfo_endpoint: issuer.userinfo_endpoint,
+          jwks_uri: issuer.jwks_uri,
         },
         client: {
           client_id: client.client_id,
@@ -1680,7 +1718,12 @@ class BaseOauthPlugin extends BasePlugin {
 
       let userinfo;
       if (plugin.config.features.fetch_userinfo) {
-        userinfo = await plugin.get_userinfo(tokenSet);
+        // TODO: support clientProvidedUserinfo here
+        if (clientProvidedTokenSet) {
+          userinfo = { iat: Math.floor(Date.now() / 1000), data: nonceData.userinfo };
+        } else {
+          userinfo = await plugin.get_userinfo(tokenSet);
+        }
         plugin.server.logger.verbose("userinfo %j", userinfo);
         if (userinfo && userinfo.data) {
           sessionPayload.userinfo = userinfo;
