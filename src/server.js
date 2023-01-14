@@ -393,7 +393,8 @@ _verifyHandler = async (req, res, options = {}) => {
           }
 
           lastPluginResponse = pluginResponse;
-          externalAuthServer.logger.debug("plugin response %j", pluginResponse);
+          externalAuthServer.logger.debug("plugin response: " + pluginResponse.statusCode);
+          externalAuthServer.logger.silly("plugin response %j", pluginResponse);
 
           if (fallbackPlugin !== null) {
             if (i == fallbackPlugin) {

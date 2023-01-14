@@ -130,6 +130,7 @@ class JwtPlugin extends BasePlugin {
 
     let error, error_description;
     const failure_response = function (code = 401) {
+      plugin.server.logger.debug("JwtPlugin: Failure response %j", { error, error_description });
       res.statusCode = code || 401;
 
       if (scheme == "bearer") {
@@ -148,6 +149,7 @@ class JwtPlugin extends BasePlugin {
     };
 
     if (!req.headers[header_name]) {
+      plugin.server.logger.debug("JwtPlugin: Missing '" + header_name + "' header");
       failure_response();
       return res;
     }
@@ -159,6 +161,7 @@ class JwtPlugin extends BasePlugin {
         scheme
       )
     ) {
+      plugin.server.logger.debug("JwtPlugin: Auth scheme mismatch");
       failure_response();
       return res;
     }
@@ -172,41 +175,41 @@ class JwtPlugin extends BasePlugin {
       creds.token = req.headers[header_name];
     }
 
-    const config = plugin.config.config;
+    const jwtConfig = plugin.config.config;
 
     // configure jwks secret automatically when oidc is enabled
-    if (plugin.config.oidc.enabled && !config.secret) {
+    if (plugin.config.oidc.enabled && !jwtConfig.secret) {
       const issuer = await plugin.get_issuer();
-      config.secret = issuer.metadata.jwks_uri;
+      jwtConfig.secret = issuer.metadata.jwks_uri;
     }
 
     function getKey(header, callback) {
       if (
-        config.secret.startsWith("http://") ||
-        config.secret.startsWith("https://")
+        jwtConfig.secret.startsWith("http://") ||
+        jwtConfig.secret.startsWith("https://")
       ) {
         /**
          * cache the client in memory to inherit the jwks caching from the upstream lib/client
          * https://github.com/auth0/node-jwks-rsa#caching
          */
         const jwksClientOptionHash = plugin.server.utils.md5(
-          JSON.stringify(config.secret)
+          JSON.stringify(jwtConfig.secret)
         );
         const cache_key = "jwt:jwks:clients:" + jwksClientOptionHash;
         let client = cache.get(cache_key);
         if (client === undefined) {
           plugin.server.logger.debug(
             "creating jwks client for URI %s",
-            config.secret
+            jwtConfig.secret
           );
           client = jwksClient({
-            jwksUri: config.secret,
+            jwksUri: jwtConfig.secret,
           });
           cache.set(cache_key, client, CLIENT_CACHE_DURATION);
         } else {
           plugin.server.logger.debug(
             "using cached jwks client for URI %s",
-            config.secret
+            jwtConfig.secret
           );
         }
 
@@ -219,17 +222,21 @@ class JwtPlugin extends BasePlugin {
           }
         });
       } else {
-        callback(null, config.secret);
+        callback(null, jwtConfig.secret);
       }
     }
 
     try {
+      plugin.server.logger.debug("JwtPlugin: Validating token using jwt options: %j", jwtConfig.options);
       const token = await new Promise((resolve, reject) => {
-        jwt.verify(creds.token, getKey, config.options, (err, decoded) => {
+        jwt.verify(creds.token, getKey, jwtConfig.options, (err, decoded) => {
           if (err) {
+            plugin.server.logger.debug("JwtPlugin: Validating token FAIL", err);
             reject(err);
+          } else {
+            plugin.server.logger.debug("JwtPlugin: Validating token SUCCESS");
+            resolve(decoded);
           }
-          resolve(decoded);
         });
       });
 
@@ -240,13 +247,17 @@ class JwtPlugin extends BasePlugin {
         JSON.stringify(plugin.config) + ":" + creds.token
       );
 
+      plugin.server.logger.debug("JwtPlugin: Running token assertions");
       const valid = await plugin.assertions(creds.token, token, session_id);
       if (valid !== true) {
         error = "invalid_user";
         error_description = "user did not pass assertions";
+        plugin.server.logger.debug("JwtPlugin: Token assertions FAIL");
 
         failure_response(403);
         return res;
+      } else {
+        plugin.server.logger.debug("JwtPlugin: Token assertions SUCCESS");
       }
 
       // introspection
@@ -261,10 +272,14 @@ class JwtPlugin extends BasePlugin {
         if (valid !== true) {
           error = "invalid_token";
           error_description = "token failed introspection";
+          plugin.server.logger.debug("JwtPlugin: Token introspection FAILED");
 
           failure_response();
           return res;
         }
+        plugin.server.logger.debug("JwtPlugin: Token introspection SUCCESS");
+      } else {
+        plugin.server.logger.debug("JwtPlugin: Token introspection SKIPPED");
       }
 
       // userinfo
@@ -336,6 +351,7 @@ class JwtPlugin extends BasePlugin {
     const plugin = this;
     let isValid = true;
 
+    // Run id_token assertions
     if (plugin.config.assertions && plugin.config.assertions.id_token) {
       isValid = await Assertion.assertSet(
         token_decoded,
@@ -343,8 +359,28 @@ class JwtPlugin extends BasePlugin {
       );
 
       if (!isValid) {
+        plugin.server.logger.debug("JwtPlugin: id_token assertions FAILED")
         return false;
       }
+      plugin.server.logger.debug("JwtPlugin: id_token assertions PASSED")
+    } else {
+      plugin.server.logger.debug("JwtPlugin: id_token assertions SKIPPED")
+    }
+
+    // Run access_token assertions
+    if (plugin.config.assertions && plugin.config.assertions.access_token) {
+      isValid = await Assertion.assertSet(
+        token_decoded,
+        plugin.config.assertions.access_token
+      );
+
+      if (!isValid) {
+        plugin.server.logger.debug("JwtPlugin: access_token assertions FAILED")
+        return false;
+      }
+      plugin.server.logger.debug("JwtPlugin: access_token assertions PASSED")
+    } else {
+      plugin.server.logger.debug("JwtPlugin: access_token assertions SKIPPED")
     }
 
     return true;
