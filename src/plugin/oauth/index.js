@@ -610,6 +610,7 @@ class BaseOauthPlugin extends BasePlugin {
         server.logger.silly("%j", {
           headers: req.headers,
           body: req.body,
+          query: req.query,
         });
 
         try {
@@ -623,6 +624,10 @@ class BaseOauthPlugin extends BasePlugin {
             "state",
             STATE_CACHE_PREFIX + state.state_id
           );
+
+          if (!state) {
+            throw new Error("failed load state");
+          }
 
           const state_redirect_uri = state.request_uri;
 
@@ -664,6 +669,7 @@ class BaseOauthPlugin extends BasePlugin {
         server.logger.silly("%j", {
           headers: req.headers,
           body: req.body,
+          query: req.query,
         });
 
         res.send(`
@@ -694,6 +700,7 @@ class BaseOauthPlugin extends BasePlugin {
         server.logger.silly("%j", {
           headers: req.headers,
           body: req.body,
+          query: req.query,
         });
 
         res.send(`
@@ -731,13 +738,29 @@ class BaseOauthPlugin extends BasePlugin {
 
   current_base_url = window.location.href.split(/[?#]/)[0];
   get_client_endpoints_url = current_base_url.replace('/oauth/callback-ua-client-code', '/oauth/client-issuer-endpoints');
-  callback_url = current_base_url.replace('/oauth/callback-ua-client-code', '/oauth/callback');
-  callback_url += '?state=' + params.state;
   post_tokenset_endpoint_url = current_base_url.replace('/oauth/callback-ua-client-code', '/oauth/client-tokenset');
   post_tokenset_endpoint_url += '?state=' + params.state;
 
+  callback_url = current_base_url.replace('/oauth/callback-ua-client-code', '/oauth/callback');
+  
+  for (const param of ["state", "error"]) {
+    if (params[param]) {
+      if (!callback_url.includes("?")) {
+        callback_url += "?";
+      } else {
+        callback_url += "&";
+      }
+      callback_url += param + "=" + encodeURIComponent(params[param]);  
+    }
+  }
+
   log({get_client_endpoints_url, callback_url, post_tokenset_endpoint_url});
   
+  if (params.error) {
+    window.location.replace(callback_url);
+    return;
+  }
+
   let res;
   let endpoints;
   let tokenSet;
@@ -784,10 +807,11 @@ class BaseOauthPlugin extends BasePlugin {
       'Content-Type': 'application/json'
     }
   });
-  log(res);
+  res = await res.json();
+  log("eas token response", res);
 
   window.location.replace(callback_url);
-
+  
 })();
 
 </script>
@@ -807,6 +831,7 @@ class BaseOauthPlugin extends BasePlugin {
           server.logger.silly("%j", {
             headers: req.headers,
             body: req.body,
+            query: req.query,
           });
 
           try {
@@ -867,6 +892,7 @@ class BaseOauthPlugin extends BasePlugin {
         server.logger.silly("%j", {
           headers: req.headers,
           body: req.body,
+          query: req.query,
         });
 
         let state = server.utils.decrypt(
@@ -905,13 +931,14 @@ class BaseOauthPlugin extends BasePlugin {
         );
 
         res.statusCode = 200;
-        res.end();
+        res.json({});
       });
 
       server.WebServer.get("/oauth/end-session-redirect", (req, res) => {
         server.logger.silly("%j", {
           headers: req.headers,
           body: req.body,
+          query: req.query,
         });
 
         try {
@@ -940,6 +967,7 @@ class BaseOauthPlugin extends BasePlugin {
         server.logger.silly("%j", {
           headers: req.headers,
           body: req.body,
+          query: req.query,
         });
 
         try {
@@ -1720,7 +1748,10 @@ class BaseOauthPlugin extends BasePlugin {
       if (plugin.config.features.fetch_userinfo) {
         // TODO: support clientProvidedUserinfo here
         if (clientProvidedTokenSet) {
-          userinfo = { iat: Math.floor(Date.now() / 1000), data: nonceData.userinfo };
+          userinfo = {
+            iat: Math.floor(Date.now() / 1000),
+            data: nonceData.userinfo,
+          };
         } else {
           userinfo = await plugin.get_userinfo(tokenSet);
         }
