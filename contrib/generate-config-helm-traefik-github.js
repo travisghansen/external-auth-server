@@ -59,7 +59,7 @@ let config_token_real = {
           client_id: github_client_id,
           client_secret: github_client_secret
         },
-        scopes: ["user"],
+        scopes: ["read:user", "user:email", "read:org"],
         /**
          * static redirect URI
          * if your oauth provider does not support wildcards place the URL configured in the provider (that will return to this proper service) here
