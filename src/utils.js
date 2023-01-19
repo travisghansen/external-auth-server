@@ -202,6 +202,18 @@ function get_parent_request_uri(req) {
     return req.headers["x-original-url"];
   }
 
+  if (!("x-forwarded-proto" in req.headers)) {
+    throw new Error(
+      "missing x-forwarded-proto header, cannot determine parent request uri"
+    );
+  }
+
+  if (!("x-forwarded-uri" in req.headers)) {
+    throw new Error(
+      "missing x-forwarded-uri header, cannot determine parent request uri"
+    );
+  }
+
   originalRequestURI += req.headers["x-forwarded-proto"] + "://";
 
   if (req.headers["x-forwarded-host"]) {
