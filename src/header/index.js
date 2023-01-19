@@ -8,8 +8,6 @@ class HeaderInjector {
   constructor(config, data) {
     this.config = config;
     this.data = data;
-
-    console.log(data);
   }
 
   async injectHeaders(res) {
