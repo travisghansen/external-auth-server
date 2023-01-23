@@ -1,3 +1,20 @@
+# 0.13.0
+
+Released 2023-01-22
+
+- support additional `oauth` / `oidc` flows
+  - newly available callback endpoint `/oauth/callback-ua-client-code` which
+    retrieves the tokens via the browser instead of `eas` facilitating scenarios
+    where `eas` cannot directly communicate with `op`
+- support `pkce` with `oauth` / `oidc`
+- support `nonce` with `oidc`
+- use server-side storage of `oauth` / `oidc` `state` data
+- support `yaml` parsing in addition to `json` parsing in several locations
+- introduce env var `EAS_ALLOW_PLAIN_SERVER_SIDE_TOKENS` to facilitate
+  server-side `config_tokens` being stored as simple json/yaml
+- support `encoding` value of injected headers (plain (default), or base64)
+- bump deps
+
 # 0.12.5
 
 Released 2023-01-04

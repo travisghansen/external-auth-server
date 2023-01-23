@@ -257,12 +257,8 @@ _verifyHandler = async (req, res, options = {}) => {
         configToken
       );
 
-      // allow unsigned tokens
-      if (externalAuthServer.utils.is_json_like(configToken)) {
-      } else {
-      }
-
       let configTokenLoaded = false;
+      // allow unsigned tokens
       if (process.env.EAS_ALLOW_PLAIN_SERVER_SIDE_TOKENS) {
         if (
           externalAuthServer.utils.is_json_like(configToken) ||

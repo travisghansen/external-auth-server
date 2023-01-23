@@ -41,6 +41,7 @@ as tokens etc may not exist.
             source: "userinfo",// userinfo, id_token, access_token, refresh_token, static, config_token, plugin_config, req, parentRequestInfo
             query_engine: "jp",
             query: "$.emails[*].email", // if left blank the data will be passed unaltered (ie: jwt encoded data)
+            encoding: "plain", // may be set to base64
 
             query_engine: "jp",
             query: "$.login",

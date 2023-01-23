@@ -217,16 +217,33 @@ function initialize_common_config_options(config) {
   }
 }
 
-function token_is_expired(token) {
-  return !!(token.exp && token.exp < Date.now() / 1000);
+function tokenset_signature_is_trusted(tokenSet, secret) {
+  if (tokenSet.id_token) {
+    return token_signature_is_trusted(tokenSet.id_token, secret);
+  }
+
+  return false;
 }
 
-function token_is_premature(token) {
-  return !!(token.nbf && token.nbf < Date.now() / 1000);
-}
+async function token_signature_is_trusted(token, secret) {
+  async function getKey(header, callback) {
+    try {
+      let key = await utils.get_jwt_sign_secret(secret, header.kid);
+      callback(null, key);
+    } catch (err) {
+      callback(err, null);
+    }
+  }
 
-function token_issuer_match(token, issuer) {
-  return token.iss && token.iss == issuer;
+  return new Promise((resolve, reject) => {
+    jwt.verify(token, getKey, {}, (err, decoded) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(decoded);
+    });
+  });
 }
 
 function tokenset_is_expired(tokenSet) {
@@ -241,6 +258,10 @@ function tokenset_is_expired(tokenSet) {
   return false;
 }
 
+function token_is_expired(token) {
+  return !!(token.exp && token.exp < Date.now() / 1000);
+}
+
 function tokenset_is_premature(tokenSet) {
   if (tokenSet.id_token) {
     return token_is_premature(jwt.decode(tokenSet.id_token));
@@ -249,12 +270,32 @@ function tokenset_is_premature(tokenSet) {
   return false;
 }
 
+function token_is_premature(token) {
+  return !!(token.nbf && token.nbf < Date.now() / 1000);
+}
+
 function tokenset_issuer_match(tokenSet, issuer) {
   if (tokenSet.id_token) {
     return token_issuer_match(jwt.decode(tokenSet.id_token), issuer);
   }
 
-  return true;
+  return false;
+}
+
+function token_issuer_match(token, issuer) {
+  return token.iss && token.iss == issuer;
+}
+
+function tokenset_audience_match(tokenSet, audience) {
+  if (tokenSet.id_token) {
+    return token_audience_match(jwt.decode(tokenSet.id_token), audience);
+  }
+
+  return false;
+}
+
+function token_audience_match(token, audience) {
+  return token.aud && token.aud == audience;
 }
 
 function tokenset_can_refresh(tokenSet) {
@@ -1660,7 +1701,7 @@ class BaseOauthPlugin extends BasePlugin {
       }
 
       // TODO: must verify the id_token here as it cannot be trusted otherwise
-      // currently this is left to the user by enabling assertions.id_token_signature
+      // currently this is left to the user by enabling assertions.sig.enabled
       if (clientProvidedTokenSet && !tokenSet.id_token) {
         //jwt.verify(tokenSet.id_token, "foo");
         // TODO: in case of failure return what statusCode? 403
@@ -2614,15 +2655,22 @@ class BaseOauthPlugin extends BasePlugin {
 
     const pluginStrategy = plugin.get_plugin_strategy();
 
+    let idToken;
+    if (pluginStrategy == PLUGIN_STRATEGY_OIDC && tokenSet.id_token) {
+      idToken = jwt.decode(tokenSet.id_token);
+    }
+
     /**
      * token aud is the client_id
      */
     if (
       pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-      plugin.config.assertions.aud &&
-      idToken.aud != plugin.config.client.client_id
+      plugin.config.assertions.aud
     ) {
-      return false;
+      if (!tokenset_audience_match(tokenSet, plugin.config.client.client_id)) {
+        plugin.server.logger.verbose("tokenSet audience mismatch");
+        return false;
+      }
     }
 
     /**
@@ -2647,8 +2695,8 @@ class BaseOauthPlugin extends BasePlugin {
      */
     if (
       plugin.config.assertions.exp &&
-      tokenset_is_expired(tokenSet) &&
       plugin.config.features.refresh_access_token &&
+      tokenset_is_expired(tokenSet) &&
       !tokenset_can_refresh(tokenSet)
     ) {
       plugin.server.logger.verbose(
@@ -2717,8 +2765,6 @@ class BaseOauthPlugin extends BasePlugin {
       plugin.config.assertions.id_token &&
       plugin.config.assertions.id_token.length > 0
     ) {
-      let idToken;
-      idToken = jwt.decode(tokenSet.id_token);
       let idTokenValid = await plugin.id_token_assertions(idToken);
       if (!idTokenValid) {
         return false;
@@ -2739,32 +2785,15 @@ class BaseOauthPlugin extends BasePlugin {
 
     if (
       pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-      _.get(plugin.config, "assertions.id_token_signature.enabled", false)
+      _.get(plugin.config, "assertions.sig.enabled", false)
     ) {
       plugin.server.logger.debug("verifying id_token signature");
-      async function getKey(header, callback) {
-        try {
-          let secret = _.get(
-            plugin.config,
-            "assertions.id_token_signature.key",
-            issuer.jwks_uri
-          );
-          let key = await utils.get_jwt_sign_secret(secret, header.kid);
-          callback(null, key);
-        } catch (err) {
-          callback(err, null);
-        }
-      }
+
+      let secret = _.get(plugin.config, "assertions.sig.secret", issuer.jwks_uri);
 
       try {
-        await new Promise((resolve, reject) => {
-          jwt.verify(tokenSet.id_token, getKey, {}, (err, decoded) => {
-            if (err) {
-              reject(err);
-            }
-            resolve(decoded);
-          });
-        });
+        // resolves to decoded token, if fails will go into catch
+        await tokenset_signature_is_trusted(tokenSet, secret);
       } catch (err) {
         plugin.server.logger.verbose(`id_token signature check failed: ${err}`);
         return false;
