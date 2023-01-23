@@ -14,6 +14,7 @@ const promBundle = require("express-prom-bundle");
 
 const queryString = require("query-string");
 const URI = require("uri-js");
+const YAML = require("yaml");
 
 // auth plugins
 const { OauthPlugin, OpenIdConnectPlugin } = require("./plugin/oauth");
@@ -57,7 +58,7 @@ app.use(
 
 let revokedJtis = process.env["EAS_REVOKED_JTIS"];
 if (revokedJtis) {
-  revokedJtis = JSON.parse(revokedJtis);
+  revokedJtis = YAML.parse(revokedJtis);
 } else {
   revokedJtis = [];
 }
@@ -256,18 +257,34 @@ _verifyHandler = async (req, res, options = {}) => {
         configToken
       );
 
-      // server-side tokens can be stored encrypted or not
-      if (!externalAuthServer.utils.is_jwt(configToken)) {
-        configToken = externalAuthServer.utils.decrypt(
-          externalAuthServer.secrets.config_token_encrypt_secret,
-          configToken
-        );
+      let configTokenLoaded = false;
+      // allow unsigned tokens
+      if (process.env.EAS_ALLOW_PLAIN_SERVER_SIDE_TOKENS) {
+        if (
+          externalAuthServer.utils.is_json_like(configToken) ||
+          externalAuthServer.utils.is_yaml_like(configToken)
+        ) {
+          try {
+            configToken = YAML.parse(configToken);
+            configTokenLoaded = true;
+          } catch (err) {}
+        }
       }
 
-      configToken = jwt.verify(
-        configToken,
-        externalAuthServer.secrets.config_token_sign_secret
-      );
+      if (!configTokenLoaded) {
+        // server-side tokens can be stored encrypted or not
+        if (!externalAuthServer.utils.is_jwt(configToken)) {
+          configToken = externalAuthServer.utils.decrypt(
+            externalAuthServer.secrets.config_token_encrypt_secret,
+            configToken
+          );
+        }
+
+        configToken = jwt.verify(
+          configToken,
+          externalAuthServer.secrets.config_token_sign_secret
+        );
+      }
     }
 
     configToken = externalAuthServer.setConfigTokenDefaults(configToken);

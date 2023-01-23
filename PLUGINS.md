@@ -326,15 +326,33 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
 ```
 {
     type: "oauth2",
+    
     issuer: {
         authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
         token_endpoint: 'https://www.googleapis.com/oauth2/v4/token',
     },
+
     client: {
         client_id: "...",
         client_secret: "..."
     },
+
+    // generally this should be unset and the provider default utilized (for authorization_code flow this is generally query)
+    // https://openid.net/specs/oauth-v2-multiple-response-types-1_0.html#ResponseTypesAndModes
+    //response_mode: , // query or fragment
+
+    // generally this should be unset and the default utilized
+    // https://openid.net/specs/oauth-v2-multiple-response-types-1_0.html#ResponseTypesAndModes
+    //response_types: ["code"],
+
     scopes: [],
+
+    // pkce settings
+    // https://oauth.net/2/pkce/
+    pkce: {
+      enabled: false,
+      code_challenge_method: 'S256' // can also be 'plain'
+    },
 
     // custom authorization URL parameters
     // values can be handlebars syntax with access to `req` and `parentReqInfo` objects (see examples/parent_request_info.json)
@@ -550,7 +568,32 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         //registration_client_uri: "",
         //registration_access_token: "",
     },
+
+    // generally this should be unset and the provider default utilized (for authorization_code flow this is generally query)
+    // https://openid.net/specs/oauth-v2-multiple-response-types-1_0.html#ResponseTypesAndModes
+    //response_mode: , // query or fragment
+
+    // generally this should be unset and the default utilized
+    // https://openid.net/specs/oauth-v2-multiple-response-types-1_0.html#ResponseTypesAndModes
+    //response_types: ["code"],
+
     scopes: ["openid", "email", "profile"], // must include openid
+
+    // pkce settings
+    // https://oauth.net/2/pkce/
+    pkce: {
+      enabled: false,
+      code_challenge_method: 'S256' // can also be 'plain'
+    },
+
+    // nonce settings
+    // https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes
+    nonce: {
+      enabled: false,
+      // how long eas should retain nonce data
+      // note the nonce data is removed as quickly as possible during normal operation
+      ttl: 600
+    },
 
     // custom authorization URL parameters
     // values can be handlebars syntax with access to `req` and `parentReqInfo` objects (see examples/parent_request_info.json)
@@ -579,6 +622,32 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
     * if your oauth provider does not support wildcards place the URL configured in the provider (that will return to this proper service) here
     */
     redirect_uri: "https://eas.example.com/oauth/callback",
+
+    /**
+    *
+    * https://github.com/travisghansen/external-auth-server/issues/158
+    *
+    * the /oauth/callback-ua-client-code endpoint will cause the browser/user-agent to directly exchange the code for token(s) instead of eas
+    * generally this highly unecessary, but can be used in scenarios where the brower/user-agent can communicate with both eas and op,
+    * but eas cannot directly access op
+    *
+    * in order to use this flow:
+    * - pkce enabled
+    * - nonce enabled
+    * - disable refresh_access_token
+    * - disable introspect_access_token
+    * - highly recommended to enable the sig(nature) assertion (otherwise session/token data can be spoofed)
+    * - if indeed eas cannot reach op, you will need to manually define the issuer endpoints instead of discovery url
+    *
+    * The general flow is:
+    * - eas directs the browser to op
+    * - after successful auth browser is redirected to /oauth/callback-ua-client-code
+    * - browser uses code in exchange for tokens and submits tokens to eas (using pure javascript)
+    * - browser is redirected to eas to continue remaining auth process
+    *
+    */
+    //redirect_uri: "https://eas.example.com/oauth/callback-ua-client-code",
+    
     features: {
         /**
         * how to expire the cookie
@@ -691,6 +760,11 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
     },
     assertions: {
         /**
+        * assert the token(s) has the appropriate aud (client_id)
+        */
+        aud: true,
+
+        /**
         * assert the token(s) has not expired
         */
         exp: true,
@@ -704,6 +778,16 @@ Please read [further details](OAUTH_PLUGINS.md) about configuration.
         * assert the correct issuer of the token(s)
         */
         iss: true,
+
+        /**
+        * assert the token(s) has a valid signature
+        * usually only needed when using the /oauth/callback-ua-client-code redirect_uri with browser code exchange
+        */
+        sig: {
+          enabled: false,
+          // defaults to issuer jwks endpoint, can be jwks response data or plain shared key/public key
+          // secret:
+        },
 
         /**
         * custom userinfo assertions

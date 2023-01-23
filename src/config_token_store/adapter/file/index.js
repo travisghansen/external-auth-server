@@ -1,5 +1,6 @@
 const fs = require("fs");
 const { BaseConfigTokenStoreAdapter } = require("..");
+const YAML = require("yaml");
 
 class FileConfigTokenStoreAdapter extends BaseConfigTokenStoreAdapter {
   /**
@@ -23,11 +24,11 @@ class FileConfigTokenStoreAdapter extends BaseConfigTokenStoreAdapter {
 
     try {
       let data = fs.readFileSync(adapter.config.options.path, "utf8");
-      data = JSON.parse(data);
+      data = YAML.parse(data);
       let token;
       token = data[id];
 
-      return token;
+      return JSON.stringify(token);
     } catch (e) {
       throw e;
     }
@@ -35,5 +36,5 @@ class FileConfigTokenStoreAdapter extends BaseConfigTokenStoreAdapter {
 }
 
 module.exports = {
-  FileConfigTokenStoreAdapter
+  FileConfigTokenStoreAdapter,
 };

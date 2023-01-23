@@ -235,6 +235,10 @@ set the `config_token` `redirect_uri` to the `eas` service at the
 - `EAS_GRPC_PORT` port the grpc server is bound to (default is `50051`)
 - `EAS_GRPC_SSL_CERT` path to ssl cert file to enable https
 - `EAS_GRPC_SSL_KEY` path to ssl key file to enable https
+- `EAS_ALLOW_EVAL` allow for potentially unsafe execution of untrusted code
+  (enables `request_js` and `js` query engine)
+- `EAS_ALLOW_PLAIN_SERVER_SIDE_TOKENS` allows server-side token to be
+  unsigned (ie: store plain json/yaml in the store(s))
 
 ## redis
 
