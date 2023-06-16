@@ -1,3 +1,9 @@
+# 0.13.1
+
+Released 2023-06-16
+
+- allow disabling of the metrices endpoint with env var `EAS_DISABLE_METRICS`
+
 # 0.13.0
 
 Released 2023-01-22

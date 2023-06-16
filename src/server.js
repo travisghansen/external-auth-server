@@ -44,17 +44,20 @@ const configTokenStoreManager = new ConfigTokenStoreManager(externalAuthServer);
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser(externalAuthServer.secrets.cookie_sign_secret));
-app.use(
-  promBundle({
-    includeMethod: true,
-    includePath: true,
-    promClient: {
-      collectDefaultMetrics: {
-        timeout: 2000,
+
+if (!externalAuthServer.utils.toBoolean(process.env.EAS_DISABLE_METRICS)) {
+  app.use(
+    promBundle({
+      includeMethod: true,
+      includePath: true,
+      promClient: {
+        collectDefaultMetrics: {
+          timeout: 2000,
+        },
       },
-    },
-  })
-);
+    })
+  );
+}
 
 let revokedJtis = process.env["EAS_REVOKED_JTIS"];
 if (revokedJtis) {
