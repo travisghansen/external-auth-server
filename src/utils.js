@@ -123,6 +123,34 @@ function generate_csrf_id() {
   return uuidv4();
 }
 
+function toBoolean(input) {
+  //return !!(dataStr?.toLowerCase?.() === 'true' || dataStr === true || Number.parseInt(dataStr, 10) === 0);
+  //return !!(dataStr?.toLowerCase?.() === 'true' || dataStr === true);
+  if (typeof input == "boolean") {
+    return input;
+  }
+
+  if (!isNaN(input)) {
+    if (typeof input == "string") {
+      input = parseFloat(input);
+    }
+    return Boolean(input);
+  }
+
+  if (typeof input == "string") {
+    switch (input.toLocaleLowerCase()) {
+      case "true":
+        return true;
+      case "false":
+        return false;
+      default:
+        return Boolean(input);
+    }
+  }
+
+  throw new Error("unable to determine boolean value");
+}
+
 function is_jwt(jwtString) {
   const re = new RegExp(
     /^[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$/
@@ -506,6 +534,7 @@ module.exports = {
   base64_decode,
   generate_session_id,
   generate_csrf_id,
+  toBoolean,
   is_json_like,
   is_yaml_like,
   is_jwt,
