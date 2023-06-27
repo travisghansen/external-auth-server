@@ -126,6 +126,11 @@ function generate_csrf_id() {
 function toBoolean(input) {
   //return !!(dataStr?.toLowerCase?.() === 'true' || dataStr === true || Number.parseInt(dataStr, 10) === 0);
   //return !!(dataStr?.toLowerCase?.() === 'true' || dataStr === true);
+  
+  if (typeof input == "undefined" || input === null) {
+    return false;
+  }
+  
   if (typeof input == "boolean") {
     return input;
   }
