@@ -1,3 +1,9 @@
+# 0.13.2
+
+Released 2023-06-27
+
+- fixed boolean detect logic
+
 # 0.13.1
 
 Released 2023-06-16
