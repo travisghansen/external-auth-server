@@ -5,6 +5,7 @@ const cookieParser = require("cookie-parser");
 const express = require("express");
 const fs = require("fs");
 const jwt = require("jsonwebtoken");
+const _ = require("lodash");
 const https = require("https");
 const { HeaderInjector } = require("./header");
 const { PluginVerifyResponse } = require("./plugin");
@@ -13,6 +14,7 @@ const promBundle = require("express-prom-bundle");
 
 const queryString = require("query-string");
 const URI = require("uri-js");
+const YAML = require("yaml");
 
 // auth plugins
 const { OauthPlugin, OpenIdConnectPlugin } = require("./plugin/oauth");
@@ -42,21 +44,24 @@ const configTokenStoreManager = new ConfigTokenStoreManager(externalAuthServer);
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser(externalAuthServer.secrets.cookie_sign_secret));
-app.use(
-  promBundle({
-    includeMethod: true,
-    includePath: true,
-    promClient: {
-      collectDefaultMetrics: {
-        timeout: 2000,
+
+if (!externalAuthServer.utils.toBoolean(process.env.EAS_DISABLE_METRICS)) {
+  app.use(
+    promBundle({
+      includeMethod: true,
+      includePath: true,
+      promClient: {
+        collectDefaultMetrics: {
+          timeout: 2000,
+        },
       },
-    },
-  })
-);
+    })
+  );
+}
 
 let revokedJtis = process.env["EAS_REVOKED_JTIS"];
 if (revokedJtis) {
-  revokedJtis = JSON.parse(revokedJtis);
+  revokedJtis = YAML.parse(revokedJtis);
 } else {
   revokedJtis = [];
 }
@@ -88,6 +93,14 @@ app.get("/ping", (req, res) => {
 });
 
 verifyHandler = async (req, res, options = {}) => {
+  try {
+    return await _verifyHandler(req, res, options);
+  } catch (error) {
+    externalAuthServer.logger.error(error);
+  }
+};
+
+_verifyHandler = async (req, res, options = {}) => {
   externalAuthServer.logger.silly("verify request details: %j", {
     url: req.url,
     params: req.params,
@@ -247,18 +260,34 @@ verifyHandler = async (req, res, options = {}) => {
         configToken
       );
 
-      // server-side tokens can be stored encrypted or not
-      if (!externalAuthServer.utils.is_jwt(configToken)) {
-        configToken = externalAuthServer.utils.decrypt(
-          externalAuthServer.secrets.config_token_encrypt_secret,
-          configToken
-        );
+      let configTokenLoaded = false;
+      // allow unsigned tokens
+      if (process.env.EAS_ALLOW_PLAIN_SERVER_SIDE_TOKENS) {
+        if (
+          externalAuthServer.utils.is_json_like(configToken) ||
+          externalAuthServer.utils.is_yaml_like(configToken)
+        ) {
+          try {
+            configToken = YAML.parse(configToken);
+            configTokenLoaded = true;
+          } catch (err) {}
+        }
       }
 
-      configToken = jwt.verify(
-        configToken,
-        externalAuthServer.secrets.config_token_sign_secret
-      );
+      if (!configTokenLoaded) {
+        // server-side tokens can be stored encrypted or not
+        if (!externalAuthServer.utils.is_jwt(configToken)) {
+          configToken = externalAuthServer.utils.decrypt(
+            externalAuthServer.secrets.config_token_encrypt_secret,
+            configToken
+          );
+        }
+
+        configToken = jwt.verify(
+          configToken,
+          externalAuthServer.secrets.config_token_sign_secret
+        );
+      }
     }
 
     configToken = externalAuthServer.setConfigTokenDefaults(configToken);
@@ -657,7 +686,8 @@ const grpcPort = process.env.EAS_GRPC_PORT || 50051;
  * grpc (c-based implementation)
  * @grpc/grpc-js (pure js implementation)
  */
-const grpcImplementation = process.env.EAS_GRPC_IMPLEMENTATION || "grpc";
+const grpcImplementation =
+  process.env.EAS_GRPC_IMPLEMENTATION || "@grpc/grpc-js";
 const grpc = require(grpcImplementation);
 const protoLoader = require("@grpc/proto-loader");
 
@@ -688,7 +718,7 @@ grpcServer.addService(
       let grpcRes;
 
       try {
-        let cleansedCall = JSON.parse(JSON.stringify(call));
+        let cleansedCall = JSON.parse(externalAuthServer.utils.stringify(call));
         externalAuthServer.logger.debug(
           "new grpc request - Check call: %j",
           cleansedCall
@@ -712,12 +742,84 @@ grpcServer.addService(
           call.request.attributes.context_extensions["x-eas-verify-params"];
         }
 
-        let destination_port = "";
-        let scheme;
+        // c-based grpc metadata is present at this attribute
+        let metadata = _.get(call, "metadata._internal_repr");
 
-        // prefer x-forwarded-proto if available
-        if (req.headers["x-forwarded-proto"]) {
-          scheme = req.headers["x-forwarded-proto"];
+        // c-based grpc not in use
+        if (!metadata) {
+          // get metadata object and convert to basic json object
+          metadata = _.get(call, "metadata", {});
+          metadata = JSON.parse(JSON.stringify(metadata));
+        }
+        let filter_metadata = _.get(
+          call,
+          "request.attributes.metadata_context.filter_metadata.eas.fields.eas.structValue.fields"
+        );
+
+        // function to prroperly retrieve value from filter_metadata
+        const getFilterMetadataValue = function (filter_metadata, key) {
+          const field = _.get(filter_metadata, key);
+          if (field) {
+            return field[field["kind"]];
+          }
+        };
+
+        // for explanation on order of preference of the data below see the following
+        // https://github.com/travisghansen/external-auth-server/pull/126#issuecomment-980094773
+
+        let verify_params;
+
+        // header
+        // not safe
+
+        // filter_metadata
+        if (!verify_params) {
+          verify_params = getFilterMetadataValue(
+            filter_metadata,
+            "x-eas-verify-params"
+          );
+        }
+
+        // initial_metadata
+        if (!verify_params) {
+          verify_params = _.last(_.get(metadata, "x-eas-verify-params"));
+        }
+
+        // context
+        if (!verify_params) {
+          verify_params =
+            call.request.attributes.context_extensions["x-eas-verify-params"];
+        }
+
+        req.headers["x-eas-verify-params"] = verify_params;
+
+        let scheme;
+        let host = call.request.attributes.request.http.host;
+        let port;
+        let destination_port = "";
+
+        // header
+        // this head can be trusted as being set by envoy
+        if (!scheme) {
+          scheme = _.get(req.headers, "x-forwarded-proto");
+        }
+
+        // filter_metadata
+        if (!scheme) {
+          scheme = getFilterMetadataValue(filter_metadata, "x-forwarded-proto");
+        }
+
+        // initial_metadata
+        if (!scheme) {
+          scheme = _.last(_.get(metadata, "x-forwarded-proto"));
+        }
+
+        // context
+        if (!scheme) {
+          scheme = _.get(
+            call.request.attributes.context_extensions,
+            "x-forwarded-proto"
+          );
         }
 
         // fallback to scheme of the envoy request directly
@@ -764,9 +866,37 @@ grpcServer.addService(
           }
         }
 
+        // fallback to port of the envoy request directly
+        if (!port) {
+          port =
+            call.request.attributes.destination.address.socket_address
+              .port_value;
+        }
+
+        if (!port) {
+          throw new Error("unknown request port");
+        }
+
+        // only set port if non-standard to the scheme
+        switch (scheme) {
+          case "http":
+            if (port !== 80) {
+              destination_port = `:${port}`;
+            }
+            break;
+          case "https":
+            if (port !== 443) {
+              destination_port = `:${port}`;
+            }
+            break;
+          default:
+            throw new Error("unknown request scheme");
+            break;
+        }
+
         req.headers[
           "x-eas-request-uri"
-        ] = `${scheme}://${call.request.attributes.request.http.host}${destination_port}${call.request.attributes.request.http.path}`;
+        ] = `${scheme}://${host}${destination_port}${call.request.attributes.request.http.path}`;
         req.headers["x-forwarded-method"] =
           call.request.attributes.request.http.method;
 

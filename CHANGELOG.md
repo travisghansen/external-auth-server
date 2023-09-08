@@ -1,87 +1,76 @@
-# 1.0.0
+# 0.13.2
 
-- align/generic all features/documentation
-- prometheus
-- refactor naming of store/cache/etc
-- force `EAS_ENCRYPT_IV_SECRET` parameter and document (`FLUSHDB` in redis to clear all old sessions)
-- Add `EAS_ONE_POINT_ZERO` env var to ensure users have dealt with deprecated features
+Released 2023-06-27
 
-# 0.99.0
+- fixed boolean detect logic
 
-- helm repo analogy for server-side config tokens store IDs
+# 0.13.1
 
-- explore client-side `config_token` encryption (ie: pki encryption of `config_tokens`)
-- look into support multiple `config_token` keys (ie: run external server as a service style setup)
-- look into 'proper' `config_token` jwt encryption
+Released 2023-06-16
 
-- explore setting required scopes on a per-endpoint/verb basis (outside the
-  backing service) and allowing the auth service to conditionally assert based on
-  scopes in the jwt token
+- allow disabling of the metrices endpoint with env var `EAS_DISABLE_METRICS`
 
-* support better logic for original URI detection `Forwarded` header and `X-Forwarded-For`, etc
-* ensure sessions (guid) does not already exist however unlikely
-* implement logout (both local and with provider)
+# 0.13.0
 
-* allow for run-time (ie: URL params) assertions
-* configuration for turning on/off redirects (probably a query param like `redirect_http_code`) (this may simply be a verify_strategy)
-* nonce?
+Released 2023-01-22
 
-* document proper annotations for common ingress controllers (traefik, nginx, ambassador, etc)
+- support additional `oauth` / `oidc` flows
+  - newly available callback endpoint `/oauth/callback-ua-client-code` which
+    retrieves the tokens via the browser instead of `eas` facilitating scenarios
+    where `eas` cannot directly communicate with `op`
+- support `pkce` with `oauth` / `oidc`
+- support `nonce` with `oidc`
+- use server-side storage of `oauth` / `oidc` `state` data
+- support `yaml` parsing in addition to `json` parsing in several locations
+- introduce env var `EAS_ALLOW_PLAIN_SERVER_SIDE_TOKENS` to facilitate
+  server-side `config_tokens` being stored as simple json/yaml
+- support `encoding` value of injected headers (plain (default), or base64)
+- bump deps
 
-* support for encyprted cookie
-* cookie as struct {id: foo, storage_type: cookie|backend}?
-* update to 3.x `openid-client`
-* replace `jsonwebtoken` with `@panva/jose`
+# 0.12.5
 
-* ensure empty body in responses
+Released 2023-01-04
 
-* email link plugin
-* email code plugin
+- bump deps (#163 CVE-2022-23529)
 
-* support for POST callback providers (can accept post requests on the `/oauth/callback` route and translate to `GET` params)
-* oauth2 providers
+# 0.12.4
 
-  - Google default
-  - Azure
-  - Facebook
-  - ~~GitHub~~
-  - GitLab
-  - LinkedIn
+Released 2022-09-01
 
-* required plugins (ie: support multi-success pipepline)
+- firebase jwks cache fix
+- minor fixes
+- bump deps
 
-* update docker hub description/details/homepage/etc
-* note about contributing to the project
-* link to examples (config store/auth plugin) with simple explanation about requirements
+# 0.12.3
 
-* redis config_token store
-* try/catch in invalid responseCode getting sent by a plugin
+Released 2022-05-18
 
-* introduce options for csrf handling in `oauth2`/`oidc` plugins? currently disabling csrf deletion due to bad nginx/envoy behavior
+- minor fixes and chart updates
 
-* endpoint where config data can be sent and the backend will sign/encrypt and respond with newly minted `config_token` (need to consider security implications etc of this)
+# 0.12.2
 
-* give a nice overview of architecture with a pretty graphic to give newcomers a easier overview
+Released 2022-04-08
 
-* allow specifying a redirect URL for error response codes (ie: 404 -> some self hosted location, 503 -> some location with a pretty space etc)
+- update deps
+- use exclusively the native `@grpc/grpc-js` grpc implementation
+- do not install dev dependencies in container images
+- add `s390x` and `ppc64le` to container architectures
+- do not include uncecessary files in container images
 
-* https://www.npmjs.com/package/jq.node (new query engine for better performance than jq)
+# 0.12.1
 
-* generic structure for various things
-* request data
-* auth data
-* config data
+Released 2022-03-03
 
-* opa plugin
-* opa assertions
+- update deps
+- force rebuild to update base container image
 
-* NODE_JQ_SKIP_INSTALL_BINARY=true
-* pass previous response to subsequent plugins' verify method
+# 0.12.0
 
-- further data available to header injection (`req` and `parentRequestInfo`)
-- update header injection to use generic query function
-- only get parentRequestInfo once in server.js and more performance enhancements
-- store `state` server-side in `oauth2`/`oidc` plugins
+Released 2022-01-11
+
+- more robust control of `envoy` `grpc` behavior (setting
+  config_token/ports/proto via trusted metadata)
+- bump node version to `v16` (from `v12`)
 
 # 0.11.0
 

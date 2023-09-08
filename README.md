@@ -1,5 +1,5 @@
 ![Image](https://img.shields.io/docker/pulls/travisghansen/external-auth-server.svg)
-![Image](https://img.shields.io/github/workflow/status/travisghansen/external-auth-server/CI?style=flat-square)
+![Image](https://img.shields.io/github/actions/workflow/status/travisghansen/external-auth-server/main.yml?branch=master&style=flat-square)
 
 # `external-auth-server`
 
@@ -166,6 +166,11 @@ eas eas/external-auth-server
 EAS_CONFIG_TOKEN_SIGN_SECRET="foo" \
 EAS_CONFIG_TOKEN_ENCRYPT_SECRET="bar" \
 node bin/generate-config-token.js
+
+# alternatively you may use the following to create tokens
+# files can be either json or yaml
+cat config-token.json | docker run --rm -i -e EAS_CONFIG_TOKEN_SIGN_SECRET=foo -e EAS_CONFIG_TOKEN_ENCRYPT_SECRET=bar travisghansen/external-auth-server generate-config-token
+cat config-token.json | EAS_CONFIG_TOKEN_SIGN_SECRET=foo EAS_CONFIG_TOKEN_ENCRYPT_SECRET=bar npm run generate-config-token
 ```
 
 ## Configure your reverse proxy
@@ -230,6 +235,10 @@ set the `config_token` `redirect_uri` to the `eas` service at the
 - `EAS_GRPC_PORT` port the grpc server is bound to (default is `50051`)
 - `EAS_GRPC_SSL_CERT` path to ssl cert file to enable https
 - `EAS_GRPC_SSL_KEY` path to ssl key file to enable https
+- `EAS_ALLOW_EVAL` allow for potentially unsafe execution of untrusted code
+  (enables `request_js` and `js` query engine)
+- `EAS_ALLOW_PLAIN_SERVER_SIDE_TOKENS` allows server-side token to be
+  unsigned (ie: store plain json/yaml in the store(s))
 
 ## redis
 

@@ -1,4 +1,5 @@
 const { BaseConfigTokenStoreAdapter } = require("..");
+const YAML = require("yaml");
 
 class EnvConfigTokenStoreAdapter extends BaseConfigTokenStoreAdapter {
   /**
@@ -22,11 +23,11 @@ class EnvConfigTokenStoreAdapter extends BaseConfigTokenStoreAdapter {
 
     try {
       let data = process.env[adapter.config.options.var];
-      data = JSON.parse(data);
+      data = YAML.parse(data);
       let token;
       token = data[id];
 
-      return token;
+      return JSON.stringify(token);
     } catch (e) {
       throw e;
     }

@@ -16,6 +16,8 @@ spec:
         context:
           #"x-eas-verify-params": '{"config_token":"..."}'
           #"x-eas-verify-params": '{"config_token_store_id":"dep_a","config_token_id":"keycloak"}'
+          #"x-forwarded-proto": "http|https"
+          #"x-forwarded-port": "<port>"
       extensionRef:
         name: eas
         namespace: projectcontour-auth

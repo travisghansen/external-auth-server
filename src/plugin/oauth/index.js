@@ -1,12 +1,16 @@
+const _ = require("lodash");
+const crypto = require("crypto");
 const { Assertion } = require("../../assertion");
 const { BasePlugin } = require("../../plugin");
 const Handlebars = require("handlebars");
-const { Issuer, custom } = require("openid-client");
+const { Issuer, custom, TokenSet } = require("openid-client");
 const jwksClient = require("jwks-rsa");
 const jwt = require("jsonwebtoken");
 const queryString = require("query-string");
 const request = require("request");
 const URI = require("uri-js");
+const utils = require("../../utils");
+const { v4: uuidv4 } = require("uuid");
 
 custom.setHttpOptionsDefaults({
   followRedirect: false,
@@ -63,6 +67,9 @@ const issuer_sign_secret =
   process.env.EAS_ISSUER_SIGN_SECRET ||
   exit_failure("missing EAS_ISSUER_SIGN_SECRET env variable");
 
+const PLUGIN_STRATEGY_OAUTH = "oauth";
+const PLUGIN_STRATEGY_OIDC = "oidc";
+
 const SESSION_CACHE_PREFIX = "session:oauth:";
 const INTROSPECTION_CACHE_PREFIX = "introspection:oauth:";
 const DEFAULT_COOKIE_NAME = "_eas_oauth_session";
@@ -79,6 +86,9 @@ const STATE_CACHE_EXPIRY = "43200"; //12 hours
 
 const BACKCHANNEL_LOGOUT_CACHE_PREFIX = "bachchannel_logout:oauth:";
 const BACKCHANNEL_LOGOUT_DEFAULT_TTL = 2678400; //31 days
+
+const DEFAULT_NONCE_TTL = 600;
+const NONCE_CACHE_PREFIX = "nonce:oauth:";
 
 let initialized = false;
 
@@ -207,16 +217,33 @@ function initialize_common_config_options(config) {
   }
 }
 
-function token_is_expired(token) {
-  return !!(token.exp && token.exp < Date.now() / 1000);
+function tokenset_signature_is_trusted(tokenSet, secret) {
+  if (tokenSet.id_token) {
+    return token_signature_is_trusted(tokenSet.id_token, secret);
+  }
+
+  return false;
 }
 
-function token_is_premature(token) {
-  return !!(token.nbf && token.nbf < Date.now() / 1000);
-}
+async function token_signature_is_trusted(token, secret) {
+  async function getKey(header, callback) {
+    try {
+      let key = await utils.get_jwt_sign_secret(secret, header.kid);
+      callback(null, key);
+    } catch (err) {
+      callback(err, null);
+    }
+  }
 
-function token_issuer_match(token, issuer) {
-  return token.iss && token.iss == issuer;
+  return new Promise((resolve, reject) => {
+    jwt.verify(token, getKey, {}, (err, decoded) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(decoded);
+    });
+  });
 }
 
 function tokenset_is_expired(tokenSet) {
@@ -231,6 +258,10 @@ function tokenset_is_expired(tokenSet) {
   return false;
 }
 
+function token_is_expired(token) {
+  return !!(token.exp && token.exp < Date.now() / 1000);
+}
+
 function tokenset_is_premature(tokenSet) {
   if (tokenSet.id_token) {
     return token_is_premature(jwt.decode(tokenSet.id_token));
@@ -239,12 +270,32 @@ function tokenset_is_premature(tokenSet) {
   return false;
 }
 
+function token_is_premature(token) {
+  return !!(token.nbf && token.nbf < Date.now() / 1000);
+}
+
 function tokenset_issuer_match(tokenSet, issuer) {
   if (tokenSet.id_token) {
     return token_issuer_match(jwt.decode(tokenSet.id_token), issuer);
   }
 
-  return true;
+  return false;
+}
+
+function token_issuer_match(token, issuer) {
+  return token.iss && token.iss == issuer;
+}
+
+function tokenset_audience_match(tokenSet, audience) {
+  if (tokenSet.id_token) {
+    return token_audience_match(jwt.decode(tokenSet.id_token), audience);
+  }
+
+  return false;
+}
+
+function token_audience_match(token, audience) {
+  return token.aud && token.aud == audience;
 }
 
 function tokenset_can_refresh(tokenSet) {
@@ -496,13 +547,111 @@ function handlebars_template_properties(src, data) {
   return ret;
 }
 
+function sha256(input) {
+  if (!Buffer.isBuffer(input)) {
+    input = Buffer.from(input, "utf8");
+  }
+  return crypto.createHash("sha256").update(input).digest();
+}
+
+function base64URLEncode(str) {
+  return str
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
+}
+
+// https://auth0.com/docs/get-started/authentication-and-authorization-flow/call-your-api-using-the-authorization-code-flow-with-pkce
+function create_code_challenge(verifier, code_challenge_method = "S256") {
+  switch (code_challenge_method.toLowerCase()) {
+    case "plain":
+      return verifier;
+    case "s256":
+    default:
+      return base64URLEncode(sha256(verifier));
+  }
+}
+
+// https://www.authlete.com/developers/pkce/
+function create_code_verifier() {
+  //  between 43 and 128
+  return base64URLEncode(crypto.randomBytes(32));
+}
+
+class StoreHelper {
+  constructor(server) {
+    this.server = server;
+  }
+
+  async save(log_name, CACHE_KEY, payload, ttl = null) {
+    const helper = this;
+    const store = helper.server.store;
+
+    helper.server.logger.verbose(`saving ${log_name}: %s`, CACHE_KEY);
+
+    await store.set(
+      CACHE_KEY,
+      helper.server.utils.encrypt(
+        helper.server.secrets.session_encrypt_secret,
+        JSON.stringify(payload)
+      ),
+      ttl
+    );
+  }
+
+  async get(log_name, CACHE_KEY) {
+    const helper = this;
+    const store = helper.server.store;
+
+    helper.server.logger.verbose(`retrieving ${log_name}: %s`, CACHE_KEY);
+
+    const encryptedPayload = await store.get(CACHE_KEY);
+
+    helper.server.logger.verbose(
+      `retrieved encrypted ${log_name} content: %s`,
+      encryptedPayload
+    );
+
+    if (!encryptedPayload) {
+      helper.server.logger.verbose(`failed to decrypt ${log_name}`);
+      return false;
+    }
+
+    let payload = helper.server.utils.decrypt(
+      helper.server.secrets.session_encrypt_secret,
+      encryptedPayload
+    );
+    helper.server.logger.debug(`${log_name} data: %s`, payload);
+    payload = JSON.parse(payload);
+
+    return payload;
+  }
+
+  async delete(log_name, CACHE_KEY) {
+    const helper = this;
+    const store = helper.server.store;
+
+    helper.server.logger.verbose(`deleting ${log_name}: %s`, CACHE_KEY);
+
+    if (CACHE_KEY) {
+      await store.del(CACHE_KEY);
+    }
+  }
+}
+
+let STORE_HELPER;
+
 class BaseOauthPlugin extends BasePlugin {
   static initialize(server) {
     if (!initialized) {
-      server.WebServer.get("/oauth/callback", (req, res) => {
+      STORE_HELPER = new StoreHelper(server);
+
+      server.WebServer.get("/oauth/callback", async (req, res) => {
         server.logger.silly("%j", {
           headers: req.headers,
           body: req.body,
+          query: req.query,
         });
 
         try {
@@ -512,6 +661,15 @@ class BaseOauthPlugin extends BasePlugin {
             "hex"
           );
           state = jwt.verify(state, issuer_sign_secret);
+          state = await STORE_HELPER.get(
+            "state",
+            STATE_CACHE_PREFIX + state.state_id
+          );
+
+          if (!state) {
+            throw new Error("failed load state");
+          }
+
           const state_redirect_uri = state.request_uri;
 
           const parsedStateRedirectURI = URI.parse(state_redirect_uri);
@@ -543,10 +701,285 @@ class BaseOauthPlugin extends BasePlugin {
         }
       });
 
+      /**
+       * NOTE: this has the same security risks as the implicit flow
+       * ie: URLs with codes/tokens in them being captured by browser history/plugins
+       * this should effectively never be used in lieu of the /oauth/callback-ua-client-code endpoint
+       */
+      server.WebServer.get("/oauth/callback-ua-redirect", (req, res) => {
+        server.logger.silly("%j", {
+          headers: req.headers,
+          body: req.body,
+          query: req.query,
+        });
+
+        res.send(`
+<html>
+<head>
+</head>
+<body style="visibility:hidden">
+<script type="text/javascript">
+    redirect_uri = String(window.location);
+    redirect_uri = redirect_uri.replace('#', "?");
+    redirect_uri = redirect_uri.replace('/oauth/callback-ua', "/oauth/callback");
+    console.log('redirecting to ' + redirect_uri);
+    window.location.replace(redirect_uri);
+</script>
+</body>
+</html>
+`);
+      });
+
+      /**
+       * multistep process
+       * 1. send all provided params from the authorization response (ie: query or fragment params) to eas for it to formulate a token endpoint for trading `code` for a tokenset
+       * 2. using the URL from step 1 POST the data to the token endpoint of the provider to retrieve a tokenset in return
+       * 3. using the tokenset returned from step 2 submit it to eas for storage (and later session creation)
+       * 4. redirect browser to standard eas callback url (for session creation, access, etc)
+       */
+      server.WebServer.get("/oauth/callback-ua-client-code", (req, res) => {
+        server.logger.silly("%j", {
+          headers: req.headers,
+          body: req.body,
+          query: req.query,
+        });
+
+        res.send(`
+<html>
+<head>
+</head>
+<body style="visibility:hidden">
+<script type="text/javascript">
+
+(async function() {
+  function log() {
+    if (window.location.hostname == "localhost") {
+      console.log(...arguments);
+    }
+  }
+  function paramsToObject(entries) {
+    const result = {}
+    for(const [key, value] of entries) { // each 'entry' is a [key, value] tupple
+      result[key] = value;
+    }
+    return result;
+  }
+  parsedHash = new URLSearchParams(
+    window.location.hash.substring(1)
+  );
+  parsedSearch = new URLSearchParams(
+    window.location.search.substring(1)
+  );
+  params = {};
+  Object.assign(params, paramsToObject(parsedHash.entries()), paramsToObject(parsedSearch.entries()));
+  
+  log("hash params", parsedHash.entries());
+  log("query params", parsedSearch);
+  log("normalized params", params);
+
+  current_base_url = window.location.href.split(/[?#]/)[0];
+  get_client_endpoints_url = current_base_url.replace('/oauth/callback-ua-client-code', '/oauth/client-issuer-endpoints');
+  post_tokenset_endpoint_url = current_base_url.replace('/oauth/callback-ua-client-code', '/oauth/client-tokenset');
+  post_tokenset_endpoint_url += '?state=' + params.state;
+
+  callback_url = current_base_url.replace('/oauth/callback-ua-client-code', '/oauth/callback');
+  
+  for (const param of ["state", "error"]) {
+    if (params[param]) {
+      if (!callback_url.includes("?")) {
+        callback_url += "?";
+      } else {
+        callback_url += "&";
+      }
+      callback_url += param + "=" + encodeURIComponent(params[param]);  
+    }
+  }
+
+  log({get_client_endpoints_url, callback_url, post_tokenset_endpoint_url});
+  
+  if (params.error) {
+    window.location.replace(callback_url);
+    return;
+  }
+
+  let res;
+  let endpoints;
+  let tokenSet;
+  let userinfo;
+  res = await fetch(get_client_endpoints_url, {
+    //method: 'get'
+    method: 'post',
+    body: JSON.stringify(params),
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    }
+  });
+
+  endpoints = await res.json();
+  log("endpoints", endpoints);
+
+  log("fetching tokenSet from op");
+  res = await fetch(endpoints.decorated_token_endpoint, {
+    method: 'post',
+  });
+  tokenSet = await res.json();
+  log("tokenSet", tokenSet);
+
+  if (endpoints.features && endpoints.features.fetch_userinfo) {
+    log("fetching userinfo from op with tokenSet");
+    res = await fetch(endpoints.userinfo_endpoint, {
+      method: 'get',
+      headers: {
+        'Authorization': tokenSet.token_type + ' ' + tokenSet.access_token
+      }
+    });
+    userinfo = await res.json();
+    log("userinfo", userinfo);
+  }
+
+  log("sending data to eas");
+  res = await fetch(post_tokenset_endpoint_url, {
+    //method: 'get'
+    method: 'post',
+    body: JSON.stringify({tokenSet, userinfo}),
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    }
+  });
+  res = await res.json();
+  log("eas token response", res);
+
+  window.location.replace(callback_url);
+  
+})();
+
+</script>
+</body>
+</html>
+`);
+      });
+
+      /**
+       * submit encrypted state and get the issuer token url in return
+       * only to be used internally by eas
+       *
+       */
+      server.WebServer.post(
+        "/oauth/client-issuer-endpoints",
+        async (req, res) => {
+          server.logger.silly("%j", {
+            headers: req.headers,
+            body: req.body,
+            query: req.query,
+          });
+
+          try {
+            let state = server.utils.decrypt(
+              issuer_encrypt_secret,
+              req.body.state,
+              "hex"
+            );
+            state = jwt.verify(state, issuer_sign_secret);
+            state = await STORE_HELPER.get(
+              "state",
+              STATE_CACHE_PREFIX + state.state_id
+            );
+
+            const params = req.body;
+            params["grant_type"] = "authorization_code";
+            params["client_id"] = state.client.client_id;
+            params["redirect_uri"] = state.authorization_redirect_uri;
+            if (state.nonce) {
+              params["nonce"] = state.nonce;
+            }
+
+            if (state.code_verifier) {
+              params["code_verifier"] = state.code_verifier;
+            }
+
+            const queryString = Object.keys(params)
+              .map((key) => {
+                return (
+                  encodeURIComponent(key) +
+                  "=" +
+                  encodeURIComponent(params[key])
+                );
+              })
+              .join("&");
+
+            res.json({
+              decorated_token_endpoint:
+                state.issuer.token_endpoint + "?" + queryString,
+              token_endpoint: state.issuer.token_endpoint,
+              userinfo_endpoint: state.issuer.userinfo_endpoint,
+              jwks_uri: state.issuer.jwks_uri,
+              features: state.features,
+            });
+          } catch (e) {
+            res.statusCode = 401;
+            res.end();
+          }
+        }
+      );
+
+      /**
+       * used to submit a tokenSet associated with a particlar nonce temporarily
+       * until it can be validated and a session created
+       * only to be used internally by eas
+       */
+      server.WebServer.post("/oauth/client-tokenset", async (req, res) => {
+        server.logger.silly("%j", {
+          headers: req.headers,
+          body: req.body,
+          query: req.query,
+        });
+
+        let state = server.utils.decrypt(
+          issuer_encrypt_secret,
+          req.query.state,
+          "hex"
+        );
+        state = jwt.verify(state, issuer_sign_secret);
+        state = await STORE_HELPER.get(
+          "state",
+          STATE_CACHE_PREFIX + state.state_id
+        );
+
+        let nonceData;
+        if (state.nonce) {
+          nonceData = await STORE_HELPER.get(
+            "nonce",
+            NONCE_CACHE_PREFIX + state.nonce
+          );
+        }
+
+        // prevent any kind of replay
+        if (!nonceData || (nonceData && nonceData.tokenSet)) {
+          res.statusCode = 503;
+          res.end();
+          return;
+        }
+
+        nonceData.tokenSet = req.body.tokenSet;
+        nonceData.userinfo = req.body.userinfo;
+        await STORE_HELPER.save(
+          "nonce",
+          NONCE_CACHE_PREFIX + state.nonce,
+          nonceData,
+          state.nonce_ttl
+        );
+
+        res.statusCode = 200;
+        res.json({});
+      });
+
       server.WebServer.get("/oauth/end-session-redirect", (req, res) => {
         server.logger.silly("%j", {
           headers: req.headers,
           body: req.body,
+          query: req.query,
         });
 
         try {
@@ -575,6 +1008,7 @@ class BaseOauthPlugin extends BasePlugin {
         server.logger.silly("%j", {
           headers: req.headers,
           body: req.body,
+          query: req.query,
         });
 
         try {
@@ -812,6 +1246,11 @@ class BaseOauthPlugin extends BasePlugin {
     }
   }
 
+  get_plugin_strategy() {
+    const plugin = this;
+    return plugin.constructor.name == "OpenIdConnectPlugin" ? "oidc" : "oauth2";
+  }
+
   /**
    * Verify the request
    *
@@ -824,10 +1263,7 @@ class BaseOauthPlugin extends BasePlugin {
     const store = plugin.server.store;
     const issuer = await plugin.get_issuer();
     const client = await plugin.get_client();
-    const pluginStrategy =
-      plugin.constructor.name == "OpenIdConnectPlugin" ? "oidc" : "oauth2";
-    const PLUGIN_STRATEGY_OAUTH = "oauth";
-    const PLUGIN_STRATEGY_OIDC = "oidc";
+    const pluginStrategy = plugin.get_plugin_strategy();
 
     /**
      * reconstruct original request info from headers etc
@@ -870,7 +1306,38 @@ class BaseOauthPlugin extends BasePlugin {
         authorization_redirect_uri
       );
 
-      const payload = {
+      // implicit flow or pkce with fragment requires nonce
+      let nonce;
+      if (
+        pluginStrategy == PLUGIN_STRATEGY_OIDC &&
+        _.get(plugin.config, "nonce.enabled", false)
+      ) {
+        nonce = uuidv4();
+      }
+
+      let code_verifier;
+      let code_challenge;
+      let code_challenge_method;
+      // TODO: is pkce limited to oidc?
+      if (_.get(plugin.config, "pkce.enabled", false)) {
+        code_verifier = create_code_verifier();
+        code_challenge_method = _.get(
+          plugin.config,
+          "pkce.code_challenge_method",
+          "S256"
+        );
+        code_challenge = create_code_challenge(
+          code_verifier,
+          code_challenge_method
+        );
+      }
+
+      const state_id = uuidv4();
+      const statePointerPayload = {
+        state_id,
+      };
+
+      const statePayload = {
         request_uri: parentReqInfo.uri,
         aud: configAudMD5,
         csrf: plugin.server.utils.generate_csrf_id(),
@@ -880,20 +1347,45 @@ class BaseOauthPlugin extends BasePlugin {
           },
         },
         request_is_xhr,
+        nonce,
+        nonce_ttl: _.get(plugin.config, "nonce.ttl", DEFAULT_NONCE_TTL),
+        features: {
+          fetch_userinfo: _.get(
+            plugin.config,
+            "features.fetch_userinfo",
+            false
+          ),
+        },
+        code_verifier,
+        issuer: {
+          // add this in case of client-side flows
+          token_endpoint: issuer.token_endpoint,
+          userinfo_endpoint: issuer.userinfo_endpoint,
+          jwks_uri: issuer.jwks_uri,
+        },
+        client: {
+          client_id: client.client_id,
+        },
+        authorization_redirect_uri,
       };
-      const stateToken = jwt.sign(payload, issuer_sign_secret);
+
+      // persist state
+      await plugin.save_state(state_id, statePayload);
+
+      const stateToken = jwt.sign(statePointerPayload, issuer_sign_secret);
       const state = plugin.server.utils.encrypt(
         issuer_encrypt_secret,
         stateToken,
         "hex"
       );
 
-      const url = await plugin.get_authorization_url(
-        req,
-        parentReqInfo,
-        authorization_redirect_uri,
-        state
-      );
+      const url = await plugin.get_authorization_url(req, parentReqInfo, {
+        redirect_uri: authorization_redirect_uri,
+        state,
+        nonce,
+        code_challenge,
+        code_challenge_method,
+      });
 
       plugin.server.logger.verbose("callback redirect_uri: %s", url);
 
@@ -901,11 +1393,7 @@ class BaseOauthPlugin extends BasePlugin {
         case 401:
           res.setHeader(
             "WWW-Authenticate",
-            'Bearer realm="' +
-              url +
-              ', scope="' +
-              plugin.config.scopes.join(" ") +
-              '"'
+            'Bearer realm="' + url + '", scope="' + plugin.get_scope() + '"'
           );
         default:
           if (plugin.config.csrf_cookie.enabled) {
@@ -913,7 +1401,7 @@ class BaseOauthPlugin extends BasePlugin {
               STATE_CSRF_COOKIE_NAME,
               plugin.server.utils.encrypt(
                 plugin.server.secrets.cookie_encrypt_secret,
-                payload.csrf
+                statePayload.csrf
               ),
               {
                 /**
@@ -1088,6 +1576,7 @@ class BaseOauthPlugin extends BasePlugin {
       const redirectHttpCode = req.query.redirect_http_code
         ? req.query.redirect_http_code
         : 302;
+
       plugin.server.logger.verbose("decoded state: %j", state);
 
       const configAudMD5 = configToken.audMD5;
@@ -1122,17 +1611,9 @@ class BaseOauthPlugin extends BasePlugin {
         }
       }
 
-      plugin.server.logger.verbose("begin token fetch with authorization code");
-
-      const compare_redirect_uri = plugin.get_authorization_redirect_uri(
-        state.request_uri
-      );
-      plugin.server.logger.verbose(
-        "compare_redirect_uri: %s",
-        compare_redirect_uri
-      );
-
+      let tokenSet;
       let realRedirectUri;
+      let clientProvidedTokenSet = false;
       if (
         plugin.config.xhr.use_referer_as_redirect_uri &&
         state.request_is_xhr &&
@@ -1143,29 +1624,71 @@ class BaseOauthPlugin extends BasePlugin {
         realRedirectUri = state.request_uri;
       }
 
-      let tokenSet;
-      try {
-        tokenSet = await plugin.authorization_code_callback(
-          req,
-          parentReqInfo,
-          compare_redirect_uri
-        );
-      } catch (e) {
-        plugin.server.logger.verbose("failed to retrieve tokens");
-        plugin.server.logger.error(e);
-        if (plugin.is_redirectable_error(e)) {
+      if (parentReqInfo.parsedQuery.error) {
+        plugin.server.logger.verbose("failed to authenticate");
+        plugin.server.logger.error(parentReqInfo.parsedQuery);
+        if (plugin.is_redirectable_error(parentReqInfo.parsedQuery)) {
           res.statusCode = redirectHttpCode;
           res.setHeader("Location", realRedirectUri);
           return res;
         }
 
-        if (plugin.is_unauthorized_error(e)) {
+        if (plugin.is_unauthorized_error(parentReqInfo.parsedQuery)) {
           res.statusCode = 403;
           return res;
         }
 
         res.statusCode = 503;
         return res;
+      } else if (parentReqInfo.parsedQuery.code) {
+        // authorization_code flow
+        plugin.server.logger.verbose(
+          "begin token fetch with authorization code"
+        );
+
+        const compare_redirect_uri = plugin.get_authorization_redirect_uri(
+          state.request_uri
+        );
+        plugin.server.logger.verbose(
+          "compare_redirect_uri: %s",
+          compare_redirect_uri
+        );
+
+        try {
+          tokenSet = await plugin.authorization_code_callback(
+            req,
+            parentReqInfo,
+            compare_redirect_uri,
+            state.nonce,
+            state.code_verifier
+          );
+        } catch (e) {
+          plugin.server.logger.verbose("failed to retrieve tokens");
+          plugin.server.logger.error(e);
+          if (plugin.is_redirectable_error(e)) {
+            res.statusCode = redirectHttpCode;
+            res.setHeader("Location", realRedirectUri);
+            return res;
+          }
+
+          if (plugin.is_unauthorized_error(e)) {
+            res.statusCode = 403;
+            return res;
+          }
+
+          res.statusCode = 503;
+          return res;
+        }
+      } else {
+        // client side tokens retrieved
+        let nonceData = await plugin.get_nonce(state.nonce);
+        if (nonceData.tokenSet) {
+          tokenSet = new TokenSet(nonceData.tokenSet);
+          clientProvidedTokenSet = true;
+        } else {
+          res.statusCode = 503;
+          return res;
+        }
       }
 
       plugin.server.logger.verbose("received and validated tokens");
@@ -1177,6 +1700,13 @@ class BaseOauthPlugin extends BasePlugin {
         return res;
       }
 
+      // TODO: must verify the id_token here as it cannot be trusted otherwise
+      // currently this is left to the user by enabling assertions.sig.enabled
+      if (clientProvidedTokenSet && !tokenSet.id_token) {
+        //jwt.verify(tokenSet.id_token, "foo");
+        // TODO: in case of failure return what statusCode? 403
+      }
+
       /**
        * only id_token is guaranteed to be a jwt
        */
@@ -1184,6 +1714,32 @@ class BaseOauthPlugin extends BasePlugin {
 
       if (tokenSet.id_token) {
         idToken = jwt.decode(tokenSet.id_token);
+      }
+
+      let nonceData;
+      if (
+        pluginStrategy == PLUGIN_STRATEGY_OIDC &&
+        _.get(plugin.config, "nonce.enabled", false)
+      ) {
+        if (!idToken.nonce) {
+          plugin.server.logger.verbose("missing nonce claim");
+          res.statusCode = 503;
+          return res;
+        } else {
+          nonceData = await plugin.get_nonce(idToken.nonce);
+          if (!nonceData) {
+            plugin.server.logger.verbose(
+              "missing nonce data, expired or invalid nonce"
+            );
+            res.statusCode = 503;
+            return res;
+          }
+        }
+      }
+
+      // failsafe delete regardless of settings
+      if (idToken && idToken.nonce) {
+        await plugin.delete_nonce(idToken.nonce);
       }
 
       //TODO: see if expires_at is access_token or refresh_token, adjust logic accordingly
@@ -1226,20 +1782,32 @@ class BaseOauthPlugin extends BasePlugin {
         iat: Math.floor(Date.now() / 1000),
         tokenSet,
         aud: configAudMD5,
+        clientProvidedTokenSet,
       };
 
       let userinfo;
       if (plugin.config.features.fetch_userinfo) {
-        userinfo = await plugin.get_userinfo(tokenSet);
+        // TODO: support clientProvidedUserinfo here
+        if (clientProvidedTokenSet) {
+          userinfo = {
+            iat: Math.floor(Date.now() / 1000),
+            data: nonceData.userinfo,
+          };
+        } else {
+          userinfo = await plugin.get_userinfo(tokenSet);
+        }
         plugin.server.logger.verbose("userinfo %j", userinfo);
         if (userinfo && userinfo.data) {
           sessionPayload.userinfo = userinfo;
         }
       }
 
-      if (plugin.config.assertions.userinfo) {
+      if (
+        plugin.config.assertions.userinfo &&
+        plugin.config.assertions.userinfo.length > 0
+      ) {
         const userinfoValid = await plugin.userinfo_assertions(
-          sessionPayload.userinfo.data
+          _.get(sessionPayload, "userinfo.data")
         );
         if (!userinfoValid) {
           res.statusCode = 403;
@@ -1336,19 +1904,39 @@ class BaseOauthPlugin extends BasePlugin {
       case "logout":
         return handle_logout_callback_request(req, res, parentReqInfo);
       case "authorization_callback":
-        const state = plugin.server.utils.decrypt(
+        const statePointerToken = plugin.server.utils.decrypt(
           issuer_encrypt_secret,
           parentReqInfo.parsedQuery.state,
           "hex"
         );
-        const decodedState = jwt.verify(state, issuer_sign_secret);
-        return handle_auth_callback_request(
+        const decodedStatePointer = jwt.verify(
+          statePointerToken,
+          issuer_sign_secret
+        );
+        plugin.server.logger.verbose(
+          "decocded state pointer: %s",
+          JSON.stringify(decodedStatePointer)
+        );
+        const statePayload = await plugin.get_state(
+          decodedStatePointer.state_id
+        );
+
+        let returnPromise = handle_auth_callback_request(
           configToken,
           req,
           res,
-          decodedState,
+          statePayload,
           parentReqInfo
         );
+
+        // TODO: maybe only delete this after success?
+        returnPromise.finally(async () => {
+          try {
+            await plugin.delete_state(decodedStatePointer.state_id);
+          } catch (err) {}
+        });
+
+        return returnPromise;
 
       case "verify":
       default:
@@ -1536,9 +2124,12 @@ class BaseOauthPlugin extends BasePlugin {
                 sessionPayload.userinfo = userinfo;
               }
 
-              if (plugin.config.assertions.userinfo) {
+              if (
+                plugin.config.assertions.userinfo &&
+                plugin.config.assertions.userinfo.length > 0
+              ) {
                 const userinfoValid = await plugin.userinfo_assertions(
-                  sessionPayload.userinfo.data
+                  _.get(sessionPayload, "userinfo.data")
                 );
                 if (!userinfoValid) {
                   return respond_to_failed_authorization();
@@ -1612,9 +2203,12 @@ class BaseOauthPlugin extends BasePlugin {
           }
 
           // run assertions on userinfo
-          if (plugin.config.assertions.userinfo) {
+          if (
+            plugin.config.assertions.userinfo &&
+            plugin.config.assertions.userinfo.length > 0
+          ) {
             const userinfoValid = await plugin.userinfo_assertions(
-              sessionPayload.userinfo.data
+              _.get(sessionPayload, "userinfo.data")
             );
             if (!userinfoValid) {
               plugin.server.logger.verbose("userinfo failed assertions");
@@ -1854,52 +2448,46 @@ class BaseOauthPlugin extends BasePlugin {
     return introspectionPayload;
   }
 
-  async get_state(state_id) {
-    const plugin = this;
-    const store = plugin.server.store;
-    plugin.server.logger.verbose("retrieving state: %s", state_id);
-
-    const encryptedState = await store.get(STATE_CACHE_PREFIX + state_id);
-
-    plugin.server.logger.verbose(
-      "retrieved encrypted state content: %s",
-      encryptedState
-    );
-
-    if (!encryptedState) {
-      plugin.server.logger.verbose("failed to decrypt state");
-      return false;
+  async save_state(state_id, payload, ttl = null) {
+    if (!ttl) {
+      ttl = STATE_CACHE_EXPIRY;
     }
 
-    let statePayload = plugin.server.utils.decrypt(
-      plugin.server.secrets.session_encrypt_secret,
-      encryptedState
-    );
-    plugin.server.logger.debug("state data: %s", statePayload);
-    statePayload = JSON.parse(statePayload);
-
-    return statePayload;
-  }
-
-  async save_state(state_id, payload, ttl = null) {
-    const plugin = this;
-    const store = plugin.server.store;
-
-    await store.set(
+    return STORE_HELPER.save(
+      "state",
       STATE_CACHE_PREFIX + state_id,
-      plugin.server.utils.encrypt(
-        plugin.server.secrets.session_encrypt_secret,
-        JSON.stringify(payload)
-      ),
+      payload,
       ttl
     );
   }
 
+  async get_state(state_id) {
+    return STORE_HELPER.get("state", STATE_CACHE_PREFIX + state_id);
+  }
+
   async delete_state(state_id) {
-    const plugin = this;
-    const store = plugin.server.store;
     if (state_id) {
-      await store.del(STATE_CACHE_PREFIX + state_id);
+      await STORE_HELPER.delete("state", STATE_CACHE_PREFIX + state_id);
+    }
+  }
+
+  async save_nonce(nonce, payload, ttl = null) {
+    const plugin = this;
+
+    if (!ttl) {
+      ttl = _.get(plugin.config, "nonce.ttl", DEFAULT_NONCE_TTL);
+    }
+
+    return STORE_HELPER.save("nonce", NONCE_CACHE_PREFIX + nonce, payload, ttl);
+  }
+
+  async get_nonce(nonce) {
+    return STORE_HELPER.get("nonce", NONCE_CACHE_PREFIX + nonce);
+  }
+
+  async delete_nonce(nonce) {
+    if (nonce) {
+      await STORE_HELPER.delete("nonce", NONCE_CACHE_PREFIX + nonce);
     }
   }
 
@@ -2065,20 +2653,24 @@ class BaseOauthPlugin extends BasePlugin {
     const issuer = await plugin.get_issuer();
     const client = await plugin.get_client();
 
-    const pluginStrategy =
-      plugin.constructor.name == "OpenIdConnectPlugin" ? "oidc" : "oauth2";
-    const PLUGIN_STRATEGY_OAUTH = "oauth";
-    const PLUGIN_STRATEGY_OIDC = "oidc";
+    const pluginStrategy = plugin.get_plugin_strategy();
+
+    let idToken;
+    if (pluginStrategy == PLUGIN_STRATEGY_OIDC && tokenSet.id_token) {
+      idToken = jwt.decode(tokenSet.id_token);
+    }
 
     /**
      * token aud is the client_id
      */
     if (
       pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-      plugin.config.assertions.aud &&
-      idToken.aud != plugin.config.client.client_id
+      plugin.config.assertions.aud
     ) {
-      return false;
+      if (!tokenset_audience_match(tokenSet, plugin.config.client.client_id)) {
+        plugin.server.logger.verbose("tokenSet audience mismatch");
+        return false;
+      }
     }
 
     /**
@@ -2103,8 +2695,8 @@ class BaseOauthPlugin extends BasePlugin {
      */
     if (
       plugin.config.assertions.exp &&
-      tokenset_is_expired(tokenSet) &&
       plugin.config.features.refresh_access_token &&
+      tokenset_is_expired(tokenSet) &&
       !tokenset_can_refresh(tokenSet)
     ) {
       plugin.server.logger.verbose(
@@ -2170,10 +2762,9 @@ class BaseOauthPlugin extends BasePlugin {
 
     if (
       pluginStrategy == PLUGIN_STRATEGY_OIDC &&
-      plugin.config.assertions.id_token
+      plugin.config.assertions.id_token &&
+      plugin.config.assertions.id_token.length > 0
     ) {
-      let idToken;
-      idToken = jwt.decode(tokenSet.id_token);
       let idTokenValid = await plugin.id_token_assertions(idToken);
       if (!idTokenValid) {
         return false;
@@ -2188,6 +2779,23 @@ class BaseOauthPlugin extends BasePlugin {
       accessToken = jwt.decode(tokenSet.access_token);
       let accessTokenValid = await plugin.access_token_assertions(accessToken);
       if (!accessTokenValid) {
+        return false;
+      }
+    }
+
+    if (
+      pluginStrategy == PLUGIN_STRATEGY_OIDC &&
+      _.get(plugin.config, "assertions.sig.enabled", false)
+    ) {
+      plugin.server.logger.debug("verifying id_token signature");
+
+      let secret = _.get(plugin.config, "assertions.sig.secret", issuer.jwks_uri);
+
+      try {
+        // resolves to decoded token, if fails will go into catch
+        await tokenset_signature_is_trusted(tokenSet, secret);
+      } catch (err) {
+        plugin.server.logger.verbose(`id_token signature check failed: ${err}`);
         return false;
       }
     }
@@ -2276,24 +2884,31 @@ class BaseOauthPlugin extends BasePlugin {
     return client;
   }
 
-  async get_authorization_url(
-    req,
-    parentReqInfo,
-    authorization_redirect_uri,
-    state
-  ) {
+  async get_authorization_url(req, parentReqInfo, params = {}) {
     const plugin = this;
     const client = await plugin.get_client();
 
-    const url = client.authorizationUrl({
+    //response_mode=fragment
+    const response_mode = plugin.config.response_mode;
+    const response_type = plugin.get_response_type();
+    const scope = plugin.get_scope();
+
+    const url_input = {
       ...handlebars_template_properties(
         plugin.config.custom_authorization_parameters,
         { parentReqInfo, req }
       ),
-      redirect_uri: authorization_redirect_uri,
-      scope: plugin.config.scopes.join(" "),
-      state: state,
-    });
+      ...params,
+      response_mode,
+      response_type,
+      scope,
+    };
+
+    const url = client.authorizationUrl(url_input);
+
+    if (url_input.nonce) {
+      await plugin.save_nonce(url_input.nonce, { created: Date.now() });
+    }
 
     return url;
   }
@@ -2310,6 +2925,26 @@ class BaseOauthPlugin extends BasePlugin {
         ),
       },
     });
+  }
+
+  get_scopes() {
+    const plugin = this;
+    return _.get(plugin.config, "scopes", []);
+  }
+
+  get_scope() {
+    const plugin = this;
+    return plugin.get_scopes().join(" ");
+  }
+
+  get_response_types() {
+    const plugin = this;
+    return _.get(plugin.config, "response_types", ["code"]);
+  }
+
+  get_response_type() {
+    const plugin = this;
+    return plugin.get_response_types().join(" ");
   }
 }
 
@@ -2329,17 +2964,24 @@ class OauthPlugin extends BaseOauthPlugin {
     super(...arguments);
   }
 
-  async authorization_code_callback(req, parentReqInfo, authorization_redirect_uri) {
+  async authorization_code_callback(
+    req,
+    parentReqInfo,
+    authorization_redirect_uri,
+    nonce,
+    code_verifier
+  ) {
     const plugin = this;
     const client = await plugin.get_client();
-    const response_type = "code";
+    const response_type = plugin.get_response_type();
 
     return client.oauthCallback(
       authorization_redirect_uri,
       parentReqInfo.parsedQuery,
       {
         state: parentReqInfo.parsedQuery.state,
-        nonce: null,
+        //nonce, OIDC only
+        code_verifier,
         response_type,
       },
       {
@@ -2540,17 +3182,24 @@ class OpenIdConnectPlugin extends BaseOauthPlugin {
     super(...arguments);
   }
 
-  async authorization_code_callback(req, parentReqInfo, authorization_redirect_uri) {
+  async authorization_code_callback(
+    req,
+    parentReqInfo,
+    authorization_redirect_uri,
+    nonce,
+    code_verifier
+  ) {
     const plugin = this;
     const client = await plugin.get_client();
-    const response_type = "code";
+    const response_type = plugin.get_response_type();
 
     return client.callback(
       authorization_redirect_uri,
       parentReqInfo.parsedQuery,
       {
         state: parentReqInfo.parsedQuery.state,
-        nonce: null,
+        nonce,
+        code_verifier,
         response_type,
       },
       {

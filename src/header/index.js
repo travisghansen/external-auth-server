@@ -2,6 +2,7 @@ const jp = require("jsonpath");
 const jq = require("node-jq");
 const jwt = require("jsonwebtoken");
 const { logger } = require("../logger");
+const { base64_encode } = require("../utils");
 
 class HeaderInjector {
   constructor(config, data) {
@@ -22,6 +23,23 @@ class HeaderInjector {
         } else {
           value = this.data[headerConfig.source];
         }
+
+        if (typeof value !== "string") {
+          value = JSON.stringify(value);
+        }
+
+        if (headerConfig.encoding) {
+          switch (headerConfig.encoding) {
+            case "base64":
+              value = base64_encode(value);
+              break;
+            default:
+            case "plain":
+              // noop
+              break;
+          }
+        }
+
         this.setHeader(res, headerName, value);
       } catch (e) {
         logger.error("failed setting header: %s error: %s", headerName, e);
@@ -50,7 +68,7 @@ class HeaderInjector {
   async jq_query(headerConfig, data) {
     const options = {
       input: "json",
-      output: "json"
+      output: "json",
     };
 
     const values = await jq.run(headerConfig.query, data, options);
@@ -121,5 +139,5 @@ class HeaderInjector {
 }
 
 module.exports = {
-  HeaderInjector
+  HeaderInjector,
 };

@@ -3,10 +3,11 @@ const { logger } = require("./logger");
 const cacheManager = require("cache-manager");
 const redisStore = require("cache-manager-redis-store");
 const ioredisStore = require("cache-manager-ioredis");
+const YAML = require("yaml");
 
 let cacheOpts = process.env["EAS_STORE_OPTS"];
 if (cacheOpts) {
-  cacheOpts = JSON.parse(cacheOpts);
+  cacheOpts = YAML.parse(cacheOpts);
 } else {
   cacheOpts = {
     store: "memory",
