@@ -736,11 +736,6 @@ grpcServer.addService(
         req.headers = call.request.attributes.request.http.headers; // headers from parent
         req.body = call.request.attributes.request.http.body; // body from parent
         //req.query.redirect_http_code? really only exists to workaround nginx shortcomings, likely not needed here
-        // prefer x-eas-verify-params header from context_extensions if available
-        if (call.request.attributes.context_extensions["x-eas-verify-params"]) {
-          req.headers["x-eas-verify-params"] =
-          call.request.attributes.context_extensions["x-eas-verify-params"];
-        }
 
         // c-based grpc metadata is present at this attribute
         let metadata = _.get(call, "metadata._internal_repr");
@@ -836,33 +831,38 @@ grpcServer.addService(
           throw new Error("unknown request scheme");
         }
 
-        // only detect port if not present in the host
-        if (!call.request.attributes.request.http.host.includes(":")) {
-          switch (scheme) {
-            case "http":
-              // prefer x-forwarded-port if available
-              if (req.headers["x-forwarded-port"] && req.headers["x-forwarded-port"] !== 80) {
-                destination_port = `:${req.headers["x-forwarded-port"]}`;
-              } else if (
-                call.request.attributes.destination.address.socket_address
-                  .port_value !== 80
-              ) {
-                destination_port = `:${call.request.attributes.destination.address.socket_address.port_value}`;
-              }
-              break;
-            case "https":
-              if (req.headers["x-forwarded-port"] && req.headers["x-forwarded-port"] !== 443) {
-                destination_port = `:${req.headers["x-forwarded-port"]}`;
-              } else if (
-                call.request.attributes.destination.address.socket_address
-                  .port_value !== 443
-              ) {
-                destination_port = `:${call.request.attributes.destination.address.socket_address.port_value}`;
-              }
-              break;
-            default:
-              throw new Error("unknown request scheme");
-              break;
+        if (host.includes(":")) {
+          host = host.split(":", 1)[0];
+        }
+
+        // header
+        // by default this CANNOT be trusted
+        //if (!port) {
+        //  port = _.get(req.headers, "x-forwarded-port");
+        //}
+
+        // filter_metadata
+        if (!port) {
+          port = getFilterMetadataValue(filter_metadata, "x-forwarded-port");
+        }
+
+        // initial_metadata
+        if (!port) {
+          port = _.last(_.get(metadata, "x-forwarded-port"));
+        }
+
+        // context
+        if (!port) {
+          port = _.get(
+            call.request.attributes.context_extensions,
+            "x-forwarded-port"
+          );
+        }
+
+        // request host
+        if (!port) {
+          if (call.request.attributes.request.http.host.includes(":")) {
+            port = call.request.attributes.request.http.host.split(":", 2)[1];
           }
         }
 

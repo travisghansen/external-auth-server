@@ -28,7 +28,7 @@ class FileConfigTokenStoreAdapter extends BaseConfigTokenStoreAdapter {
       let token;
       token = data[id];
 
-      return JSON.stringify(token);
+      return typeof token !== "string" ? JSON.stringify(token) : token;
     } catch (e) {
       throw e;
     }
