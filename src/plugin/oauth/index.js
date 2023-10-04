@@ -1511,33 +1511,32 @@ class BaseOauthPlugin extends BasePlugin {
           sessionPayload.tokenSet.id_token
         ) {
           let idToken = jwt.decode(sessionPayload.tokenSet.id_token);
-          // TODO: this check may not be entirely needed/wanted
-          if (idToken.session_state) {
-            const payload = {
-              redirect_uri: redirect_uri,
-              aud: configAudMD5,
-              req: {
-                headers: {
-                  referer: req.headers.referer,
-                },
-              },
-              request_is_xhr,
-            };
-            const stateToken = jwt.sign(payload, issuer_sign_secret);
-            const state = plugin.server.utils.encrypt(
-              issuer_encrypt_secret,
-              stateToken,
-              "hex"
-            );
 
-            redirect_uri = await client.endSessionUrl({
-              id_token_hint: sessionPayload.tokenSet.id_token,
-              post_logout_redirect_uri:
-                plugin.config.features.logout.end_provider_session
-                  .post_logout_redirect_uri,
-              state,
-            });
-          }
+          const payload = {
+            redirect_uri: redirect_uri,
+            aud: configAudMD5,
+            req: {
+              headers: {
+                referer: req.headers.referer,
+              },
+            },
+            request_is_xhr,
+          };
+          const stateToken = jwt.sign(payload, issuer_sign_secret);
+          const state = plugin.server.utils.encrypt(
+            issuer_encrypt_secret,
+            stateToken,
+            "hex"
+          );
+
+          redirect_uri = await client.endSessionUrl({
+            id_token_hint: sessionPayload.tokenSet.id_token,
+            post_logout_redirect_uri:
+              plugin.config.features.logout.end_provider_session
+                .post_logout_redirect_uri,
+            state,
+          });
+          
         }
 
         plugin.server.logger.info("deleting session: %s", session_id);

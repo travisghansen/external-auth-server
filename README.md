@@ -1,5 +1,5 @@
 ![Image](https://img.shields.io/docker/pulls/travisghansen/external-auth-server.svg)
-![Image](https://img.shields.io/github/workflow/status/travisghansen/external-auth-server/CI?style=flat-square)
+![Image](https://img.shields.io/github/actions/workflow/status/travisghansen/external-auth-server/main.yml?branch=master&style=flat-square)
 
 # `external-auth-server`
 
