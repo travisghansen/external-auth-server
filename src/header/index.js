@@ -33,6 +33,9 @@ class HeaderInjector {
             case "base64":
               value = base64_encode(value);
               break;
+            case "uri":
+              value = encodeURIComponent(value);
+              break;
             default:
             case "plain":
               // noop
