@@ -11,6 +11,7 @@ const request = require("request");
 const URI = require("uri-js");
 const utils = require("../../utils");
 const { v4: uuidv4 } = require("uuid");
+const YAML = require("yaml");
 
 custom.setHttpOptionsDefaults({
   followRedirect: false,
@@ -975,7 +976,7 @@ class BaseOauthPlugin extends BasePlugin {
         res.json({});
       });
 
-      server.WebServer.get("/oauth/end-session-redirect", (req, res) => {
+      server.WebServer.get("/oauth/end-session-redirect", async (req, res) => {
         server.logger.silly("%j", {
           headers: req.headers,
           body: req.body,
@@ -989,6 +990,22 @@ class BaseOauthPlugin extends BasePlugin {
             "hex"
           );
           state = jwt.verify(state, issuer_sign_secret);
+          const state_id = state.state_id;
+          state = await STORE_HELPER.get(
+            "state",
+            STATE_CACHE_PREFIX + state_id
+          );
+
+          if (!state) {
+            throw new Error(`invalid state`);
+          }
+
+          STORE_HELPER.delete("state", STATE_CACHE_PREFIX + state_id).catch(
+            () => {
+              // do nothing
+            }
+          );
+
           const redirect_uri = state.redirect_uri;
           server.logger.verbose("state redirect uri: %j", redirect_uri);
 
@@ -1149,7 +1166,7 @@ class BaseOauthPlugin extends BasePlugin {
             let ttl;
             let bc_config;
             if (process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG) {
-              bc_config = JSON.parse(process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG);
+              bc_config = YAML.parse(process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG);
             }
 
             // checked forced values
@@ -1513,7 +1530,19 @@ class BaseOauthPlugin extends BasePlugin {
           let idToken = jwt.decode(sessionPayload.tokenSet.id_token);
           // TODO: this check may not be entirely needed/wanted
           if (idToken.session_state) {
-            const payload = {
+            const state_id = uuidv4();
+            const statePointerPayload = {
+              state_id,
+            };
+
+            /**
+             * This process will have a registered redirect_uri with the OP that should point to
+             * /oauth/end-session-redirect
+             *
+             * upon arrival at that endpoint the state is retrieved to get the real redirect_uri
+             * otherwise state is unused
+             */
+            const statePayload = {
               redirect_uri: redirect_uri,
               aud: configAudMD5,
               req: {
@@ -1523,7 +1552,14 @@ class BaseOauthPlugin extends BasePlugin {
               },
               request_is_xhr,
             };
-            const stateToken = jwt.sign(payload, issuer_sign_secret);
+
+            // persist state
+            await plugin.save_state(state_id, statePayload);
+
+            const stateToken = jwt.sign(
+              statePointerPayload,
+              issuer_sign_secret
+            );
             const state = plugin.server.utils.encrypt(
               issuer_encrypt_secret,
               stateToken,
@@ -1578,6 +1614,12 @@ class BaseOauthPlugin extends BasePlugin {
         : 302;
 
       plugin.server.logger.verbose("decoded state: %j", state);
+
+      if (!state) {
+        plugin.server.logger.verbose("invalid state");
+        res.statusCode = 503;
+        return res;
+      }
 
       const configAudMD5 = configToken.audMD5;
       plugin.server.logger.verbose("audMD5: %s", configAudMD5);
@@ -2073,7 +2115,7 @@ class BaseOauthPlugin extends BasePlugin {
             Date.now() / 1000 > sessionPayload.exp
           ) {
             plugin.server.logger.verbose("session has expired");
-            store.del(SESSION_CACHE_PREFIX + session_id);
+            plugin.delete_session(session_id);
             return respond_to_failed_authorization();
           }
 
@@ -2216,6 +2258,11 @@ class BaseOauthPlugin extends BasePlugin {
             }
           }
 
+          await plugin.prepare_token_headers(res, sessionPayload);
+          await plugin.prepare_authentication_data(res, sessionPayload);
+
+          // TODO: run js assertions here with all authdata etc
+
           let now = Date.now() / 1000;
           if (
             plugin.config.features.session_expiry !== true &&
@@ -2228,9 +2275,6 @@ class BaseOauthPlugin extends BasePlugin {
           ) {
             await plugin.update_session(session_id, sessionPayload);
           }
-
-          await plugin.prepare_token_headers(res, sessionPayload);
-          await plugin.prepare_authentication_data(res, sessionPayload);
           res.statusCode = 200;
           return res;
         } else {
@@ -2255,7 +2299,7 @@ class BaseOauthPlugin extends BasePlugin {
 
     let bc_config;
     if (process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG) {
-      bc_config = JSON.parse(process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG);
+      bc_config = YAML.parse(process.env.EAS_BACKCHANNEL_LOGOUT_CONFIG);
     }
 
     // checked forced values
@@ -2565,6 +2609,22 @@ class BaseOauthPlugin extends BasePlugin {
   }
 
   async prepare_authentication_data(res, sessionData) {
+    let id_token_decoded;
+    let access_token_decoded;
+    let refresh_token_decoded;
+
+    try {
+      id_token_decoded = jwt.decode(sessionData.tokenSet.id_token);
+    } catch {}
+
+    try {
+      access_token_decoded = jwt.decode(sessionData.tokenSet.access_token);
+    } catch {}
+
+    try {
+      refresh_token_decoded = jwt.decode(sessionData.tokenSet.refresh_token);
+    } catch {}
+
     res.setAuthenticationData({
       userinfo:
         sessionData.userinfo && sessionData.userinfo.data
@@ -2574,6 +2634,9 @@ class BaseOauthPlugin extends BasePlugin {
       access_token: sessionData.tokenSet.access_token,
       refresh_token: sessionData.tokenSet.refresh_token,
       token_set: sessionData.tokenSet,
+      id_token_decoded,
+      access_token_decoded,
+      refresh_token_decoded,
     });
   }
 
@@ -2789,7 +2852,11 @@ class BaseOauthPlugin extends BasePlugin {
     ) {
       plugin.server.logger.debug("verifying id_token signature");
 
-      let secret = _.get(plugin.config, "assertions.sig.secret", issuer.jwks_uri);
+      let secret = _.get(
+        plugin.config,
+        "assertions.sig.secret",
+        issuer.jwks_uri
+      );
 
       try {
         // resolves to decoded token, if fails will go into catch
