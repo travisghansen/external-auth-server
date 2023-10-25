@@ -1,3 +1,14 @@
+# 0.13.3
+
+Released 2023-10-25
+
+- support `empty` assertion strategy
+- support encoding headers with `uri` encoding
+- migrate `state` to be stored server-side in more scenarios
+- support assertions/headers based on additional authentication data using
+  decoded values of various tokens `id_token_decoded`, `access_token_decoded` and
+  `refresh_token_decoded`
+
 # 0.13.2
 
 Released 2023-06-27

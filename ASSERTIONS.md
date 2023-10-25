@@ -44,6 +44,7 @@ Valid options for method are:
 - `contains-all` - Similar to `contains` but allows the `value` to be a list of
   items. If **all** of the items in `value` are found in the `query` result then
   the assertion passes. This assumes the `query` is returning a list of values.
+- `empty` - The value is a truthy false, empty, or empty string.
 
 ## examples
 

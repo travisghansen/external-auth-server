@@ -78,6 +78,11 @@ class Assertion {
     let value = await this.query();
     let test;
 
+    // prevent stupid during tests below
+    if (value === null || typeof value === "undefined") {
+      value = "";
+    }
+
     logger.debug("asserting: %j against value: %j", this.config, value);
 
     if (rule.case_insensitive) {
@@ -149,6 +154,9 @@ class Assertion {
 
         test = rule.value.includes(value);
         break;
+      case "empty":
+        test = value.length < 1 ? true : false;
+        break;
       case "regex":
         /**
          * this splits the simple "/pattern/[flags]" syntaxt into something the
@@ -181,5 +189,5 @@ class Assertion {
 }
 
 module.exports = {
-  Assertion
+  Assertion,
 };
