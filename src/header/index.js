@@ -34,6 +34,7 @@ class HeaderInjector {
               value = base64_encode(value);
               break;
             case "uri":
+            case "url":
               value = encodeURIComponent(value);
               break;
             default:
