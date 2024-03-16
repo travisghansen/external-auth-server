@@ -126,11 +126,11 @@ function generate_csrf_id() {
 function toBoolean(input) {
   //return !!(dataStr?.toLowerCase?.() === 'true' || dataStr === true || Number.parseInt(dataStr, 10) === 0);
   //return !!(dataStr?.toLowerCase?.() === 'true' || dataStr === true);
-  
+
   if (typeof input == "undefined" || input === null) {
     return false;
   }
-  
+
   if (typeof input == "boolean") {
     return input;
   }
@@ -158,7 +158,7 @@ function toBoolean(input) {
 
 function is_jwt(jwtString) {
   const re = new RegExp(
-    /^[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$/
+    /^[a-zA-Z0-9\-_]+?\.[a-zA-Z0-9\-_]+?\.([a-zA-Z0-9\-_]+)?$/
   );
   return re.test(jwtString);
 }
